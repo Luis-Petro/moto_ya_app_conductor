@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
+import '../../../data/services/location_service.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -21,7 +22,10 @@ class AltaConductorScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AltaConductorViewModel(locator<ConductorRepository>())..cargar(),
+      create: (_) => AltaConductorViewModel(
+        locator<ConductorRepository>(),
+        locator<LocationService>(),
+      )..cargar(),
       child: const _AltaView(),
     );
   }
@@ -78,7 +82,7 @@ class _AltaViewState extends State<_AltaView> {
       maxWidth: 1600,
     );
     if (foto == null || !mounted) return;
-    final ok = await vm.subirDocumento(File(foto.path), tipo: 'LICENCIA');
+    final ok = await vm.subirDocumento(File(foto.path));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(ok ? 'Documento subido' : (vm.error ?? 'Error'))),

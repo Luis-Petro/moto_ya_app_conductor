@@ -41,9 +41,13 @@ class Env {
     defaultValue: false,
   );
 
-  /// Habilita la integración con Firebase Cloud Messaging.
+  /// Habilita la integración con Firebase Cloud Messaging. Activo por defecto:
+  /// si falta `google-services.json`/`GoogleService-Info.plist`, la
+  /// inicialización falla con gracia (try/catch) y la app opera sin push (el
+  /// Inicio sondea ofertas como respaldo). El backend además requiere
+  /// `FCM_CREDENTIALS_PATH` para poder enviar.
   static const bool fcmEnabled = bool.fromEnvironment(
     'FCM_ENABLED',
-    defaultValue: false,
+    defaultValue: true,
   );
 }

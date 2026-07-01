@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -36,6 +38,13 @@ class InicioViewModel extends ChangeNotifier {
   int pedidosHoy = 0;
   DateTime? _enLineaDesde;
 
+  /// Oferta de pedido cercano detectada por sondeo (fallback sin push FCM).
+  Pedido? ofertaActual;
+  Timer? _pollOfertas;
+
+  /// Cada cuánto se sondean ofertas mientras el conductor está en línea.
+  static const Duration _intervaloOfertas = Duration(seconds: 10);
+
   Conductor? get conductor => _conductores.conductor;
   bool get enLinea => _conductores.enLinea;
   bool get bloqueadoPorDeuda => _conductores.bloqueadoPorDeuda;
@@ -55,7 +64,10 @@ class InicioViewModel extends ChangeNotifier {
     await _conductores.cargar(forzar: true);
     if (enLinea) _enLineaDesde ??= DateTime.now();
     await Future.wait([_resolverUbicacion(), _cargarMetricas(), _cargarUsuario()]);
-    if (enLinea) _iniciarReporte();
+    if (enLinea) {
+      _iniciarReporte();
+      _iniciarPollOfertas();
+    }
     cargando = false;
     notifyListeners();
   }
@@ -112,9 +124,11 @@ class InicioViewModel extends ChangeNotifier {
       if (valor) {
         _enLineaDesde = DateTime.now();
         _iniciarReporte();
+        _iniciarPollOfertas();
       } else {
         _enLineaDesde = null;
         _reporter.stop();
+        _detenerPollOfertas();
       }
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
@@ -131,9 +145,41 @@ class InicioViewModel extends ChangeNotifier {
     });
   }
 
+  void _iniciarPollOfertas() {
+    _pollOfertas?.cancel();
+    _sondearOfertas(); // primer sondeo inmediato
+    _pollOfertas = Timer.periodic(_intervaloOfertas, (_) => _sondearOfertas());
+  }
+
+  Future<void> _sondearOfertas() async {
+    if (!enLinea || bloqueadoPorDeuda) return;
+    final res = await _pedidos.ofertas();
+    final lista = res.valueOrNull;
+    if (lista == null) return;
+    final nueva = lista.isEmpty ? null : lista.first;
+    // Solo notifica si cambió (evita rebuilds/avisos repetidos por el mismo pedido).
+    if (nueva?.id != ofertaActual?.id) {
+      ofertaActual = nueva;
+      notifyListeners();
+    }
+  }
+
+  void _detenerPollOfertas() {
+    _pollOfertas?.cancel();
+    _pollOfertas = null;
+    ofertaActual = null;
+  }
+
+  /// Descarta la oferta mostrada (p. ej. tras abrirla) sin detener el sondeo.
+  void descartarOferta() {
+    ofertaActual = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _reporter.stop();
+    _pollOfertas?.cancel();
     super.dispose();
   }
 }

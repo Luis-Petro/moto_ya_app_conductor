@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+
+import '../../router.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
@@ -48,6 +51,10 @@ class _InicioView extends StatelessWidget {
                 children: [
                   _Header(vm: vm),
                   const SizedBox(height: AppSpacing.lg),
+                  if (vm.ofertaActual != null) ...[
+                    _OfertaBanner(vm: vm),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   _ToggleEnLinea(vm: vm),
                   const SizedBox(height: AppSpacing.lg),
                   _Ganancias(vm: vm),
@@ -94,6 +101,44 @@ class _Header extends StatelessWidget {
         ),
         const Icon(Icons.notifications_none_rounded, color: AppColors.inkMuted),
       ],
+    );
+  }
+}
+
+class _OfertaBanner extends StatelessWidget {
+  const _OfertaBanner({required this.vm});
+  final InicioViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final oferta = vm.ofertaActual!;
+    return MotoCard(
+      color: AppColors.primarySurface,
+      borderColor: AppColors.primary,
+      onTap: () {
+        context.push(Rutas.pedidoEntrante(oferta.id));
+        vm.descartarOferta();
+      },
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active_rounded, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('¡Nuevo pedido cerca!',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  '${oferta.categoria.label} · sugerido ${Formato.moneda(oferta.tarifaSugerida)}',
+                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
+        ],
+      ),
     );
   }
 }

@@ -17,15 +17,24 @@ class ConductorService {
     return _api.get<Conductor>('/conductores/me', parse: ApiMappers.conductor);
   }
 
-  /// Alta del perfil de conductor.
+  /// Alta del perfil de conductor. El backend exige `lat`/`lng` (ubicación
+  /// inicial): sin ellas el conductor quedaría en (0,0) y el matching por
+  /// cercanía nunca lo encontraría.
   Future<Result<Conductor>> crearPerfil({
     required String licencia,
     required String vehiculo,
     required String placa,
+    required LatLng ubicacion,
   }) {
     return _api.post<Conductor>(
       '/conductores',
-      body: {'licencia': licencia, 'vehiculo': vehiculo, 'placa': placa},
+      body: {
+        'licencia': licencia,
+        'vehiculo': vehiculo,
+        'placa': placa,
+        'lat': ubicacion.latitude,
+        'lng': ubicacion.longitude,
+      },
       parse: ApiMappers.conductor,
     );
   }
@@ -51,12 +60,12 @@ class ConductorService {
     );
   }
 
-  /// Sube un documento (licencia/vehículo) a R2 vía multipart.
-  Future<Result<Conductor>> subirDocumento(MultipartFile archivo, {String? tipo}) {
-    return _api.postMultipart<Conductor>(
+  /// Sube un documento a R2. El backend espera el campo multipart `file` y
+  /// devuelve `{url}` (no el perfil), por eso no se parsea como Conductor.
+  Future<Result<void>> subirDocumento(MultipartFile archivo) {
+    return _api.postMultipart<void>(
       '/conductores/me/documentos',
-      fields: {'archivo': archivo, if (tipo != null) 'tipo': tipo},
-      parse: ApiMappers.conductor,
+      fields: {'file': archivo},
     );
   }
 }

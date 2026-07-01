@@ -18,9 +18,10 @@ class PedidoService {
     return _api.get<Pedido>('/pedidos/$pedidoId', parse: ApiMappers.pedido);
   }
 
-  /// Historial de pedidos del conductor autenticado.
-  Future<Result<List<Pedido>>> mios() {
-    return _api.get<List<Pedido>>('/pedidos/mios', parse: ApiMappers.pedidos);
+  /// Historial de pedidos asignados al conductor autenticado.
+  /// (`/pedidos/mios` es solo para CLIENTE; el conductor usa `/pedidos/asignados`.)
+  Future<Result<List<Pedido>>> asignados() {
+    return _api.get<List<Pedido>>('/pedidos/asignados', parse: ApiMappers.pedidos);
   }
 
   /// Envía una propuesta: sin `valor` (o igual a la sugerida) acepta; con un
@@ -35,29 +36,48 @@ class PedidoService {
 
   /// Avanza el estado del pedido (EN_COMPRA → EN_CAMINO). El backend valida la
   /// transición y responde 409 si no es permitida.
-  Future<Result<Pedido>> cambiarEstado(int pedidoId, String estadoWire) {
-    return _api.patch<Pedido>(
-      '/pedidos/$pedidoId/estado',
+  /// Avanza el estado del pedido (EN_COMPRA → EN_CAMINO → ENTREGADO). El backend
+  /// valida la transición y responde 409 si no es permitida.
+  /// Contrato real: `POST /pedidos/{id}/avanzar` con body `{estado}`.
+  Future<Result<Pedido>> avanzarEstado(int pedidoId, String estadoWire) {
+    return _api.post<Pedido>(
+      '/pedidos/$pedidoId/avanzar',
       body: {'estado': estadoWire},
       parse: ApiMappers.pedido,
     );
   }
 
-  /// Marca el pedido como entregado con evidencia opcional (foto + coordenadas).
-  /// La entrega dispara la comisión en el backend (idempotente).
-  Future<Result<Pedido>> entregar(
+  /// Registra la evidencia de entrega (foto opcional + coordenadas) vía
+  /// `POST /pedidos/{id}/evidencia` (multipart). Es independiente del avance de
+  /// estado a ENTREGADO (ver [avanzarEstado]).
+  Future<Result<void>> registrarEvidencia(
     int pedidoId, {
     MultipartFile? foto,
     LatLng? coordenadas,
   }) {
-    return _api.postMultipart<Pedido>(
-      '/pedidos/$pedidoId/entregar',
+    return _api.postMultipart<void>(
+      '/pedidos/$pedidoId/evidencia',
       fields: {
         if (foto != null) 'foto': foto,
         if (coordenadas != null) 'lat': coordenadas.latitude,
         if (coordenadas != null) 'lng': coordenadas.longitude,
       },
-      parse: ApiMappers.pedido,
     );
+  }
+
+  /// Publica la posición del conductor durante el pedido activo vía REST
+  /// `POST /pedidos/{id}/posicion` (el backend la retransmite por STOMP al
+  /// cliente en `/topic/pedido/{id}`).
+  Future<Result<void>> reportarPosicion(int pedidoId, LatLng punto) {
+    return _api.post<void>(
+      '/pedidos/$pedidoId/posicion',
+      body: {'lat': punto.latitude, 'lng': punto.longitude},
+    );
+  }
+
+  /// Ofertas de pedidos cercanos disponibles para el conductor en línea
+  /// (fallback de sondeo cuando el push FCM no está disponible).
+  Future<Result<List<Pedido>>> ofertas() {
+    return _api.get<List<Pedido>>('/pedidos/ofertas', parse: ApiMappers.pedidos);
   }
 }

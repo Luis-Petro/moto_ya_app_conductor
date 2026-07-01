@@ -37,16 +37,19 @@ class ConductorRepository extends ChangeNotifier {
     required String licencia,
     required String vehiculo,
     required String placa,
+    required LatLng ubicacion,
   }) async {
     final res = await _service.crearPerfil(
-        licencia: licencia, vehiculo: vehiculo, placa: placa);
+        licencia: licencia, vehiculo: vehiculo, placa: placa, ubicacion: ubicacion);
     _guardarSiOk(res);
     return res;
   }
 
-  Future<Result<Conductor>> subirDocumento(MultipartFile archivo, {String? tipo}) async {
-    final res = await _service.subirDocumento(archivo, tipo: tipo);
-    _guardarSiOk(res);
+  /// Sube un documento y refresca el perfil (el endpoint devuelve `{url}`, no el
+  /// conductor, así que recargamos para reflejar `documentoUrl`).
+  Future<Result<void>> subirDocumento(MultipartFile archivo) async {
+    final res = await _service.subirDocumento(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
     return res;
   }
 

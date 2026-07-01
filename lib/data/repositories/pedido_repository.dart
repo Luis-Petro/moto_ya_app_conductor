@@ -16,25 +16,38 @@ class PedidoRepository {
 
   Future<Result<Pedido>> detalle(int pedidoId) => _service.detalle(pedidoId);
 
-  Future<Result<List<Pedido>>> mios() => _service.mios();
+  /// Pedidos asignados al conductor (historial/ingresos).
+  Future<Result<List<Pedido>>> mios() => _service.asignados();
 
   Future<Result<PropuestaTarifa>> proponer(int pedidoId, {double? valor}) =>
       _service.proponer(pedidoId, valor: valor);
 
   Future<Result<Pedido>> avanzar(int pedidoId, EstadoPedido destino) =>
-      _service.cambiarEstado(pedidoId, destino.wire);
+      _service.avanzarEstado(pedidoId, destino.wire);
 
+  /// Ofertas de pedidos cercanos para el conductor en línea (fallback de sondeo).
+  Future<Result<List<Pedido>>> ofertas() => _service.ofertas();
+
+  Future<Result<void>> reportarPosicion(int pedidoId, LatLng punto) =>
+      _service.reportarPosicion(pedidoId, punto);
+
+  /// Marca entregado: primero sube la evidencia (si hay) y luego avanza el
+  /// estado a ENTREGADO (la comisión se genera en el backend en ese paso).
   Future<Result<Pedido>> entregar(
     int pedidoId, {
     MultipartFile? foto,
     LatLng? coordenadas,
-  }) =>
-      _service.entregar(pedidoId, foto: foto, coordenadas: coordenadas);
+  }) async {
+    if (foto != null || coordenadas != null) {
+      await _service.registrarEvidencia(pedidoId, foto: foto, coordenadas: coordenadas);
+    }
+    return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire);
+  }
 
   /// Deriva el pedido activo del conductor (último no terminado) desde el
   /// historial — no hay endpoint dedicado (design Q4).
   Future<Pedido?> pedidoActivo() async {
-    final res = await _service.mios();
+    final res = await _service.asignados();
     if (res case Ok<List<Pedido>>(value: final lista)) {
       for (final p in lista) {
         if (p.estado.estaActivo && p.tieneConductor) return p;

@@ -89,7 +89,8 @@ class PedidoActivoViewModel extends ChangeNotifier {
   void _publicarPosicion() {
     _reporter.start((punto) {
       posicion = punto;
-      _tracking.publicarPosicion(pedidoId, punto.latitude, punto.longitude);
+      // REST es el canal real: el backend retransmite por STOMP al cliente.
+      _pedidos.reportarPosicion(pedidoId, punto);
       notifyListeners();
     });
   }

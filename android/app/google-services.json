@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "12348624682",
+    "project_id": "moto-ya-85b42",
+    "storage_bucket": "moto-ya-85b42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:12348624682:android:7f66c146192053b2945853",
+        "android_client_info": {
+          "package_name": "co.motoya.conductor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsVxGSB6zCsyGXPpXrS2zxPOQ7tkOULYA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

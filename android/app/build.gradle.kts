@@ -5,6 +5,14 @@
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Google Services (FCM) se aplica SOLO si existe google-services.json
+// (package_name = co.motoya.conductor). Así el build sigue funcionando sin FCM
+// —igual que el resto del proyecto, donde el push es opcional— y se activa en
+// cuanto se coloca el archivo en android/app/.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "co.motoya.app_cliente"
     compileSdk = flutter.compileSdkVersion

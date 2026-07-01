@@ -1,0 +1,79 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancela corridas anteriores del mismo ref si llega un nuevo push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.32.0"
+  NDK_VERSION: "26.3.11579264"
+  # Host del backend desplegado; sobreescribible como variable del repo (vars.API_BASE_URL).
+  API_BASE_URL: ${{ vars.API_BASE_URL || 'https://motoya-motoyabackend-bnisvv-62ac9d-149-130-180-30.sslip.io/Api' }}
+
+jobs:
+  analyze-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true # cachea el SDK de Flutter
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  build-apk:
+    name: Build APK
+    needs: analyze-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle # cachea ~/.gradle según los archivos gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true # cachea el SDK de Flutter y el pub-cache
+
+      # El NDK pesa cientos de MB y es lo que más tardaba en instalarse.
+      # Resolvemos su ruta real (el contexto `env.*` no ve las variables del runner).
+      - name: Resolver ruta del NDK
+        run: echo "NDK_DIR=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      # En cache-miss, `flutter build` instala el NDK en esa ruta y el caché lo
+      # guarda al final del job; en cache-hit se restaura y se omite la descarga.
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NDK_DIR }}
+          key: ${{ runner.os }}-ndk-${{ env.NDK_VERSION }}
+
+      - run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motoya-conductor-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30

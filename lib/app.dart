@@ -32,13 +32,17 @@ class _MotoYaConductorAppState extends State<MotoYaConductorApp> {
     final push = locator<PushService>();
     void abrir(PushMensaje m) {
       if (!_auth.estaAutenticado) return;
-      // Bloqueo por deuda → billetera; pedido nuevo/avances → tarjeta entrante.
+      // Bloqueo por deuda → billetera.
       if (m.tipo == 'BLOQUEO_DEUDA' || m.tipo == 'BLOQUEADO_POR_DEUDA') {
         _router.go(Rutas.billetera);
         return;
       }
-      if (m.pedidoId != null) {
+      if (m.pedidoId == null) return;
+      // Pedido nuevo → tarjeta de oferta; aceptación/avances → pedido activo.
+      if (m.tipo == 'PEDIDO_NUEVO') {
         _router.push(Rutas.pedidoEntrante(m.pedidoId!));
+      } else {
+        _router.push(Rutas.pedidoActivo(m.pedidoId!));
       }
     }
 

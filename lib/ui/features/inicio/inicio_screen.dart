@@ -51,7 +51,11 @@ class _InicioView extends StatelessWidget {
                 children: [
                   _Header(vm: vm),
                   const SizedBox(height: AppSpacing.lg),
-                  if (vm.ofertaActual != null) ...[
+                  if (vm.pedidoActivo != null) ...[
+                    _ActivoBanner(vm: vm),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  if (vm.ofertaActual != null && vm.pedidoActivo == null) ...[
                     _OfertaBanner(vm: vm),
                     const SizedBox(height: AppSpacing.lg),
                   ],
@@ -101,6 +105,46 @@ class _Header extends StatelessWidget {
         ),
         const Icon(Icons.notifications_none_rounded, color: AppColors.inkMuted),
       ],
+    );
+  }
+}
+
+class _ActivoBanner extends StatelessWidget {
+  const _ActivoBanner({required this.vm});
+  final InicioViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = vm.pedidoActivo!;
+    return MotoCard(
+      color: AppColors.accent,
+      onTap: () async {
+        await context.push(Rutas.pedidoActivo(p.id));
+        await vm.refrescar();
+      },
+      child: Row(
+        children: [
+          const Icon(Icons.navigation_rounded, color: Colors.white),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Pedido en curso',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w800)),
+                Text(
+                  '${p.categoria.label} · ${p.estado.label}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const Text('Continuar',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          const Icon(Icons.chevron_right_rounded, color: Colors.white),
+        ],
+      ),
     );
   }
 }

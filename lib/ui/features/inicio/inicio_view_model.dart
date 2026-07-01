@@ -12,8 +12,9 @@ import '../../../domain/models/conductor.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 
-/// Estado del Inicio del conductor: disponibilidad, métricas del día, ubicación
-/// y reporte de posición mientras está en línea.
+/// Estado del Inicio del conductor: disponibilidad, métricas del día, ubicación,
+/// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
+/// activo en curso.
 class InicioViewModel extends ChangeNotifier {
   InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios)
       : _reporter = LocationReporter();
@@ -40,10 +41,15 @@ class InicioViewModel extends ChangeNotifier {
 
   /// Oferta de pedido cercano detectada por sondeo (fallback sin push FCM).
   Pedido? ofertaActual;
-  Timer? _pollOfertas;
 
-  /// Cada cuánto se sondean ofertas mientras el conductor está en línea.
-  static const Duration _intervaloOfertas = Duration(seconds: 10);
+  /// Pedido en curso asignado al conductor (ACEPTADO/EN_COMPRA/EN_CAMINO): se
+  /// muestra siempre para que pueda continuar el flujo aunque no llegue push.
+  Pedido? pedidoActivo;
+
+  Timer? _poll;
+
+  /// Cada cuánto se sondean ofertas y el pedido activo mientras el Inicio vive.
+  static const Duration _intervaloPoll = Duration(seconds: 10);
 
   Conductor? get conductor => _conductores.conductor;
   bool get enLinea => _conductores.enLinea;
@@ -64,10 +70,9 @@ class InicioViewModel extends ChangeNotifier {
     await _conductores.cargar(forzar: true);
     if (enLinea) _enLineaDesde ??= DateTime.now();
     await Future.wait([_resolverUbicacion(), _cargarMetricas(), _cargarUsuario()]);
-    if (enLinea) {
-      _iniciarReporte();
-      _iniciarPollOfertas();
-    }
+    pedidoActivo = await _pedidos.pedidoActivo();
+    if (enLinea) _reporter.start(_onPosicion);
+    _iniciarPoll();
     cargando = false;
     notifyListeners();
   }
@@ -123,12 +128,11 @@ class InicioViewModel extends ChangeNotifier {
     if (ok) {
       if (valor) {
         _enLineaDesde = DateTime.now();
-        _iniciarReporte();
-        _iniciarPollOfertas();
+        _reporter.start(_onPosicion);
       } else {
         _enLineaDesde = null;
         _reporter.stop();
-        _detenerPollOfertas();
+        ofertaActual = null; // fuera de línea no se ofrecen pedidos
       }
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
@@ -137,37 +141,47 @@ class InicioViewModel extends ChangeNotifier {
     return ok;
   }
 
-  void _iniciarReporte() {
-    _reporter.start((punto) {
-      ubicacion = punto;
-      _conductores.reportarUbicacion(punto);
+  void _onPosicion(LatLng punto) {
+    ubicacion = punto;
+    _conductores.reportarUbicacion(punto);
+    notifyListeners();
+  }
+
+  void _iniciarPoll() {
+    _poll?.cancel();
+    _tick();
+    _poll = Timer.periodic(_intervaloPoll, (_) => _tick());
+  }
+
+  /// Un tick del sondeo: refresca el pedido activo SIEMPRE (para dar visibilidad
+  /// del pedido en curso) y las ofertas solo si está en línea y sin bloqueo.
+  Future<void> _tick() async {
+    final activo = await _pedidos.pedidoActivo();
+    if (activo?.id != pedidoActivo?.id) {
+      pedidoActivo = activo;
       notifyListeners();
-    });
-  }
-
-  void _iniciarPollOfertas() {
-    _pollOfertas?.cancel();
-    _sondearOfertas(); // primer sondeo inmediato
-    _pollOfertas = Timer.periodic(_intervaloOfertas, (_) => _sondearOfertas());
-  }
-
-  Future<void> _sondearOfertas() async {
-    if (!enLinea || bloqueadoPorDeuda) return;
-    final res = await _pedidos.ofertas();
-    final lista = res.valueOrNull;
-    if (lista == null) return;
-    final nueva = lista.isEmpty ? null : lista.first;
-    // Solo notifica si cambió (evita rebuilds/avisos repetidos por el mismo pedido).
-    if (nueva?.id != ofertaActual?.id) {
-      ofertaActual = nueva;
+    }
+    if (enLinea && !bloqueadoPorDeuda) {
+      final res = await _pedidos.ofertas();
+      final lista = res.valueOrNull;
+      if (lista != null) {
+        final nueva = lista.isEmpty ? null : lista.first;
+        if (nueva?.id != ofertaActual?.id) {
+          ofertaActual = nueva;
+          notifyListeners();
+        }
+      }
+    } else if (ofertaActual != null) {
+      ofertaActual = null;
       notifyListeners();
     }
   }
 
-  void _detenerPollOfertas() {
-    _pollOfertas?.cancel();
-    _pollOfertas = null;
-    ofertaActual = null;
+  /// Fuerza un refresco (p. ej. al volver de la pantalla del pedido activo).
+  Future<void> refrescar() async {
+    await _conductores.cargar(forzar: true);
+    await _cargarMetricas();
+    await _tick();
   }
 
   /// Descarta la oferta mostrada (p. ej. tras abrirla) sin detener el sondeo.
@@ -179,7 +193,7 @@ class InicioViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _reporter.stop();
-    _pollOfertas?.cancel();
+    _poll?.cancel();
     super.dispose();
   }
 }

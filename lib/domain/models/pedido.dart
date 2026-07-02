@@ -28,6 +28,9 @@ class Pedido {
     this.entregadoEn,
     this.clienteNombre,
     this.clienteTelefono,
+    this.distanciaEstimadaMetros,
+    this.duracionEstimadaSegundos,
+    this.rutaPolyline,
   });
 
   final int id;
@@ -65,6 +68,16 @@ class Pedido {
   /// venir en el detalle del pedido para el conductor asignado.
   final String? clienteNombre;
   final String? clienteTelefono;
+
+  // ── Ruta estimada recogida→entrega (ORS, calculada al crear el pedido) ──
+  /// Distancia del trayecto en metros (null si ORS no respondió).
+  final double? distanciaEstimadaMetros;
+
+  /// Duración estimada del trayecto en segundos (null si ORS no respondió).
+  final double? duracionEstimadaSegundos;
+
+  /// Polilínea codificada (Google, precisión 5) del trayecto recogida→entrega.
+  final String? rutaPolyline;
 
   bool get tieneConductor => conductorId != null;
 

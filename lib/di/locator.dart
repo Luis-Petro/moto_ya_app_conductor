@@ -11,6 +11,7 @@ import '../data/services/billetera_service.dart';
 import '../data/services/conductor_service.dart';
 import '../data/services/location_service.dart';
 import '../data/services/notificacion_service.dart';
+import '../data/services/ofertas_service.dart';
 import '../data/services/pedido_service.dart';
 import '../data/services/push_service.dart';
 import '../data/services/session_storage.dart';
@@ -37,6 +38,7 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => BilleteraService(locator()));
   locator.registerLazySingleton(() => NotificacionService(locator()));
   locator.registerLazySingleton(() => TrackingService(locator()));
+  locator.registerLazySingleton(() => OfertasService(locator()));
 
   // ── Repositories (fuente de verdad, modelos de dominio) ──
   locator.registerLazySingleton(() => AuthRepository(

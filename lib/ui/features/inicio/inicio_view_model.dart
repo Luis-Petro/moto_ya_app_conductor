@@ -8,6 +8,7 @@ import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_reporter.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/ofertas_service.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
@@ -16,13 +17,14 @@ import '../../../domain/models/pedido.dart';
 /// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
 /// activo en curso.
 class InicioViewModel extends ChangeNotifier {
-  InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios)
+  InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas)
       : _reporter = LocationReporter();
 
   final ConductorRepository _conductores;
   final PedidoRepository _pedidos;
   final LocationService _location;
   final UsuarioRepository _usuarios;
+  final OfertasService _ofertas;
   final LocationReporter _reporter;
 
   bool cargando = true;
@@ -47,11 +49,19 @@ class InicioViewModel extends ChangeNotifier {
   Pedido? pedidoActivo;
 
   Timer? _poll;
+  StreamSubscription<int>? _ofertaSub;
+  bool _pollLento = false;
 
-  /// Cada cuánto se sondean ofertas y el pedido activo mientras el Inicio vive.
-  static const Duration _intervaloPoll = Duration(seconds: 10);
+  /// Sondeo de respaldo cuando el canal STOMP de ofertas está caído: intervalo
+  /// corto para no perder ofertas.
+  static const Duration _pollSinStomp = Duration(seconds: 10);
+
+  /// Sondeo relajado cuando STOMP está vivo (llega la oferta en ~0s por STOMP;
+  /// esto es solo una red de seguridad).
+  static const Duration _pollConStomp = Duration(seconds: 30);
 
   Conductor? get conductor => _conductores.conductor;
+  String? get fotoUrl => conductor?.fotoUrl;
   bool get enLinea => _conductores.enLinea;
   bool get bloqueadoPorDeuda => _conductores.bloqueadoPorDeuda;
   double? get calificacion => conductor?.calificacion;
@@ -72,9 +82,18 @@ class InicioViewModel extends ChangeNotifier {
     await Future.wait([_resolverUbicacion(), _cargarMetricas(), _cargarUsuario()]);
     pedidoActivo = await _pedidos.pedidoActivo();
     if (enLinea) _reporter.start(_onPosicion);
+    // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
+    _ofertaSub ??= _ofertas.connect().listen(_onOfertaStomp);
     _iniciarPoll();
     cargando = false;
     notifyListeners();
+  }
+
+  /// Oferta recibida por STOMP: revalida de inmediato contra `/pedidos/ofertas`
+  /// (para descartar ofertas ya tomadas y aplicar el filtro de cercanía) en vez
+  /// de confiar a ciegas en el id empujado.
+  void _onOfertaStomp(int pedidoId) {
+    if (enLinea && !bloqueadoPorDeuda) _tick();
   }
 
   Future<void> _resolverUbicacion() async {
@@ -149,8 +168,9 @@ class InicioViewModel extends ChangeNotifier {
 
   void _iniciarPoll() {
     _poll?.cancel();
+    _pollLento = _ofertas.conectado;
     _tick();
-    _poll = Timer.periodic(_intervaloPoll, (_) => _tick());
+    _poll = Timer.periodic(_pollLento ? _pollConStomp : _pollSinStomp, (_) => _tick());
   }
 
   /// Un tick del sondeo: refresca el pedido activo SIEMPRE (para dar visibilidad
@@ -175,6 +195,8 @@ class InicioViewModel extends ChangeNotifier {
       ofertaActual = null;
       notifyListeners();
     }
+    // Ajusta el ritmo del sondeo si el canal STOMP cambió de estado (subió/cayó).
+    if (_pollLento != _ofertas.conectado) _iniciarPoll();
   }
 
   /// Fuerza un refresco (p. ej. al volver de la pantalla del pedido activo).
@@ -194,6 +216,8 @@ class InicioViewModel extends ChangeNotifier {
   void dispose() {
     _reporter.stop();
     _poll?.cancel();
+    _ofertaSub?.cancel();
+    _ofertas.disconnect();
     super.dispose();
   }
 }

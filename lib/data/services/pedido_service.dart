@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../domain/models/calificacion.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
 import '../models/api_mappers.dart';
@@ -18,10 +19,29 @@ class PedidoService {
     return _api.get<Pedido>('/pedidos/$pedidoId', parse: ApiMappers.pedido);
   }
 
+  /// Calificación que el conductor recibió en un pedido (`/mi-calificacion`):
+  /// devuelve la calificación o `null` (204) si aún no lo calificaron.
+  Future<Result<Calificacion?>> miCalificacion(int pedidoId) {
+    return _api.get<Calificacion?>('/pedidos/$pedidoId/mi-calificacion', parse: (data) {
+      if (data == null || (data is String && data.isEmpty)) return null;
+      return ApiMappers.calificacion(data);
+    });
+  }
+
   /// Historial de pedidos asignados al conductor autenticado.
   /// (`/pedidos/mios` es solo para CLIENTE; el conductor usa `/pedidos/asignados`.)
   Future<Result<List<Pedido>>> asignados() {
     return _api.get<List<Pedido>>('/pedidos/asignados', parse: ApiMappers.pedidos);
+  }
+
+  /// Pedido en curso del conductor (endpoint ligero `/pedidos/activo`): devuelve
+  /// un solo pedido o `null` (204). Evita descargar todo el historial en cada
+  /// tick del sondeo.
+  Future<Result<Pedido?>> activo() {
+    return _api.get<Pedido?>('/pedidos/activo', parse: (data) {
+      if (data == null || (data is String && data.isEmpty)) return null;
+      return ApiMappers.pedido(data);
+    });
   }
 
   /// Envía una propuesta: sin `valor` (o igual a la sugerida) acepta; con un

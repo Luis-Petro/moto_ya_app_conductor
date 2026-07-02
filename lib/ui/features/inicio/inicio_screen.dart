@@ -10,6 +10,7 @@ import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/ofertas_service.dart';
 import '../../../di/locator.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
@@ -30,6 +31,7 @@ class InicioScreen extends StatelessWidget {
         locator<PedidoRepository>(),
         locator<LocationService>(),
         locator<UsuarioRepository>(),
+        locator<OfertasService>(),
       )..cargar(),
       child: const _InicioView(),
     );
@@ -80,7 +82,7 @@ class _Header extends StatelessWidget {
     final rating = vm.calificacion;
     return Row(
       children: [
-        InitialsAvatar(initials: vm.iniciales, radius: 22),
+        InitialsAvatar(initials: vm.iniciales, imageUrl: vm.fotoUrl, radius: 22),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
@@ -291,7 +293,7 @@ class _Ganancias extends StatelessWidget {
               _Metrica(valor: '${vm.pedidosHoy}', etiqueta: 'pedidos'),
               _Metrica(valor: tiempo, etiqueta: 'en línea'),
               _Metrica(
-                  valor: acept != null ? '${(acept * 100).round()}%' : '—',
+                  valor: acept != null ? '${acept.round()}%' : '—',
                   etiqueta: 'aceptación'),
             ],
           ),

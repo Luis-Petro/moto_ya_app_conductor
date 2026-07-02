@@ -76,26 +76,33 @@ class BrandWordmark extends StatelessWidget {
   }
 }
 
-/// Avatar circular con iniciales (estilo mocks).
+/// Avatar circular con iniciales (estilo mocks). Si se le pasa [imageUrl],
+/// muestra la foto y cae a las iniciales mientras carga o si falla.
 class InitialsAvatar extends StatelessWidget {
   const InitialsAvatar({
     super.key,
     required this.initials,
+    this.imageUrl,
     this.radius = 18,
     this.background = AppColors.primarySurface,
     this.foreground = AppColors.primary,
   });
 
   final String initials;
+  final String? imageUrl;
   final double radius;
   final Color background;
   final Color foreground;
 
   @override
   Widget build(BuildContext context) {
+    final tieneFoto = imageUrl != null && imageUrl!.trim().isNotEmpty;
     return CircleAvatar(
       radius: radius,
       backgroundColor: background,
+      foregroundImage: tieneFoto ? NetworkImage(imageUrl!) : null,
+      // Se muestra si no hay foto o si la carga falla (onBackgroundImageError
+      // no es necesario: el child es el fallback natural del CircleAvatar).
       child: Text(
         initials,
         style: TextStyle(

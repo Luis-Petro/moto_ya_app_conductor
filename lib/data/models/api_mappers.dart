@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/billetera.dart';
+import '../../domain/models/calificacion.dart';
 import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/estado_pedido.dart';
@@ -108,6 +109,9 @@ class ApiMappers {
       entregadoEn: _date(m['entregadoEn']),
       clienteNombre: m['clienteNombre'] as String?,
       clienteTelefono: m['clienteTelefono'] as String?,
+      distanciaEstimadaMetros: _double(m['distanciaEstimadaMetros']),
+      duracionEstimadaSegundos: _double(m['duracionEstimadaSegundos']),
+      rutaPolyline: m['rutaPolyline'] as String?,
     );
   }
 
@@ -129,6 +133,15 @@ class ApiMappers {
 
   static List<PropuestaTarifa> propuestas(dynamic json) =>
       (json as List).map(propuesta).toList();
+
+  static Calificacion calificacion(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return Calificacion(
+      puntaje: _int(m['puntaje']) ?? 0,
+      comentario: m['comentario'] as String?,
+      creadoEn: _date(m['creadoEn']),
+    );
+  }
 
   static ReputacionConductor reputacion(dynamic json) {
     final m = json as Map<String, dynamic>;

@@ -29,4 +29,22 @@ class Formato {
     if (fecha == null) return '';
     return _fechaHora.format(fecha.toLocal());
   }
+
+  /// Distancia legible: metros si <1 km, si no km con un decimal (es_CO).
+  static String distancia(num? metros) {
+    if (metros == null) return '—';
+    if (metros < 1000) return '${metros.round()} m';
+    final km = metros / 1000;
+    return '${km.toStringAsFixed(1).replaceAll('.', ',')} km';
+  }
+
+  /// Duración legible a partir de segundos: "X min" o "Xh Ym".
+  static String duracion(num? segundos) {
+    if (segundos == null) return '—';
+    final min = (segundos / 60).round();
+    if (min < 60) return '$min min';
+    final h = min ~/ 60;
+    final m = min % 60;
+    return m > 0 ? '${h}h ${m}min' : '${h}h';
+  }
 }

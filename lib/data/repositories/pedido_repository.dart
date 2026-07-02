@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../domain/models/calificacion.dart';
 import '../../domain/models/estado_pedido.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
@@ -15,6 +16,13 @@ class PedidoRepository {
   final PedidoService _service;
 
   Future<Result<Pedido>> detalle(int pedidoId) => _service.detalle(pedidoId);
+
+  /// Calificación recibida por el conductor en un pedido (o `null` si no lo han
+  /// calificado todavía).
+  Future<Calificacion?> calificacionRecibida(int pedidoId) async {
+    final res = await _service.miCalificacion(pedidoId);
+    return res.valueOrNull;
+  }
 
   /// Pedidos asignados al conductor (historial/ingresos).
   Future<Result<List<Pedido>>> mios() => _service.asignados();
@@ -44,14 +52,14 @@ class PedidoRepository {
     return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire);
   }
 
-  /// Deriva el pedido activo del conductor (último no terminado) desde el
-  /// historial — no hay endpoint dedicado (design Q4).
+  /// Pedido activo del conductor (último no terminado) vía el endpoint ligero
+  /// `/pedidos/activo`: transfiere un solo pedido o vacío por tick, en lugar de
+  /// todo el historial. Si el pedido devuelto ya no tiene conductor asignado
+  /// (caso límite), se descarta.
   Future<Pedido?> pedidoActivo() async {
-    final res = await _service.asignados();
-    if (res case Ok<List<Pedido>>(value: final lista)) {
-      for (final p in lista) {
-        if (p.estado.estaActivo && p.tieneConductor) return p;
-      }
+    final res = await _service.activo();
+    if (res case Ok<Pedido?>(value: final p)) {
+      if (p != null && p.estado.estaActivo && p.tieneConductor) return p;
     }
     return null;
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/repositories/auth_repository.dart';
+import '../domain/models/pedido.dart';
 import 'features/alta_conductor/alta_conductor_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/otp_screen.dart';
@@ -12,6 +13,7 @@ import 'features/historial/historial_screen.dart';
 import 'features/inicio/inicio_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/pedido_activo/pedido_activo_screen.dart';
+import 'features/pedido_detalle/pedido_detalle_screen.dart';
 import 'features/pedido_entrante/pedido_entrante_screen.dart';
 import 'features/perfil/perfil_screen.dart';
 import 'features/shell/conductor_shell.dart';
@@ -33,6 +35,7 @@ abstract class Rutas {
 
   static String pedidoEntrante(int pedidoId) => '/pedido/$pedidoId/entrante';
   static String pedidoActivo(int pedidoId) => '/pedido/$pedidoId/activo';
+  static String pedidoDetalle(int pedidoId) => '/pedido/$pedidoId/detalle';
 }
 
 /// Rutas públicas (de acceso) en las que un usuario autenticado no debe estar.
@@ -125,6 +128,14 @@ GoRouter crearRouter(AuthRepository auth) {
         parentNavigatorKey: rootKey,
         builder: (_, state) =>
             PedidoActivoScreen(pedidoId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/pedido/:id/detalle',
+        parentNavigatorKey: rootKey,
+        builder: (_, state) => PedidoDetalleScreen(
+          pedidoId: int.parse(state.pathParameters['id']!),
+          inicial: state.extra is Pedido ? state.extra as Pedido : null,
+        ),
       ),
     ],
   );

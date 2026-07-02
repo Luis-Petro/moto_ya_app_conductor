@@ -48,6 +48,12 @@ class _MotoYaConductorAppState extends State<MotoYaConductorApp> {
 
     push.onMensajeAbierto = abrir;
     push.onMensajeForeground = (m) {
+      // Un pedido nuevo es urgente (timer de 30s): navega directo a la oferta en
+      // vez de un SnackBar fácil de ignorar.
+      if (m.tipo == 'PEDIDO_NUEVO' && m.pedidoId != null) {
+        abrir(m);
+        return;
+      }
       final ctx = _router.routerDelegate.navigatorKey.currentContext;
       if (ctx == null) return;
       ScaffoldMessenger.of(ctx).showSnackBar(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
@@ -10,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../router.dart';
 import 'historial_view_model.dart';
 
 class HistorialScreen extends StatelessWidget {
@@ -93,7 +95,7 @@ class _Reputacion extends StatelessWidget {
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: _MetricaCard(
-            valor: acept != null ? '${(acept * 100).round()}%' : '—',
+            valor: acept != null ? '${acept.round()}%' : '—',
             etiqueta: 'Aceptación',
           ),
         ),
@@ -215,10 +217,14 @@ class _PedidoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ganancia = Pedido.gananciaNeta(pedido.tarifaFinal ?? pedido.tarifaSugerida ?? 0);
+    final fecha = Formato.fechaHora(pedido.entregadoEn ?? pedido.creadoEn);
+    final dist = pedido.distanciaEstimadaMetros;
+    final subtitulo = dist != null ? '$fecha · ${Formato.distancia(dist)}' : fecha;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: MotoCard(
         padding: const EdgeInsets.all(AppSpacing.md),
+        onTap: () => context.push(Rutas.pedidoDetalle(pedido.id), extra: pedido),
         child: Row(
           children: [
             CircleAvatar(
@@ -237,7 +243,7 @@ class _PedidoTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(Formato.fechaHora(pedido.entregadoEn),
+                  Text(subtitulo,
                       style: const TextStyle(
                           color: AppColors.inkMuted, fontSize: 12)),
                 ],
@@ -246,6 +252,7 @@ class _PedidoTile extends StatelessWidget {
             Text('+${Formato.moneda(ganancia)}',
                 style: const TextStyle(
                     color: AppColors.success, fontWeight: FontWeight.w800)),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.inkMuted),
           ],
         ),
       ),

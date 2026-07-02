@@ -37,6 +37,8 @@ jobs:
     name: Build APK
     needs: analyze-test
     runs-on: ubuntu-latest
+    # Da acceso a los secrets del entorno `prod` (ADMIN_EMAIL/ADMIN_PASSWORD).
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 

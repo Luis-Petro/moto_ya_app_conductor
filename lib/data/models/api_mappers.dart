@@ -47,6 +47,7 @@ class ApiMappers {
       vehiculo: m['vehiculo'] as String?,
       placa: m['placa'] as String?,
       documentoUrl: m['documentoUrl'] as String?,
+      fotoUrl: m['fotoUrl'] as String?,
       enLinea: (m['enLinea'] as bool?) ?? false,
       ubicacion: _latLng(m['ubicacionLat'], m['ubicacionLng']),
       ultimaConexion: _date(m['ultimaConexion']),

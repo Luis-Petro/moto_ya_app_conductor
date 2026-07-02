@@ -68,4 +68,12 @@ class ConductorService {
       fields: {'file': archivo},
     );
   }
+
+  /// Sube la foto de perfil a R2 (campo multipart `file`, respuesta `{url}`).
+  Future<Result<void>> subirFoto(MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/conductores/me/foto',
+      fields: {'file': archivo},
+    );
+  }
 }

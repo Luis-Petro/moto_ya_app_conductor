@@ -53,6 +53,13 @@ class ConductorRepository extends ChangeNotifier {
     return res;
   }
 
+  /// Sube la foto de perfil y refresca (el endpoint devuelve `{url}`, no el perfil).
+  Future<Result<void>> subirFoto(MultipartFile archivo) async {
+    final res = await _service.subirFoto(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
+    return res;
+  }
+
   Future<Result<Conductor>> cambiarEnLinea(bool enLinea, {LatLng? ubicacion}) async {
     final res = await _service.cambiarEnLinea(enLinea, ubicacion: ubicacion);
     _guardarSiOk(res);

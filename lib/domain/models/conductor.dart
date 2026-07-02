@@ -28,6 +28,7 @@ class Conductor {
     this.vehiculo,
     this.placa,
     this.documentoUrl,
+    this.fotoUrl,
     this.enLinea = false,
     this.ubicacion,
     this.ultimaConexion,
@@ -45,6 +46,7 @@ class Conductor {
   final String? vehiculo;
   final String? placa;
   final String? documentoUrl;
+  final String? fotoUrl;
   final bool enLinea;
   final LatLng? ubicacion;
   final DateTime? ultimaConexion;
@@ -78,6 +80,7 @@ class Conductor {
       vehiculo: vehiculo,
       placa: placa,
       documentoUrl: documentoUrl,
+      fotoUrl: fotoUrl,
       enLinea: enLinea ?? this.enLinea,
       ubicacion: ubicacion ?? this.ubicacion,
       ultimaConexion: ultimaConexion,

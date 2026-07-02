@@ -67,6 +67,16 @@ class _PerfilViewState extends State<_PerfilView> {
     );
   }
 
+  Future<void> _cambiarFoto(PerfilViewModel vm) async {
+    final ok = await vm.cambiarFoto();
+    if (ok == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(
+              ok ? 'Foto actualizada' : (vm.error ?? 'No se pudo subir la foto'))),
+    );
+  }
+
   Future<void> _confirmarSalir(PerfilViewModel vm) async {
     final salir = await showDialog<bool>(
       context: context,
@@ -114,14 +124,56 @@ class _PerfilViewState extends State<_PerfilView> {
                     padding: const EdgeInsets.all(AppSpacing.xl),
                     children: [
                       Center(
-                          child: InitialsAvatar(
-                              initials: vm.usuario!.iniciales, radius: 40)),
-                      const SizedBox(height: AppSpacing.md),
+                        child: GestureDetector(
+                          onTap: vm.subiendoFoto ? null : () => _cambiarFoto(vm),
+                          child: _FotoPerfil(
+                            fotoUrl: conductor?.fotoUrl,
+                            iniciales: vm.usuario!.iniciales,
+                            cargando: vm.subiendoFoto,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed:
+                              vm.subiendoFoto ? null : () => _cambiarFoto(vm),
+                          icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                          label: Text(conductor?.fotoUrl != null
+                              ? 'Cambiar foto'
+                              : 'Agregar foto'),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
                       Center(
                         child: Text(vm.usuario!.nombre,
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.w800)),
                       ),
+                      if (conductor?.calificacion != null) ...[
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded,
+                                  size: 18, color: AppColors.primary),
+                              const SizedBox(width: 2),
+                              Text(
+                                conductor!.calificacion!.toStringAsFixed(1),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                              if (conductor.tasaAceptacion != null)
+                                Text(
+                                  '  ·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% aceptación',
+                                  style: const TextStyle(
+                                      color: AppColors.inkMuted, fontSize: 13),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppSpacing.xl),
                       _Campo(
                           label: 'Nombre',
@@ -201,6 +253,59 @@ class _PerfilViewState extends State<_PerfilView> {
                     ],
                   ),
       ),
+    );
+  }
+}
+
+/// Avatar de perfil del conductor: foto real (si existe) o iniciales, con una
+/// insignia de cámara y overlay de carga mientras se sube.
+class _FotoPerfil extends StatelessWidget {
+  const _FotoPerfil({
+    required this.iniciales,
+    this.fotoUrl,
+    this.cargando = false,
+  });
+  final String iniciales;
+  final String? fotoUrl;
+  final bool cargando;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        if (fotoUrl != null && fotoUrl!.isNotEmpty)
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: AppColors.primarySurface,
+            backgroundImage: NetworkImage(fotoUrl!),
+          )
+        else
+          InitialsAvatar(initials: iniciales, radius: 40),
+        if (cargando)
+          const CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.black45,
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            ),
+          ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child:
+                const Icon(Icons.photo_camera, size: 16, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }

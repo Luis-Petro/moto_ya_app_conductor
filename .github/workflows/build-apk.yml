@@ -77,3 +77,35 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Publica el APK en el panel admin (sube a R2 vía /admin/releases).
+      # Requiere los secrets ADMIN_EMAIL y ADMIN_PASSWORD (usuario ADMINISTRADOR).
+      # Se omite en pull_request y si no hay credenciales configuradas.
+      - name: Publicar APK en el panel admin
+        if: github.event_name != 'pull_request'
+        env:
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$ADMIN_PASSWORD" ]; then
+            echo "Sin ADMIN_EMAIL/ADMIN_PASSWORD; se omite la publicación en el panel."
+            exit 0
+          fi
+          VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
+          NOTAS="CI · commit ${GITHUB_SHA::7} · build #${GITHUB_RUN_NUMBER}"
+          echo "Autenticando en $API_BASE_URL ..."
+          TOKEN=$(curl -fsS -X POST "$API_BASE_URL/auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" | jq -r '.token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "No se obtuvo token de admin; abortando la publicación."
+            exit 1
+          fi
+          echo "Subiendo APK v$VERSION (CONDUCTOR) al panel ..."
+          curl -fsS -X POST "$API_BASE_URL/admin/releases" \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "app=CONDUCTOR" \
+            -F "version=$VERSION" \
+            -F "notas=$NOTAS" \
+            -F "file=@build/app/outputs/flutter-apk/app-release.apk"
+          echo "APK CONDUCTOR v$VERSION publicado en el panel."

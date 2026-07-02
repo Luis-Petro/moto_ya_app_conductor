@@ -104,10 +104,17 @@ jobs:
             exit 1
           fi
           echo "Subiendo APK v$VERSION (CONDUCTOR) al panel ..."
-          curl -fsS -X POST "$API_BASE_URL/admin/releases" \
+          # Reintenta ante 5xx transitorios: el backend puede estar redesplegando
+          # en Dokploy (502 del proxy). El APK ya quedó como artifact, así que un
+          # fallo persistente de publicación NO tumba el build (solo avisa).
+          if curl -fsS --retry 6 --retry-delay 15 --retry-all-errors --max-time 600 \
+            -X POST "$API_BASE_URL/admin/releases" \
             -H "Authorization: Bearer $TOKEN" \
             -F "app=CONDUCTOR" \
             -F "version=$VERSION" \
             -F "notas=$NOTAS" \
-            -F "file=@build/app/outputs/flutter-apk/app-release.apk"
-          echo "APK CONDUCTOR v$VERSION publicado en el panel."
+            -F "file=@build/app/outputs/flutter-apk/app-release.apk"; then
+            echo "APK CONDUCTOR v$VERSION publicado en el panel."
+          else
+            echo "::warning::No se pudo publicar el APK en el panel (posible 502 del proxy o backend redesplegando). El artifact del APK sí quedó disponible."
+          fi

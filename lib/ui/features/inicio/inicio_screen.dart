@@ -53,6 +53,10 @@ class _InicioView extends StatelessWidget {
                 children: [
                   _Header(vm: vm),
                   const SizedBox(height: AppSpacing.lg),
+                  if (vm.enRevision || vm.rechazado) ...[
+                    _RevisionBanner(vm: vm),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   if (vm.pedidoActivo != null) ...[
                     _ActivoBanner(vm: vm),
                     const SizedBox(height: AppSpacing.lg),
@@ -196,16 +200,18 @@ class _ToggleEnLinea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bloqueado = vm.bloqueadoPorDeuda;
+    final noHabilitado = !vm.habilitado && !bloqueado; // en revisión / rechazado
+    final deshabilitado = bloqueado || noHabilitado;
     final enLinea = vm.enLinea;
-    final color = bloqueado
+    final color = deshabilitado
         ? AppColors.danger
         : (enLinea ? AppColors.accent : AppColors.inkMuted);
     return MotoCard(
-      color: enLinea && !bloqueado ? AppColors.accent : AppColors.surface,
+      color: enLinea && !deshabilitado ? AppColors.accent : AppColors.surface,
       child: Row(
         children: [
-          Icon(bloqueado ? Icons.lock_outline : Icons.bolt_rounded,
-              color: enLinea && !bloqueado ? Colors.white : color),
+          Icon(deshabilitado ? Icons.lock_outline : Icons.bolt_rounded,
+              color: enLinea && !deshabilitado ? Colors.white : color),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -214,20 +220,24 @@ class _ToggleEnLinea extends StatelessWidget {
                 Text(
                   bloqueado
                       ? 'Bloqueado por deuda'
-                      : (enLinea ? 'En línea' : 'Fuera de línea'),
+                      : noHabilitado
+                          ? 'Cuenta no habilitada'
+                          : (enLinea ? 'En línea' : 'Fuera de línea'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: enLinea && !bloqueado ? Colors.white : AppColors.ink,
+                    color: enLinea && !deshabilitado ? Colors.white : AppColors.ink,
                   ),
                 ),
                 Text(
                   bloqueado
                       ? 'Paga tu deuda para recibir pedidos'
-                      : (enLinea ? 'Recibiendo pedidos' : 'No recibes pedidos'),
+                      : noHabilitado
+                          ? 'En revisión: aún no puedes recibir pedidos'
+                          : (enLinea ? 'Recibiendo pedidos' : 'No recibes pedidos'),
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: enLinea && !bloqueado
+                    color: enLinea && !deshabilitado
                         ? Colors.white70
                         : AppColors.inkMuted,
                   ),
@@ -243,7 +253,7 @@ class _ToggleEnLinea extends StatelessWidget {
               value: enLinea,
               activeColor: Colors.white,
               activeTrackColor: AppColors.success,
-              onChanged: bloqueado
+              onChanged: deshabilitado
                   ? null
                   : (v) async {
                       final ok = await vm.alternarEnLinea(v);
@@ -256,6 +266,46 @@ class _ToggleEnLinea extends StatelessWidget {
                       }
                     },
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso en Inicio cuando la cuenta está en revisión o fue rechazada.
+class _RevisionBanner extends StatelessWidget {
+  const _RevisionBanner({required this.vm});
+  final InicioViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final rechazado = vm.rechazado;
+    return MotoCard(
+      color: rechazado ? AppColors.dangerSurface : AppColors.primarySurface,
+      borderColor: rechazado ? AppColors.danger : AppColors.primary,
+      child: Row(
+        children: [
+          Icon(rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
+              color: rechazado ? AppColors.danger : AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                  rechazado
+                      ? (vm.motivoRechazo?.trim().isNotEmpty ?? false
+                          ? vm.motivoRechazo!
+                          : 'Tus documentos fueron rechazados. Contáctanos para corregirlos.')
+                      : 'Estamos revisando tus documentos. Te habilitaremos para recibir pedidos muy pronto.',
+                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

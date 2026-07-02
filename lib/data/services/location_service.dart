@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -37,13 +39,25 @@ class LocationService {
         return const LocationResult(LocationOutcome.deniedForever);
       }
 
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-      return LocationResult(
-          LocationOutcome.ok, LatLng(pos.latitude, pos.longitude));
+      // Con timeout: el GPS puede tardar mucho (arranque en frío / interiores) y
+      // no debe bloquear el registro. Si expira, cae a la última posición conocida.
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+        return LocationResult(
+            LocationOutcome.ok, LatLng(pos.latitude, pos.longitude));
+      } on TimeoutException {
+        final ultima = await Geolocator.getLastKnownPosition();
+        if (ultima != null) {
+          return LocationResult(
+              LocationOutcome.ok, LatLng(ultima.latitude, ultima.longitude));
+        }
+        return const LocationResult(LocationOutcome.error);
+      }
     } catch (_) {
       return const LocationResult(LocationOutcome.error);
     }

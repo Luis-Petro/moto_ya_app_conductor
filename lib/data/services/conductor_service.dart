@@ -76,4 +76,20 @@ class ConductorService {
       fields: {'file': archivo},
     );
   }
+
+  /// Sube la cédula (obligatoria para que el admin habilite la cuenta).
+  Future<Result<void>> subirCedula(MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/conductores/me/cedula',
+      fields: {'file': archivo},
+    );
+  }
+
+  /// Sube los papeles de la moto (opcionales).
+  Future<Result<void>> subirPapelesMoto(MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/conductores/me/papeles-moto',
+      fields: {'file': archivo},
+    );
+  }
 }

@@ -60,6 +60,20 @@ class ConductorRepository extends ChangeNotifier {
     return res;
   }
 
+  /// Sube la cédula (obligatoria) y refresca el perfil.
+  Future<Result<void>> subirCedula(MultipartFile archivo) async {
+    final res = await _service.subirCedula(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
+    return res;
+  }
+
+  /// Sube los papeles de la moto (opcionales) y refresca el perfil.
+  Future<Result<void>> subirPapelesMoto(MultipartFile archivo) async {
+    final res = await _service.subirPapelesMoto(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
+    return res;
+  }
+
   Future<Result<Conductor>> cambiarEnLinea(bool enLinea, {LatLng? ubicacion}) async {
     final res = await _service.cambiarEnLinea(enLinea, ubicacion: ubicacion);
     _guardarSiOk(res);

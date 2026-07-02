@@ -2,8 +2,10 @@ import 'package:latlong2/latlong.dart';
 
 /// Estado operativo del conductor (espejo del enum backend `EstadoConductor`).
 enum EstadoConductor {
+  pendienteVerificacion('PENDIENTE_VERIFICACION'),
   activo('ACTIVO'),
-  bloqueadoPorDeuda('BLOQUEADO_POR_DEUDA');
+  bloqueadoPorDeuda('BLOQUEADO_POR_DEUDA'),
+  rechazado('RECHAZADO');
 
   const EstadoConductor(this.wire);
 
@@ -12,11 +14,18 @@ enum EstadoConductor {
   static EstadoConductor fromWire(String? value) {
     return EstadoConductor.values.firstWhere(
       (e) => e.wire == value,
-      orElse: () => EstadoConductor.activo,
+      orElse: () => EstadoConductor.pendienteVerificacion,
     );
   }
 
   bool get bloqueado => this == EstadoConductor.bloqueadoPorDeuda;
+
+  /// Cuenta aún no habilitada por el admin (pendiente o rechazada): no opera.
+  bool get enRevision => this == EstadoConductor.pendienteVerificacion;
+  bool get rechazadoPorAdmin => this == EstadoConductor.rechazado;
+
+  /// Único estado que puede ponerse en línea y recibir pedidos.
+  bool get habilitado => this == EstadoConductor.activo;
 }
 
 /// Perfil de conductor (espejo de la entidad backend `Conductor`).
@@ -29,6 +38,8 @@ class Conductor {
     this.placa,
     this.documentoUrl,
     this.fotoUrl,
+    this.cedulaUrl,
+    this.papelesMotoUrl,
     this.enLinea = false,
     this.ubicacion,
     this.ultimaConexion,
@@ -37,7 +48,8 @@ class Conductor {
     this.tasaAceptacion,
     this.tasaCancelacion,
     this.tiempoRespuestaSeg,
-    this.estado = EstadoConductor.activo,
+    this.estado = EstadoConductor.pendienteVerificacion,
+    this.motivoRechazo,
   });
 
   final int id;
@@ -47,6 +59,8 @@ class Conductor {
   final String? placa;
   final String? documentoUrl;
   final String? fotoUrl;
+  final String? cedulaUrl;
+  final String? papelesMotoUrl;
   final bool enLinea;
   final LatLng? ubicacion;
   final DateTime? ultimaConexion;
@@ -56,6 +70,7 @@ class Conductor {
   final double? tasaCancelacion;
   final int? tiempoRespuestaSeg;
   final EstadoConductor estado;
+  final String? motivoRechazo;
 
   /// El perfil tiene los datos mínimos para operar (matching lo exige).
   bool get perfilCompleto =>
@@ -64,6 +79,12 @@ class Conductor {
       (placa?.trim().isNotEmpty ?? false);
 
   bool get bloqueadoPorDeuda => estado.bloqueado;
+
+  /// La cuenta aún no está habilitada para recibir pedidos.
+  bool get enRevision => estado.enRevision;
+  bool get rechazado => estado.rechazadoPorAdmin;
+  bool get habilitado => estado.habilitado;
+  bool get tieneCedula => cedulaUrl?.trim().isNotEmpty ?? false;
 
   bool get tieneDocumentos => documentoUrl?.trim().isNotEmpty ?? false;
 
@@ -81,6 +102,8 @@ class Conductor {
       placa: placa,
       documentoUrl: documentoUrl,
       fotoUrl: fotoUrl,
+      cedulaUrl: cedulaUrl,
+      papelesMotoUrl: papelesMotoUrl,
       enLinea: enLinea ?? this.enLinea,
       ubicacion: ubicacion ?? this.ubicacion,
       ultimaConexion: ultimaConexion,
@@ -90,6 +113,7 @@ class Conductor {
       tasaCancelacion: tasaCancelacion,
       tiempoRespuestaSeg: tiempoRespuestaSeg,
       estado: estado ?? this.estado,
+      motivoRechazo: motivoRechazo,
     );
   }
 }

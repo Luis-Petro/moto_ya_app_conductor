@@ -49,6 +49,8 @@ class ApiMappers {
       placa: m['placa'] as String?,
       documentoUrl: m['documentoUrl'] as String?,
       fotoUrl: m['fotoUrl'] as String?,
+      cedulaUrl: m['cedulaUrl'] as String?,
+      papelesMotoUrl: m['papelesMotoUrl'] as String?,
       enLinea: (m['enLinea'] as bool?) ?? false,
       ubicacion: _latLng(m['ubicacionLat'], m['ubicacionLng']),
       ultimaConexion: _date(m['ultimaConexion']),
@@ -58,6 +60,7 @@ class ApiMappers {
       tasaCancelacion: _double(m['tasaCancelacion']),
       tiempoRespuestaSeg: _int(m['tiempoRespuestaSeg']),
       estado: EstadoConductor.fromWire(m['estado'] as String?),
+      motivoRechazo: m['motivoRechazo'] as String?,
     );
   }
 

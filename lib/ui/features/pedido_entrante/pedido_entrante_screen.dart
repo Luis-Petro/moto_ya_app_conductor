@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -115,6 +116,8 @@ class _EntranteView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
+                  _RecorridoYDetalle(pedido: pedido),
+                  const SizedBox(height: AppSpacing.md),
                   _Desglose(vm: vm),
                   const SizedBox(height: AppSpacing.md),
                   _ProponerTarifa(vm: vm),
@@ -210,6 +213,77 @@ class _PuntoRuta extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Distancia y tiempo estimados, mensaje completo del mandado y monto de compra
+/// (si el pedido requiere adelantar dinero).
+class _RecorridoYDetalle extends StatelessWidget {
+  const _RecorridoYDetalle({required this.pedido});
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.straighten_rounded,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(Formato.distancia(pedido.distanciaEstimadaMetros),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(width: AppSpacing.lg),
+              const Icon(Icons.schedule_rounded,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(Formato.duracion(pedido.duracionEstimadaSegundos),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          if (pedido.descripcion.trim().isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Divider(height: 1),
+            ),
+            const Text('Detalle del mandado',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: AppColors.inkMuted)),
+            const SizedBox(height: 2),
+            Text(pedido.descripcion,
+                style: const TextStyle(fontSize: 14)),
+          ],
+          if (pedido.requiereCompra) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.shopping_bag_outlined,
+                      size: 18, color: AppColors.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      pedido.montoCompraEstimado != null
+                          ? 'Debes adelantar ~${Formato.moneda(pedido.montoCompraEstimado)} para la compra (el cliente te lo reembolsa).'
+                          : 'Este pedido requiere que adelantes la compra (el cliente te la reembolsa).',
+                      style: const TextStyle(fontSize: 13, color: AppColors.ink),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

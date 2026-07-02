@@ -53,13 +53,14 @@ class _AltaViewState extends State<_AltaView> {
     super.dispose();
   }
 
-  bool get _valido =>
+  bool _valido(AltaConductorViewModel vm) =>
       _licencia.text.trim().isNotEmpty &&
       _vehiculo.text.trim().isNotEmpty &&
-      _placa.text.trim().length >= 5;
+      _placa.text.trim().length >= 5 &&
+      vm.tieneCedula;
 
   Future<void> _guardar(AltaConductorViewModel vm) async {
-    if (!_valido) return;
+    if (!_valido(vm)) return;
     final ok = await vm.guardar(
       licencia: _licencia.text.trim(),
       vehiculo: _vehiculo.text.trim(),
@@ -75,18 +76,15 @@ class _AltaViewState extends State<_AltaView> {
     }
   }
 
-  Future<void> _subirDocumento(AltaConductorViewModel vm) async {
+  /// Elige un documento con cámara o galería (no lo sube aún: se sube al guardar).
+  Future<void> _elegirDoc(void Function(File) onElegido) async {
     final XFile? foto = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: ImageSource.gallery,
       imageQuality: 70,
       maxWidth: 1600,
     );
-    if (foto == null || !mounted) return;
-    final ok = await vm.subirDocumento(File(foto.path));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? 'Documento subido' : (vm.error ?? 'Error'))),
-    );
+    if (foto == null) return;
+    onElegido(File(foto.path));
   }
 
   @override
@@ -149,30 +147,28 @@ class _AltaViewState extends State<_AltaView> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  MotoCard(
-                    child: Row(
-                      children: [
-                        const Icon(Icons.description_outlined,
-                            color: AppColors.primary),
-                        const SizedBox(width: AppSpacing.md),
-                        const Expanded(
-                          child: Text('Documento de licencia (opcional ahora)',
-                              style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                        TextButton(
-                          onPressed: vm.subiendoDocumento
-                              ? null
-                              : () => _subirDocumento(vm),
-                          child: Text(vm.subiendoDocumento ? '...' : 'Subir'),
-                        ),
-                      ],
-                    ),
+                  _DocCard(
+                    icon: Icons.badge_outlined,
+                    titulo: 'Cédula',
+                    obligatorio: true,
+                    adjuntado: vm.cedula != null,
+                    onElegir: () => _elegirDoc(vm.elegirCedula),
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  _DocCard(
+                    icon: Icons.two_wheeler_outlined,
+                    titulo: 'Papeles de la moto',
+                    obligatorio: false,
+                    adjuntado: vm.papelesMoto != null,
+                    onElegir: () => _elegirDoc(vm.elegirPapelesMoto),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  const _AvisoRevision(),
                   const SizedBox(height: AppSpacing.xl),
                   PrimaryButton(
-                    label: 'Guardar y continuar',
+                    label: 'Enviar para revisión',
                     loading: vm.guardando,
-                    onPressed: _valido ? () => _guardar(vm) : null,
+                    onPressed: _valido(vm) ? () => _guardar(vm) : null,
                   ),
                 ],
               ),
@@ -194,6 +190,75 @@ class _Label extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: AppColors.inkMuted,
               letterSpacing: 0.4)),
+    );
+  }
+}
+
+/// Tarjeta para adjuntar un documento (cédula/papeles). Marca si es obligatorio
+/// y si ya fue adjuntado.
+class _DocCard extends StatelessWidget {
+  const _DocCard({
+    required this.icon,
+    required this.titulo,
+    required this.obligatorio,
+    required this.adjuntado,
+    required this.onElegir,
+  });
+
+  final IconData icon;
+  final String titulo;
+  final bool obligatorio;
+  final bool adjuntado;
+  final VoidCallback onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      child: Row(
+        children: [
+          Icon(adjuntado ? Icons.check_circle : icon,
+              color: adjuntado ? AppColors.success : AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(obligatorio ? 'Obligatorio' : 'Opcional',
+                    style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onElegir,
+            child: Text(adjuntado ? 'Cambiar' : 'Adjuntar'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso de que la cuenta quedará en revisión tras enviar los documentos.
+class _AvisoRevision extends StatelessWidget {
+  const _AvisoRevision();
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      color: AppColors.primarySurface,
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_top_rounded, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Text(
+              'Revisaremos tus documentos y habilitaremos tu cuenta. Te avisaremos cuando puedas empezar a recibir pedidos.',
+              style: TextStyle(color: AppColors.ink, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

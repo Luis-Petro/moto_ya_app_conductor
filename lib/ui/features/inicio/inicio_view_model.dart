@@ -64,6 +64,12 @@ class InicioViewModel extends ChangeNotifier {
   String? get fotoUrl => conductor?.fotoUrl;
   bool get enLinea => _conductores.enLinea;
   bool get bloqueadoPorDeuda => _conductores.bloqueadoPorDeuda;
+
+  /// Estado de verificación: la cuenta solo opera cuando está habilitada (ACTIVO).
+  bool get enRevision => conductor?.enRevision ?? false;
+  bool get rechazado => conductor?.rechazado ?? false;
+  bool get habilitado => conductor?.habilitado ?? false;
+  String? get motivoRechazo => conductor?.motivoRechazo;
   double? get calificacion => conductor?.calificacion;
   double? get tasaAceptacion => conductor?.tasaAceptacion;
 
@@ -136,9 +142,10 @@ class InicioViewModel extends ChangeNotifier {
     pedidosHoy = cuenta;
   }
 
-  /// Alterna el estado en línea. Devuelve false si está bloqueado por deuda.
+  /// Alterna el estado en línea. Devuelve false si está bloqueado por deuda o si
+  /// la cuenta aún no está habilitada por el admin.
   Future<bool> alternarEnLinea(bool valor) async {
-    if (valor && bloqueadoPorDeuda) return false;
+    if (valor && (bloqueadoPorDeuda || !habilitado)) return false;
     cambiandoEstado = true;
     notifyListeners();
     final res = await _conductores.cambiarEnLinea(valor, ubicacion: ubicacion);

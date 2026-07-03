@@ -34,6 +34,18 @@ class PedidoActivoViewModel extends ChangeNotifier {
   EstadoPedido get estado => pedido?.estado ?? EstadoPedido.aceptado;
   bool get entregado => estado == EstadoPedido.entregado;
 
+  /// Antes de EN_CAMINO el conductor va hacia la recogida/compra; después, a la
+  /// entrega (misma regla que usa el backend para el objetivo del ETA).
+  bool get vaARecogida =>
+      estado == EstadoPedido.aceptado || estado == EstadoPedido.enCompra;
+
+  /// Punto al que debe dirigirse ahora (para "Cómo llegar" y centrar el mapa).
+  LatLng? get puntoObjetivo =>
+      vaARecogida ? (pedido?.origen ?? pedido?.destino) : pedido?.destino;
+
+  String get etiquetaObjetivo =>
+      vaARecogida ? 'punto de recogida' : 'punto de entrega';
+
   /// Próximo estado según la máquina de estados; null si ya no hay avance 1-tap.
   EstadoPedido? get proximoEstado {
     switch (estado) {

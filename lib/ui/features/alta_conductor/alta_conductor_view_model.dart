@@ -25,6 +25,11 @@ class AltaConductorViewModel extends ChangeNotifier {
   bool guardando = false;
   String? error;
 
+  /// True cuando el backend rechazó con 403: el JWT guardado no tiene rol
+  /// CONDUCTOR (sesión emitida antes de la promoción de rol). La pantalla debe
+  /// cerrar sesión para forzar un login fresco.
+  bool sesionInvalida = false;
+
   /// Archivos elegidos localmente; se suben tras crear el perfil (los endpoints
   /// de documentos exigen que el conductor ya exista).
   File? cedula;
@@ -119,9 +124,13 @@ class AltaConductorViewModel extends ChangeNotifier {
         } else {
           guardando = false;
           // 403 = JWT sin rol CONDUCTOR (sesión vieja): la salida es re-loguear.
-          error = f?.statusCode == 403
-              ? 'Tu sesión quedó desactualizada. Cierra la app, ábrela de nuevo e inicia sesión para continuar.'
-              : f?.message;
+          if (f?.statusCode == 403) {
+            sesionInvalida = true;
+            error =
+                'Tu sesión quedó desactualizada. Inicia sesión de nuevo para continuar.';
+          } else {
+            error = f?.message;
+          }
           notifyListeners();
           return false;
         }
@@ -133,12 +142,16 @@ class AltaConductorViewModel extends ChangeNotifier {
     final resCedula = await _conductores.subirCedula(cedulaMp);
     if (!resCedula.isSuccess) {
       guardando = false;
-      error = resCedula.when(
-        ok: (_) => null,
-        err: (f) => f.isNetwork
-            ? f.message
-            : 'No pudimos subir la foto de tu cédula. Toca "Enviar" para reintentar.',
-      );
+      final f = resCedula.when(ok: (_) => null, err: (f) => f);
+      if (f?.statusCode == 403) {
+        sesionInvalida = true;
+        error =
+            'Tu sesión quedó desactualizada. Inicia sesión de nuevo para continuar.';
+      } else {
+        error = (f?.isNetwork ?? false)
+            ? f!.message
+            : 'No pudimos subir la foto de tu cédula. Toca "Enviar" para reintentar.';
+      }
       notifyListeners();
       return false;
     }

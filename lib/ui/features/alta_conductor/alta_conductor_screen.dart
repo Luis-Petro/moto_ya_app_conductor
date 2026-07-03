@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
@@ -81,6 +82,12 @@ class _AltaViewState extends State<_AltaView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.error ?? 'No pudimos guardar tu perfil')),
       );
+      if (vm.sesionInvalida) {
+        // JWT viejo sin rol CONDUCTOR: cerrar sesión aquí mismo; el router
+        // redirige al login y el nuevo JWT ya llega promovido.
+        await locator<AuthRepository>().sesionExpirada();
+        locator<ConductorRepository>().limpiar();
+      }
     }
   }
 

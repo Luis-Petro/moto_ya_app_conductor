@@ -24,9 +24,10 @@ class UsuarioRepository {
     String? nombre,
     String? email,
     String? telefono,
+    int? municipioId,
   }) async {
     final res = await _service.actualizarPerfil(
-        nombre: nombre, email: email, telefono: telefono);
+        nombre: nombre, email: email, telefono: telefono, municipioId: municipioId);
     if (res case Ok<Usuario>(value: final u)) {
       _cache = u;
     }

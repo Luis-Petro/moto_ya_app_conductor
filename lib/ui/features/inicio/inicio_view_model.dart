@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
+import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_reporter.dart';
@@ -17,7 +18,8 @@ import '../../../domain/models/pedido.dart';
 /// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
 /// activo en curso.
 class InicioViewModel extends ChangeNotifier {
-  InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas)
+  InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas,
+      this._municipios)
       : _reporter = LocationReporter();
 
   final ConductorRepository _conductores;
@@ -25,6 +27,7 @@ class InicioViewModel extends ChangeNotifier {
   final LocationService _location;
   final UsuarioRepository _usuarios;
   final OfertasService _ofertas;
+  final MunicipioRepository _municipios;
   final LocationReporter _reporter;
 
   bool cargando = true;
@@ -33,6 +36,9 @@ class InicioViewModel extends ChangeNotifier {
 
   String? nombre;
   String iniciales = 'C';
+
+  /// Nombre del municipio del conductor (para el encabezado).
+  String? municipioNombre;
 
   LatLng? ubicacion;
   bool permisoUbicacionDenegado = false;
@@ -121,6 +127,16 @@ class InicioViewModel extends ChangeNotifier {
       nombre = u.primerNombre;
       iniciales = u.iniciales;
     }
+    // Municipio del conductor (o el único disponible, persistiéndolo de una).
+    final lista = (await _municipios.disponibles()).valueOrNull ?? const [];
+    var municipio = _municipios.porId(u?.municipioId);
+    if (municipio == null && lista.isNotEmpty) {
+      municipio = lista.first;
+      if (u != null && lista.length == 1) {
+        await _usuarios.actualizar(municipioId: municipio.id);
+      }
+    }
+    municipioNombre = municipio?.nombre;
   }
 
   Future<void> _cargarMetricas() async {

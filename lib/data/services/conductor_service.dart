@@ -19,9 +19,9 @@ class ConductorService {
 
   /// Alta del perfil de conductor. El backend exige `lat`/`lng` (ubicación
   /// inicial): sin ellas el conductor quedaría en (0,0) y el matching por
-  /// cercanía nunca lo encontraría.
+  /// cercanía nunca lo encontraría. La licencia es opcional por ahora.
   Future<Result<Conductor>> crearPerfil({
-    required String licencia,
+    String? licencia,
     required String vehiculo,
     required String placa,
     required LatLng ubicacion,
@@ -29,7 +29,7 @@ class ConductorService {
     return _api.post<Conductor>(
       '/conductores',
       body: {
-        'licencia': licencia,
+        if (licencia != null) 'licencia': licencia,
         'vehiculo': vehiculo,
         'placa': placa,
         'lat': ubicacion.latitude,

@@ -10,6 +10,7 @@ class Usuario {
     this.urlImagen,
     required this.rol,
     this.telefonoVerificado = false,
+    this.municipioId,
   });
 
   final int id;
@@ -19,6 +20,9 @@ class Usuario {
   final String? urlImagen;
   final Rol rol;
   final bool telefonoVerificado;
+
+  /// Municipio elegido (id del catálogo `/municipios`); null si aún no define.
+  final int? municipioId;
 
   /// Iniciales para el avatar (p. ej. "Marta Gómez" → "MG").
   String get iniciales {
@@ -30,7 +34,8 @@ class Usuario {
 
   String get primerNombre => nombre.trim().split(RegExp(r'\s+')).first;
 
-  Usuario copyWith({String? nombre, String? telefono, String? email}) {
+  Usuario copyWith(
+      {String? nombre, String? telefono, String? email, int? municipioId}) {
     return Usuario(
       id: id,
       nombre: nombre ?? this.nombre,
@@ -39,6 +44,7 @@ class Usuario {
       urlImagen: urlImagen,
       rol: rol,
       telefonoVerificado: telefonoVerificado,
+      municipioId: municipioId ?? this.municipioId,
     );
   }
 }

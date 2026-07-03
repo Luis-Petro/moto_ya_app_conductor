@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../router.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
+import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
@@ -32,6 +33,7 @@ class InicioScreen extends StatelessWidget {
         locator<LocationService>(),
         locator<UsuarioRepository>(),
         locator<OfertasService>(),
+        locator<MunicipioRepository>(),
       )..cargar(),
       child: const _InicioView(),
     );
@@ -102,8 +104,13 @@ class _Header extends StatelessWidget {
                   Text(rating != null ? rating.toStringAsFixed(1) : '—',
                       style: const TextStyle(
                           color: AppColors.inkMuted, fontSize: 13)),
-                  const Text(' · La Ceja',
-                      style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+                  if (vm.municipioNombre != null)
+                    Flexible(
+                      child: Text(' · ${vm.municipioNombre}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: AppColors.inkMuted, fontSize: 13)),
+                    ),
                 ],
               ),
             ],

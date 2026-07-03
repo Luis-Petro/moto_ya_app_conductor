@@ -17,9 +17,10 @@ class LocationResult {
 /// Envuelve `geolocator` con manejo explícito de permisos (mobile-design:
 /// siempre degradar con gracia cuando el permiso se deniega).
 class LocationService {
-  /// Ubicación por defecto: La Ceja, Antioquia (centro del piloto), usada como
-  /// respaldo si no hay permiso de ubicación.
-  static const LatLng fallbackCenter = LatLng(6.0289, -75.4309);
+  /// Ubicación por defecto: San Bernardo del Viento, Córdoba (municipio del
+  /// piloto), usada como respaldo si no hay permiso de ubicación. Preferir el
+  /// centro del municipio del usuario (`Municipio.centro`) cuando esté cargado.
+  static const LatLng fallbackCenter = LatLng(9.3530, -75.9527);
 
   Future<LocationResult> obtenerUbicacion() async {
     try {

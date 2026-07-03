@@ -14,9 +14,12 @@ void main() {
   });
 
   group('Conductor', () {
-    test('perfilCompleto requiere licencia, vehículo y placa', () {
+    test('perfilCompleto requiere vehículo y placa (licencia opcional)', () {
       const incompleto = Conductor(id: 1, usuarioId: 2, licencia: 'X');
       expect(incompleto.perfilCompleto, isFalse);
+      const sinLicencia =
+          Conductor(id: 1, usuarioId: 2, vehiculo: 'Moto', placa: 'ABC12D');
+      expect(sinLicencia.perfilCompleto, isTrue);
       const completo = Conductor(
           id: 1, usuarioId: 2, licencia: 'X', vehiculo: 'Moto', placa: 'ABC12D');
       expect(completo.perfilCompleto, isTrue);

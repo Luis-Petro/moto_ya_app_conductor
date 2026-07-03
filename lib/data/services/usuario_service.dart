@@ -17,10 +17,16 @@ class UsuarioService {
     String? nombre,
     String? email,
     String? telefono,
+    int? municipioId,
   }) {
     return _api.put<Usuario>(
       '/usuarios/me',
-      body: {'nombre': nombre, 'email': email, 'telefono': telefono},
+      body: {
+        'nombre': nombre,
+        'email': email,
+        'telefono': telefono,
+        'municipioId': municipioId,
+      },
       parse: ApiMappers.usuario,
     );
   }

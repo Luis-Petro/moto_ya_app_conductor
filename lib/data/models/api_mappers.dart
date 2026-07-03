@@ -5,6 +5,7 @@ import '../../domain/models/calificacion.dart';
 import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/estado_pedido.dart';
+import '../../domain/models/municipio.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
 import '../../domain/models/reputacion_conductor.dart';
@@ -36,6 +37,19 @@ class ApiMappers {
       urlImagen: m['urlImagen'] as String?,
       rol: Rol.fromWire(m['rol'] as String?),
       telefonoVerificado: (m['telefonoVerificado'] as bool?) ?? false,
+      municipioId: _int(m['municipioId']),
+    );
+  }
+
+  static Municipio municipio(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    final lat = _double(m['centroLat']);
+    final lng = _double(m['centroLng']);
+    return Municipio(
+      id: _int(m['id'])!,
+      departamento: (m['departamento'] as String?) ?? '',
+      nombre: (m['nombre'] as String?) ?? '',
+      centro: (lat != null && lng != null) ? LatLng(lat, lng) : null,
     );
   }
 

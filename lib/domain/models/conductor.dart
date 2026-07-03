@@ -73,8 +73,9 @@ class Conductor {
   final String? motivoRechazo;
 
   /// El perfil tiene los datos mínimos para operar (matching lo exige).
+  /// La licencia es opcional por ahora: no puede condicionar este flag o el
+  /// conductor rebotaría al alta en cada apertura de la app.
   bool get perfilCompleto =>
-      (licencia?.trim().isNotEmpty ?? false) &&
       (vehiculo?.trim().isNotEmpty ?? false) &&
       (placa?.trim().isNotEmpty ?? false);
 

@@ -92,7 +92,7 @@ class _RegistroViewState extends State<_RegistroView> {
                     fontWeight: FontWeight.w800,
                     color: AppColors.ink)),
             const SizedBox(height: AppSpacing.xs),
-            const Text('Como conductor · La Ceja, Antioquia',
+            const Text('Como conductor · gana con los domicilios de tu municipio',
                 style: TextStyle(color: AppColors.inkMuted)),
             const SizedBox(height: AppSpacing.xl),
             const _Label('Nombre completo'),

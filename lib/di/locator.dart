@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/billetera_repository.dart';
 import '../data/repositories/conductor_repository.dart';
+import '../data/repositories/municipio_repository.dart';
 import '../data/repositories/pedido_repository.dart';
 import '../data/repositories/usuario_repository.dart';
 import '../data/services/api_client.dart';
@@ -10,6 +11,7 @@ import '../data/services/auth_service.dart';
 import '../data/services/billetera_service.dart';
 import '../data/services/conductor_service.dart';
 import '../data/services/location_service.dart';
+import '../data/services/municipio_service.dart';
 import '../data/services/notificacion_service.dart';
 import '../data/services/ofertas_service.dart';
 import '../data/services/pedido_service.dart';
@@ -39,6 +41,7 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => NotificacionService(locator()));
   locator.registerLazySingleton(() => TrackingService(locator()));
   locator.registerLazySingleton(() => OfertasService(locator()));
+  locator.registerLazySingleton(() => MunicipioService(locator()));
 
   // ── Repositories (fuente de verdad, modelos de dominio) ──
   locator.registerLazySingleton(() => AuthRepository(
@@ -49,6 +52,7 @@ void configurarDependencias() {
         locator<PushService>(),
       ));
   locator.registerLazySingleton(() => UsuarioRepository(locator()));
+  locator.registerLazySingleton(() => MunicipioRepository(locator()));
   locator.registerLazySingleton(() => ConductorRepository(locator()));
   locator.registerLazySingleton(() => PedidoRepository(locator()));
   locator.registerLazySingleton(() => BilleteraRepository(locator()));

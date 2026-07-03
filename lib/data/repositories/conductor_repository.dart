@@ -34,7 +34,7 @@ class ConductorRepository extends ChangeNotifier {
   }
 
   Future<Result<Conductor>> crearPerfil({
-    required String licencia,
+    String? licencia,
     required String vehiculo,
     required String placa,
     required LatLng ubicacion,

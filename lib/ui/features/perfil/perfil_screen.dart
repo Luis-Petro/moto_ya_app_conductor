@@ -78,8 +78,11 @@ class _PerfilViewState extends State<_PerfilView> {
   }
 
   Future<void> _confirmarSalir(PerfilViewModel vm) async {
+    // useRootNavigator: false — dentro de un tab del StatefulShellRoute el
+    // navigator raíz pinta un velo negro sobre el shell (pantalla en negro).
     final salir = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (_) => AlertDialog(
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que deseas cerrar sesión?'),

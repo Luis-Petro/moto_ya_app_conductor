@@ -57,6 +57,7 @@ class InicioViewModel extends ChangeNotifier {
   Timer? _poll;
   StreamSubscription<int>? _ofertaSub;
   bool _pollLento = false;
+  bool _disposed = false;
 
   /// Sondeo de respaldo cuando el canal STOMP de ofertas está caído: intervalo
   /// corto para no perder ofertas.
@@ -89,16 +90,31 @@ class InicioViewModel extends ChangeNotifier {
   Future<void> cargar() async {
     cargando = true;
     notifyListeners();
-    await _conductores.cargar(forzar: true);
+    // Solo el perfil de conductor bloquea el primer render (gatea alta/estado);
+    // usa la caché si el splash ya lo trajo. Todo lo demás llega en segundo
+    // plano y va notificando: el home aparece de inmediato.
+    await _conductores.cargar(forzar: _conductores.conductor == null);
     if (enLinea) _enLineaDesde ??= DateTime.now();
-    await Future.wait([_resolverUbicacion(), _cargarMetricas(), _cargarUsuario()]);
-    pedidoActivo = await _pedidos.pedidoActivo();
+    cargando = false;
+    notifyListeners();
+
+    unawaited(_resolverUbicacion().then((_) => _notificar()));
+    unawaited(_cargarMetricas().then((_) => _notificar()));
+    unawaited(_cargarUsuario().then((_) => _notificar()));
+    unawaited(_pedidos.pedidoActivo().then((p) {
+      pedidoActivo = p;
+      _notificar();
+    }));
     if (enLinea) _reporter.start(_onPosicion);
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onOfertaStomp);
     _iniciarPoll();
-    cargando = false;
-    notifyListeners();
+  }
+
+  /// notifyListeners seguro para callbacks en segundo plano que pueden llegar
+  /// después de que la pantalla se destruya.
+  void _notificar() {
+    if (!_disposed) notifyListeners();
   }
 
   /// Oferta recibida por STOMP: revalida de inmediato contra `/pedidos/ofertas`
@@ -186,7 +202,7 @@ class InicioViewModel extends ChangeNotifier {
   void _onPosicion(LatLng punto) {
     ubicacion = punto;
     _conductores.reportarUbicacion(punto);
-    notifyListeners();
+    _notificar();
   }
 
   void _iniciarPoll() {
@@ -202,7 +218,7 @@ class InicioViewModel extends ChangeNotifier {
     final activo = await _pedidos.pedidoActivo();
     if (activo?.id != pedidoActivo?.id) {
       pedidoActivo = activo;
-      notifyListeners();
+      _notificar();
     }
     if (enLinea && !bloqueadoPorDeuda) {
       final res = await _pedidos.ofertas();
@@ -211,12 +227,12 @@ class InicioViewModel extends ChangeNotifier {
         final nueva = lista.isEmpty ? null : lista.first;
         if (nueva?.id != ofertaActual?.id) {
           ofertaActual = nueva;
-          notifyListeners();
+          _notificar();
         }
       }
     } else if (ofertaActual != null) {
       ofertaActual = null;
-      notifyListeners();
+      _notificar();
     }
     // Ajusta el ritmo del sondeo si el canal STOMP cambió de estado (subió/cayó).
     if (_pollLento != _ofertas.conectado) _iniciarPoll();
@@ -237,6 +253,7 @@ class InicioViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _reporter.stop();
     _poll?.cancel();
     _ofertaSub?.cancel();

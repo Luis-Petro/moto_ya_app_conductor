@@ -118,7 +118,10 @@ class AltaConductorViewModel extends ChangeNotifier {
           await _conductores.cargar(forzar: true);
         } else {
           guardando = false;
-          error = f?.message;
+          // 403 = JWT sin rol CONDUCTOR (sesión vieja): la salida es re-loguear.
+          error = f?.statusCode == 403
+              ? 'Tu sesión quedó desactualizada. Cierra la app, ábrela de nuevo e inicia sesión para continuar.'
+              : f?.message;
           notifyListeners();
           return false;
         }

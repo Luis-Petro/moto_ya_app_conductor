@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../domain/models/rol.dart';
 import '../../domain/models/sesion.dart';
 import '../services/api_result.dart';
 import '../services/auth_service.dart';
@@ -35,6 +36,13 @@ class AuthRepository extends ChangeNotifier {
   /// Carga la sesión persistida al arrancar.
   Future<void> cargarSesion() async {
     _sesion = await _session.leer();
+    // Sesiones emitidas antes de la promoción de rol (JWT con rol CLIENTE)
+    // hacen que todo /conductores/** responda 403 ("no tienes permisos"): se
+    // descartan para forzar un login fresco, que ya llega con rol CONDUCTOR.
+    if (_sesion != null && _sesion!.rol != Rol.conductor) {
+      await _session.borrar();
+      _sesion = null;
+    }
     _inicializado = true;
     notifyListeners();
   }
@@ -75,11 +83,20 @@ class AuthRepository extends ChangeNotifier {
     return _persistirSiOk(await _auth.google(idToken));
   }
 
-  /// Cierra la sesión: da de baja el token push y limpia el almacenamiento.
+  /// Cierra la sesión: da de baja el token push (best-effort, acotado) y limpia
+  /// el almacenamiento. Sin el timeout, un FCM/red lentos dejan el logout
+  /// colgado y la pantalla parece muerta.
   Future<void> cerrarSesion() async {
-    final token = await _push.obtenerToken();
-    if (token != null) {
-      await _notificaciones.eliminarToken(token);
+    try {
+      final token =
+          await _push.obtenerToken().timeout(const Duration(seconds: 3));
+      if (token != null) {
+        await _notificaciones
+            .eliminarToken(token)
+            .timeout(const Duration(seconds: 3));
+      }
+    } catch (_) {
+      // Un token huérfano solo produce pushes fallidos; no bloquea el logout.
     }
     await _session.borrar();
     _sesion = null;

@@ -82,9 +82,9 @@ class _OtpViewState extends State<_OtpView> {
       // ya estuviera completo).
       context.go(Rutas.alta);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'Código incorrecto')),
-      );
+      // Limpiar las cajas para reintentar de una: el error queda visible
+      // bajo el código (más claro que solo un snackbar).
+      setState(() => _controller.clear());
     }
   }
 
@@ -133,6 +133,15 @@ class _OtpViewState extends State<_OtpView> {
                 setState(() {});
                 if (_controller.text.length == _largo) _verificar();
               }),
+              if (vm.error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'El código no es correcto. Revísalo e inténtalo de nuevo.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppColors.danger, fontWeight: FontWeight.w600),
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               if (_segundos > 0)
                 Text(

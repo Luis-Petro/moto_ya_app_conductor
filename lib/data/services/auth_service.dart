@@ -33,9 +33,11 @@ class AuthService {
     required String email,
     required String password,
   }) {
+    // El rol declara que se entra desde la app de conductores: el backend
+    // promueve CLIENTE→CONDUCTOR para que el JWT autorice /conductores/**.
     return _api.post<Sesion>(
       '/auth/login',
-      body: {'email': email, 'password': password},
+      body: {'email': email, 'password': password, 'rol': Rol.conductor.wire},
       parse: ApiMappers.sesion,
     );
   }
@@ -43,7 +45,7 @@ class AuthService {
   Future<Result<Sesion>> google(String idToken) {
     return _api.post<Sesion>(
       '/auth/google',
-      body: {'idToken': idToken},
+      body: {'idToken': idToken, 'rol': Rol.conductor.wire},
       parse: ApiMappers.sesion,
     );
   }

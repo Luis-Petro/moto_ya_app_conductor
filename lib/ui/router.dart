@@ -78,6 +78,9 @@ GoRouter crearRouter(AuthRepository auth) {
       GoRoute(path: Rutas.registro, builder: (_, __) => const RegistroScreen()),
       GoRoute(
         path: Rutas.otp,
+        // Si el router se refresca y pierde el extra, volver al acceso en vez
+        // de reventar el build con un cast nulo (pantalla en blanco).
+        redirect: (_, state) => state.extra is OtpArgs ? null : Rutas.acceso,
         builder: (_, state) => OtpScreen(args: state.extra as OtpArgs),
       ),
       GoRoute(path: Rutas.login, builder: (_, __) => const LoginScreen()),

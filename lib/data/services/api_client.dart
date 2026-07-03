@@ -102,7 +102,10 @@ class ApiClient {
         final data = parse != null ? parse(res.data) : res.data as T;
         return Ok<T>(data);
       }
-      if (code == 401) {
+      // Un 401 de /auth/* es un fallo de credenciales/código (esperado en el
+      // flujo de acceso), no una sesión expirada: dispararía un logout+redirect
+      // a mitad del onboarding (pantalla en blanco al equivocarse en el OTP).
+      if (code == 401 && !res.requestOptions.path.startsWith('/auth/')) {
         onUnauthorized?.call();
       }
       return Err<T>(_failureFromResponse(res));

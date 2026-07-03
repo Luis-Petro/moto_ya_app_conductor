@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/usuario_repository.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -15,9 +16,13 @@ import 'otp_view_model.dart';
 
 /// Argumentos de la pantalla de verificación OTP.
 class OtpArgs {
-  const OtpArgs({required this.telefono, this.nombre});
+  const OtpArgs({required this.telefono, this.nombre, this.email});
   final String telefono;
   final String? nombre;
+
+  /// Correo capturado en el registro; se persiste tras verificar el código
+  /// (el endpoint de OTP no lo acepta).
+  final String? email;
 }
 
 class OtpScreen extends StatelessWidget {
@@ -27,8 +32,13 @@ class OtpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) =>
-          OtpViewModel(locator<AuthRepository>(), args.telefono, args.nombre),
+      create: (_) => OtpViewModel(
+        locator<AuthRepository>(),
+        locator<UsuarioRepository>(),
+        args.telefono,
+        args.nombre,
+        args.email,
+      ),
       child: _OtpView(telefono: args.telefono),
     );
   }

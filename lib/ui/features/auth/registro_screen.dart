@@ -68,7 +68,11 @@ class _RegistroViewState extends State<_RegistroView> {
     if (ok) {
       context.push(
         Rutas.otp,
-        extra: OtpArgs(telefono: telefono, nombre: _nombre.text.trim()),
+        extra: OtpArgs(
+          telefono: telefono,
+          nombre: _nombre.text.trim(),
+          email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

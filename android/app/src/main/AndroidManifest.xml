@@ -12,7 +12,7 @@
 
     <application
         android:label="motoYa Conductor"
-        android:name="${applicationName}"
+        android:name=".MotoyaApplication"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
@@ -38,11 +38,11 @@
             </intent-filter>
         </activity>
         <!-- Canal por defecto para las notificaciones FCM (alta importancia).
-             Debe coincidir con el canal creado en MainActivity y con el channelId
-             del backend; si no, Android entrega las push como silenciosas. -->
+             Debe coincidir con el canal creado en MotoyaApplication y con el
+             channelId del backend; si no, Android entrega las push como silenciosas. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="motoya_alta_importancia" />
+            android:value="motoya_alta_importancia_v2" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

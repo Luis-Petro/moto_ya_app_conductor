@@ -5,6 +5,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../di/locator.dart';
+import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
@@ -23,6 +24,7 @@ class PerfilScreen extends StatelessWidget {
         locator<UsuarioRepository>(),
         locator<ConductorRepository>(),
         locator<AuthRepository>(),
+        locator<TabActiva>(),
       )..cargar(),
       child: const _PerfilView(),
     );
@@ -56,10 +58,9 @@ class _PerfilViewState extends State<_PerfilView> {
   }
 
   Future<void> _guardar(PerfilViewModel vm) async {
+    // Solo el correo es editable: nombre y celular son la identidad verificada.
     final ok = await vm.guardar(
-      nombre: _nombre.text.trim(),
       email: _email.text.trim().isEmpty ? null : _email.text.trim(),
-      telefono: _telefono.text.trim().isEmpty ? null : _telefono.text.trim(),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -123,7 +124,9 @@ class _PerfilViewState extends State<_PerfilView> {
                 ? ErrorRetry(
                     message: vm.error ?? 'No pudimos cargar tu perfil',
                     onRetry: vm.cargar)
-                : ListView(
+                : RefreshIndicator(
+                    onRefresh: vm.cargar,
+                    child: ListView(
                     padding: const EdgeInsets.all(AppSpacing.xl),
                     children: [
                       Center(
@@ -178,10 +181,12 @@ class _PerfilViewState extends State<_PerfilView> {
                         ),
                       ],
                       const SizedBox(height: AppSpacing.xl),
+                      // Nombre y celular son la identidad verificada del
+                      // conductor: no se editan desde la app.
                       _Campo(
                           label: 'Nombre',
                           controller: _nombre,
-                          editable: vm.editando,
+                          editable: false,
                           icon: Icons.person_outline),
                       const SizedBox(height: AppSpacing.md),
                       _Campo(
@@ -194,9 +199,15 @@ class _PerfilViewState extends State<_PerfilView> {
                       _Campo(
                           label: 'Celular',
                           controller: _telefono,
-                          editable: vm.editando,
+                          editable: false,
                           icon: Icons.phone_outlined,
                           keyboard: TextInputType.phone),
+                      const SizedBox(height: AppSpacing.sm),
+                      const Text(
+                        'El nombre y el celular no se pueden cambiar: son tu identidad verificada. Si necesitas corregirlos, contáctanos.',
+                        style: TextStyle(
+                            color: AppColors.inkMuted, fontSize: 12),
+                      ),
                       if (conductor != null) ...[
                         const SizedBox(height: AppSpacing.xl),
                         const Text('VEHÍCULO Y DOCUMENTOS',
@@ -254,6 +265,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                 color: AppColors.inkMuted, fontSize: 12)),
                       ),
                     ],
+                  ),
                   ),
       ),
     );

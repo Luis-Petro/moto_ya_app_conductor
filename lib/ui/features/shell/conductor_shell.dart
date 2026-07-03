@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../di/locator.dart';
+import '../../core/tab_activa.dart';
+
 /// Contenedor con barra inferior del conductor: Inicio · Billetera · Historial · Perfil.
 class ConductorShell extends StatelessWidget {
   const ConductorShell({super.key, required this.shell});
@@ -9,6 +12,8 @@ class ConductorShell extends StatelessWidget {
 
   void _ir(int index) {
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
+    // Avisa al tab que vuelve a ser visible para que refresque sus cifras.
+    locator<TabActiva>().cambiar(index);
   }
 
   @override

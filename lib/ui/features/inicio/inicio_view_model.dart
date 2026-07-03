@@ -13,14 +13,17 @@ import '../../../data/services/ofertas_service.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
+import '../../core/tab_activa.dart';
 
 /// Estado del Inicio del conductor: disponibilidad, métricas del día, ubicación,
 /// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
 /// activo en curso.
 class InicioViewModel extends ChangeNotifier {
   InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas,
-      this._municipios)
-      : _reporter = LocationReporter();
+      this._municipios, this._tab)
+      : _reporter = LocationReporter() {
+    _tab.addListener(_onTabActiva);
+  }
 
   final ConductorRepository _conductores;
   final PedidoRepository _pedidos;
@@ -28,7 +31,13 @@ class InicioViewModel extends ChangeNotifier {
   final UsuarioRepository _usuarios;
   final OfertasService _ofertas;
   final MunicipioRepository _municipios;
+  final TabActiva _tab;
   final LocationReporter _reporter;
+
+  /// Refresco silencioso al volver a este tab (cifras del día al día).
+  void _onTabActiva() {
+    if (_tab.indice == TabActiva.inicio) refrescar();
+  }
 
   bool cargando = true;
   bool cambiandoEstado = false;
@@ -238,11 +247,14 @@ class InicioViewModel extends ChangeNotifier {
     if (_pollLento != _ofertas.conectado) _iniciarPoll();
   }
 
-  /// Fuerza un refresco (p. ej. al volver de la pantalla del pedido activo).
+  /// Fuerza un refresco (al volver de la pantalla del pedido activo, con el
+  /// gesto de arrastrar hacia abajo o al reactivarse el tab). Silencioso: no
+  /// enciende el spinner de pantalla completa.
   Future<void> refrescar() async {
     await _conductores.cargar(forzar: true);
     await _cargarMetricas();
     await _tick();
+    _notificar();
   }
 
   /// Descarta la oferta mostrada (p. ej. tras abrirla) sin detener el sondeo.
@@ -254,6 +266,7 @@ class InicioViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _tab.removeListener(_onTabActiva);
     _reporter.stop();
     _poll?.cancel();
     _ofertaSub?.cancel();

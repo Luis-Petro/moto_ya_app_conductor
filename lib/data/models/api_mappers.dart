@@ -98,6 +98,7 @@ class ApiMappers {
       estado: (m['estado'] as String?) ?? 'PENDIENTE',
       referenciaExterna: m['referenciaExterna'] as String?,
       urlPago: m['urlPago'] as String?,
+      instrucciones: m['instrucciones'] as String?,
     );
   }
 

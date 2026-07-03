@@ -7,15 +7,25 @@ import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/usuario.dart';
+import '../../core/tab_activa.dart';
 
 /// Estado del Perfil del conductor: datos personales, vehículo/documentos y
-/// cierre de sesión.
+/// cierre de sesión. El nombre y el celular son la identidad verificada y no
+/// se editan desde la app; solo el correo.
 class PerfilViewModel extends ChangeNotifier {
-  PerfilViewModel(this._usuarios, this._conductores, this._auth);
+  PerfilViewModel(this._usuarios, this._conductores, this._auth, this._tab) {
+    _tab.addListener(_onTabActiva);
+  }
 
   final UsuarioRepository _usuarios;
   final ConductorRepository _conductores;
   final AuthRepository _auth;
+  final TabActiva _tab;
+
+  /// Refresco silencioso al volver a este tab (estrellas/foto al día).
+  void _onTabActiva() {
+    if (_tab.indice == TabActiva.perfil) _cargar(silencioso: true);
+  }
 
   bool cargando = true;
   String? error;
@@ -47,10 +57,14 @@ class PerfilViewModel extends ChangeNotifier {
     return ok;
   }
 
-  Future<void> cargar() async {
-    cargando = true;
-    notifyListeners();
-    await _conductores.cargar();
+  Future<void> cargar() => _cargar();
+
+  Future<void> _cargar({bool silencioso = false}) async {
+    if (!silencioso) {
+      cargando = true;
+      notifyListeners();
+    }
+    await _conductores.cargar(forzar: silencioso);
     final res = await _usuarios.perfil(forzar: true);
     res.when(ok: (u) => usuario = u, err: (f) => error = f.message);
     cargando = false;
@@ -62,15 +76,12 @@ class PerfilViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> guardar({
-    required String nombre,
-    String? email,
-    String? telefono,
-  }) async {
+  /// Guarda los datos editables del perfil (solo el correo: nombre y celular
+  /// son la identidad verificada del conductor).
+  Future<bool> guardar({String? email}) async {
     guardando = true;
     notifyListeners();
-    final res = await _usuarios.actualizar(
-        nombre: nombre, email: email, telefono: telefono);
+    final res = await _usuarios.actualizar(email: email);
     guardando = false;
     final ok = res.isSuccess;
     if (ok) {
@@ -87,5 +98,11 @@ class PerfilViewModel extends ChangeNotifier {
     await _auth.cerrarSesion();
     _conductores.limpiar();
     _usuarios.limpiar();
+  }
+
+  @override
+  void dispose() {
+    _tab.removeListener(_onTabActiva);
+    super.dispose();
   }
 }

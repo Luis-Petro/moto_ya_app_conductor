@@ -9,6 +9,7 @@ import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/tab_activa.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../router.dart';
@@ -23,6 +24,7 @@ class HistorialScreen extends StatelessWidget {
       create: (_) => HistorialViewModel(
         locator<PedidoRepository>(),
         locator<ConductorRepository>(),
+        locator<TabActiva>(),
       )..cargar(),
       child: const _HistorialView(),
     );
@@ -56,7 +58,7 @@ class _HistorialView extends StatelessWidget {
                             color: AppColors.inkMuted,
                             letterSpacing: 0.4)),
                     const SizedBox(height: AppSpacing.sm),
-                    if (vm.recientes.isEmpty)
+                    if (vm.grupos.isEmpty)
                       const EmptyState(
                         icon: Icons.receipt_long_outlined,
                         title: 'Aún no tienes pedidos',
@@ -64,7 +66,10 @@ class _HistorialView extends StatelessWidget {
                             'Ponte en línea para recibir tu primer pedido.',
                       )
                     else
-                      ...vm.recientes.map((p) => _PedidoTile(pedido: p)),
+                      for (final grupo in vm.grupos) ...[
+                        _SeparadorDia(grupo: grupo),
+                        ...grupo.pedidos.map((p) => _PedidoTile(pedido: p)),
+                      ],
                   ],
                 ),
               ),
@@ -210,6 +215,34 @@ class _Ingresos extends StatelessWidget {
   }
 }
 
+/// Separador de día: "Hoy / Ayer / martes 30 de junio" + ganancia del día.
+class _SeparadorDia extends StatelessWidget {
+  const _SeparadorDia({required this.grupo});
+  final GrupoDia grupo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(
+          top: AppSpacing.md, bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(grupo.etiqueta,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 14.5)),
+          ),
+          Text('+${Formato.moneda(grupo.total)}',
+              style: const TextStyle(
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13.5)),
+        ],
+      ),
+    );
+  }
+}
+
 class _PedidoTile extends StatelessWidget {
   const _PedidoTile({required this.pedido});
   final Pedido pedido;
@@ -217,7 +250,8 @@ class _PedidoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ganancia = Pedido.gananciaNeta(pedido.tarifaFinal ?? pedido.tarifaSugerida ?? 0);
-    final fecha = Formato.fechaHora(pedido.entregadoEn ?? pedido.creadoEn);
+    // El día ya lo da el separador del grupo: aquí solo la hora.
+    final fecha = Formato.hora(pedido.entregadoEn ?? pedido.creadoEn);
     final dist = pedido.distanciaEstimadaMetros;
     final subtitulo = dist != null ? '$fecha · ${Formato.distancia(dist)}' : fecha;
     return Padding(

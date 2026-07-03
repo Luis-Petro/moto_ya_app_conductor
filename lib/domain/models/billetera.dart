@@ -10,7 +10,8 @@ class Billetera {
     this.estado = EstadoConductor.activo,
   });
 
-  /// Comisiones pendientes acumuladas.
+  /// Comisiones pendientes acumuladas. Negativa = saldo a favor (abonos que
+  /// consumen las próximas comisiones antes de generar deuda).
   final double deudaActual;
 
   /// Límite de deuda configurable de la plataforma.
@@ -20,9 +21,16 @@ class Billetera {
 
   bool get bloqueado => estado.bloqueado;
 
-  /// Fracción del límite usada (0..1+). Puede superar 1 si está bloqueado.
+  /// True cuando hay comisiones por pagar.
+  bool get enDeuda => deudaActual > 0;
+
+  /// Saldo a favor del conductor (0 si está en deuda o al día exacto).
+  double get saldoAFavor => deudaActual < 0 ? -deudaActual : 0;
+
+  /// Fracción del límite usada (0..1+). Puede superar 1 si está bloqueado; con
+  /// saldo a favor es 0.
   double get fraccionUso {
-    if (limite <= 0) return 0;
+    if (limite <= 0 || deudaActual <= 0) return 0;
     return deudaActual / limite;
   }
 
@@ -65,6 +73,7 @@ class IntencionPago {
     this.estado = 'PENDIENTE',
     this.referenciaExterna,
     this.urlPago,
+    this.instrucciones,
   });
 
   final int pagoId;
@@ -77,6 +86,9 @@ class IntencionPago {
 
   /// Enlace/deeplink del proveedor para completar el pago, si aplica.
   final String? urlPago;
+
+  /// Instrucciones del proveedor para completar el pago (texto legible).
+  final String? instrucciones;
 
   bool get pendiente => estado == 'PENDIENTE';
 }

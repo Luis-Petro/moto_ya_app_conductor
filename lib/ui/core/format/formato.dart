@@ -11,6 +11,8 @@ class Formato {
   );
 
   static final DateFormat _fechaHora = DateFormat("d MMM, h:mm a", 'es_CO');
+  static final DateFormat _dia = DateFormat("EEEE d 'de' MMMM", 'es_CO');
+  static final DateFormat _hora = DateFormat('h:mm a', 'es_CO');
 
   /// Formatea un valor monetario en pesos colombianos sin decimales.
   static String moneda(num? valor) {
@@ -28,6 +30,25 @@ class Formato {
   static String fechaHora(DateTime? fecha) {
     if (fecha == null) return '';
     return _fechaHora.format(fecha.toLocal());
+  }
+
+  /// Etiqueta de día para separadores de listas: "Hoy", "Ayer" o
+  /// "martes 30 de junio".
+  static String dia(DateTime fecha) {
+    final f = fecha.toLocal();
+    final hoy = DateTime.now();
+    final soloDia = DateTime(f.year, f.month, f.day);
+    final soloHoy = DateTime(hoy.year, hoy.month, hoy.day);
+    final delta = soloHoy.difference(soloDia).inDays;
+    if (delta == 0) return 'Hoy';
+    if (delta == 1) return 'Ayer';
+    return _dia.format(f);
+  }
+
+  /// Hora corta ("3:45 p. m.") para ítems agrupados bajo un separador de día.
+  static String hora(DateTime? fecha) {
+    if (fecha == null) return '';
+    return _hora.format(fecha.toLocal());
   }
 
   /// Distancia legible: metros si <1 km, si no km con un decimal (es_CO).

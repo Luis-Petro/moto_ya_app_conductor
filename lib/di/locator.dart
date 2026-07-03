@@ -20,6 +20,7 @@ import '../data/services/session_storage.dart';
 import '../data/services/social_auth_service.dart';
 import '../data/services/tracking_service.dart';
 import '../data/services/usuario_service.dart';
+import '../ui/core/tab_activa.dart';
 
 /// Contenedor de inyección de dependencias de la app conductor.
 final GetIt locator = GetIt.instance;
@@ -31,6 +32,7 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => SocialAuthService());
   locator.registerLazySingleton(() => PushService());
   locator.registerLazySingleton(() => LocationService());
+  locator.registerLazySingleton(() => TabActiva());
 
   // ── Services (acceso crudo a la API) ──
   locator.registerLazySingleton(() => AuthService(locator()));

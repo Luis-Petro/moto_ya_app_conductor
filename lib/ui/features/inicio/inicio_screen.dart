@@ -14,6 +14,7 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../di/locator.dart';
 import '../../core/format/formato.dart';
+import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/brand.dart';
@@ -34,6 +35,7 @@ class InicioScreen extends StatelessWidget {
         locator<UsuarioRepository>(),
         locator<OfertasService>(),
         locator<MunicipioRepository>(),
+        locator<TabActiva>(),
       )..cargar(),
       child: const _InicioView(),
     );
@@ -50,7 +52,9 @@ class _InicioView extends StatelessWidget {
       body: SafeArea(
         child: vm.cargando
             ? const Center(child: CircularProgressIndicator())
-            : ListView(
+            : RefreshIndicator(
+                onRefresh: vm.refrescar,
+                child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
                   _Header(vm: vm),
@@ -74,6 +78,7 @@ class _InicioView extends StatelessWidget {
                   _Heatmap(vm: vm),
                 ],
               ),
+            ),
       ),
     );
   }
@@ -116,7 +121,12 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(Icons.notifications_none_rounded, color: AppColors.inkMuted),
+        // Refresco manual (además del gesto de arrastrar hacia abajo).
+        IconButton(
+          onPressed: vm.refrescar,
+          tooltip: 'Actualizar',
+          icon: const Icon(Icons.refresh_rounded, color: AppColors.inkMuted),
+        ),
       ],
     );
   }

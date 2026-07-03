@@ -9,8 +9,8 @@ import '../../router.dart';
 import '../splash/splash_screen.dart';
 
 class _Slide {
-  const _Slide(this.icon, this.titulo, this.descripcion);
-  final IconData icon;
+  const _Slide(this.imagen, this.titulo, this.descripcion);
+  final String imagen;
   final String titulo;
   final String descripcion;
 }
@@ -28,11 +28,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _pagina = 0;
 
   static const _slides = [
-    _Slide(Icons.two_wheeler_rounded, 'Gana dinero en tu municipio',
+    _Slide('assets/images/onboarding_1.png', 'Gana dinero en tu municipio',
         'Recibe pedidos cercanos y decide cuándo conectarte. Sin suscripción inicial.'),
-    _Slide(Icons.handshake_outlined, 'Tú pones tu tarifa',
+    _Slide('assets/images/onboarding_2.png', 'Tú pones tu tarifa',
         'Acepta la tarifa sugerida o propón la tuya. Ves tu ganancia neta antes de aceptar.'),
-    _Slide(Icons.account_balance_wallet_outlined, 'Cobra y liquida fácil',
+    _Slide('assets/images/onboarding_3.png', 'Cobra y liquida fácil',
         'Solo pagas el 15% de comisión sobre el servicio. Liquídala con Nequi o Bre-B.'),
   ];
 
@@ -81,15 +81,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          height: 200,
-                          width: 200,
-                          decoration: BoxDecoration(
-                            color: AppColors.primarySurface,
-                            borderRadius:
-                                BorderRadius.circular(AppSpacing.radiusLg),
-                          ),
-                          child: Icon(s.icon, size: 88, color: AppColors.primary),
+                        // Tamaño uniforme para todas las imágenes: se escalan
+                        // dentro de un cuadro fijo sin recortarse (BoxFit.contain).
+                        SizedBox(
+                          height: 280,
+                          width: double.infinity,
+                          child: Image.asset(s.imagen, fit: BoxFit.contain),
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         Text(s.titulo,

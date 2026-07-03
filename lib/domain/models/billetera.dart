@@ -91,4 +91,17 @@ class IntencionPago {
   final String? instrucciones;
 
   bool get pendiente => estado == 'PENDIENTE';
+  bool get confirmado => estado == 'CONFIRMADO';
+
+  IntencionPago copyWith({String? estado}) {
+    return IntencionPago(
+      pagoId: pagoId,
+      medioPago: medioPago,
+      monto: monto,
+      estado: estado ?? this.estado,
+      referenciaExterna: referenciaExterna,
+      urlPago: urlPago,
+      instrucciones: instrucciones,
+    );
+  }
 }

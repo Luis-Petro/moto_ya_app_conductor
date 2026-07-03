@@ -16,9 +16,12 @@ import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import 'billetera_view_model.dart';
 
-/// Colores de marca de los medios de pago (identidad visual reconocible).
-const _colorNequi = Color(0xFFDA0081);
-const _colorBreB = Color(0xFFF2C500);
+/// Logos oficiales de los medios de pago (identidad visual reconocible).
+const _logoNequi = 'assets/images/nequi.png';
+const _logoBreB = 'assets/images/breb.png';
+
+String _logoMedio(MedioPago medio) =>
+    medio == MedioPago.nequi ? _logoNequi : _logoBreB;
 
 class BilleteraScreen extends StatelessWidget {
   const BilleteraScreen({super.key});
@@ -115,6 +118,14 @@ class _BilleteraViewState extends State<_BilleteraView> {
                             intencion: vm.intencion!,
                             onVer: () =>
                                 _mostrarTransaccion(context, vm.intencion!),
+                          ),
+                        ] else if (vm.intencion != null &&
+                            vm.intencion!.confirmado) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          _PagoConfirmado(
+                            mensaje: vm.aviso ??
+                                'Pago confirmado. Tu saldo se actualizó.',
+                            onCerrar: vm.descartarIntencion,
                           ),
                         ],
                         const SizedBox(height: AppSpacing.xl),
@@ -344,6 +355,43 @@ class _PagoEnProceso extends StatelessWidget {
   }
 }
 
+/// Aviso de pago confirmado (el saldo/estado ya se actualizaron), descartable.
+class _PagoConfirmado extends StatelessWidget {
+  const _PagoConfirmado({required this.mensaje, required this.onCerrar});
+  final String mensaje;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF7F1),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(color: AppColors.success),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(mensaje,
+                style: const TextStyle(
+                    color: AppColors.success,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+          InkWell(
+            onTap: onCerrar,
+            child: const Icon(Icons.close_rounded,
+                color: AppColors.success, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Medios extends StatelessWidget {
   const _Medios({required this.vm});
   final BilleteraViewModel vm;
@@ -352,43 +400,19 @@ class _Medios extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: _MedioChip(
-            vm: vm,
-            medio: MedioPago.nequi,
-            marca: _colorNequi,
-            letra: 'N',
-          ),
-        ),
+        Expanded(child: _MedioChip(vm: vm, medio: MedioPago.nequi)),
         const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: _MedioChip(
-            vm: vm,
-            medio: MedioPago.breB,
-            marca: _colorBreB,
-            letra: 'B',
-            letraOscura: true,
-          ),
-        ),
+        Expanded(child: _MedioChip(vm: vm, medio: MedioPago.breB)),
       ],
     );
   }
 }
 
-/// Chip de medio de pago con el color de marca del proveedor.
+/// Chip de medio de pago con el logo oficial del proveedor.
 class _MedioChip extends StatelessWidget {
-  const _MedioChip({
-    required this.vm,
-    required this.medio,
-    required this.marca,
-    required this.letra,
-    this.letraOscura = false,
-  });
+  const _MedioChip({required this.vm, required this.medio});
   final BilleteraViewModel vm;
   final MedioPago medio;
-  final Color marca;
-  final String letra;
-  final bool letraOscura;
 
   @override
   Widget build(BuildContext context) {
@@ -408,14 +432,10 @@ class _MedioChip extends StatelessWidget {
         ),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: marca,
-              child: Text(letra,
-                  style: TextStyle(
-                      color: letraOscura ? AppColors.ink : Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16)),
+            // Alto uniforme para ambos logos, sin recorte (BoxFit.contain).
+            SizedBox(
+              height: 40,
+              child: Image.asset(_logoMedio(medio), fit: BoxFit.contain),
             ),
             const SizedBox(height: 6),
             Text(medio.label,
@@ -447,7 +467,6 @@ class _TransaccionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final esNequi = intencion.medioPago == MedioPago.nequi;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -458,13 +477,11 @@ class _TransaccionSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: esNequi ? _colorNequi : _colorBreB,
-                  child: Text(esNequi ? 'N' : 'B',
-                      style: TextStyle(
-                          color: esNequi ? Colors.white : AppColors.ink,
-                          fontWeight: FontWeight.w900)),
+                SizedBox(
+                  height: 36,
+                  width: 36,
+                  child: Image.asset(_logoMedio(intencion.medioPago),
+                      fit: BoxFit.contain),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

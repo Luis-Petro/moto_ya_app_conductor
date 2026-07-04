@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/auth_repository.dart';
 
-/// Estado y lógica de la pantalla de registro (canal teléfono + OTP).
+/// Estado y lógica del registro: crea la cuenta (correo + contraseña + cédula +
+/// teléfono) y dispara el OTP para validar el teléfono en el paso siguiente.
 class RegistroViewModel extends ChangeNotifier {
   RegistroViewModel(this._auth);
 
@@ -14,19 +15,40 @@ class RegistroViewModel extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  /// Solicita el código OTP al teléfono. Devuelve true si se envió.
-  Future<bool> solicitarCodigo(String telefonoE164) async {
+  /// Crea la cuenta y envía el código OTP al teléfono. Devuelve true si la
+  /// cuenta quedó creada y el código salió (o al menos la cuenta se creó y se
+  /// puede reenviar el código desde la pantalla de verificación).
+  Future<bool> registrar({
+    required String nombres,
+    required String apellidos,
+    required String cedula,
+    required String telefonoE164,
+    required String email,
+    required String password,
+  }) async {
     _enviando = true;
     _error = null;
     notifyListeners();
 
-    final res = await _auth.solicitarOtp(telefonoE164);
-    _enviando = false;
-    final ok = res.isSuccess;
-    if (!ok) {
-      _error = res.when(ok: (_) => null, err: (f) => f.message);
+    final reg = await _auth.registrar(
+      nombre: '$nombres $apellidos'.trim(),
+      telefono: telefonoE164,
+      email: email,
+      cedula: cedula,
+      password: password,
+    );
+    if (!reg.isSuccess) {
+      _error = reg.when(ok: (_) => null, err: (f) => f.message);
+      _enviando = false;
+      notifyListeners();
+      return false;
     }
+
+    // Cuenta creada: pedir el código para validar el teléfono. Si el envío falla
+    // igual se continúa al OTP (se puede reenviar allí; la cuenta ya existe).
+    await _auth.solicitarOtp(telefonoE164);
+    _enviando = false;
     notifyListeners();
-    return ok;
+    return true;
   }
 }

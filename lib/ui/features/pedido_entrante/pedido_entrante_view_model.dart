@@ -27,6 +27,7 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   Timer? _timer;
 
   bool enviando = false;
+  bool rechazando = false;
 
   /// Monto propuesto por el conductor (para contraoferta). Inicia en la sugerida.
   double montoPropuesto = 0;
@@ -91,6 +92,21 @@ class PedidoEntranteViewModel extends ChangeNotifier {
       error = res.when(ok: (_) => null, err: (f) => f.message);
       // Un fallo puede significar que el pedido ya fue tomado: refresca estado.
       await _refrescarSiConflicto();
+    }
+    notifyListeners();
+    return ok;
+  }
+
+  /// Rechaza la oferta: se registra en el backend para no volver a ofrecerla y
+  /// para reflejarlo en la tasa de aceptación. Devuelve true si se registró.
+  Future<bool> rechazar() async {
+    rechazando = true;
+    notifyListeners();
+    final res = await _pedidos.rechazar(pedidoId);
+    rechazando = false;
+    final ok = res.isSuccess;
+    if (!ok) {
+      error = res.when(ok: (_) => null, err: (f) => f.message);
     }
     notifyListeners();
     return ok;

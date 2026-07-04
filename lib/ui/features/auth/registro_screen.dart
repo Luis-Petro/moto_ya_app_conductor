@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -32,51 +33,88 @@ class _RegistroView extends StatefulWidget {
 }
 
 class _RegistroViewState extends State<_RegistroView> {
-  final _nombre = TextEditingController();
+  final _nombres = TextEditingController();
+  final _apellidos = TextEditingController();
+  final _cedula = TextEditingController();
   final _telefono = TextEditingController();
   final _email = TextEditingController();
+  final _password = TextEditingController();
+  bool _verPassword = false;
   bool _aceptaTerminos = false;
-  String? _errorNombre;
-  String? _errorTelefono;
+
+  String? _errNombres;
+  String? _errApellidos;
+  String? _errCedula;
+  String? _errTelefono;
+  String? _errEmail;
+  String? _errPassword;
 
   @override
   void dispose() {
-    _nombre.dispose();
+    _nombres.dispose();
+    _apellidos.dispose();
+    _cedula.dispose();
     _telefono.dispose();
     _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  bool get _formularioValido =>
-      _nombre.text.trim().length >= 3 &&
-      telefonoCoValido(_telefono.text) &&
-      _aceptaTerminos;
+  bool _emailValido(String v) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v.trim());
+
+  bool _validar() {
+    setState(() {
+      _errNombres = _nombres.text.trim().length < 2 ? 'Ingresa tus nombres' : null;
+      _errApellidos =
+          _apellidos.text.trim().length < 2 ? 'Ingresa tus apellidos' : null;
+      _errCedula =
+          _cedula.text.trim().length < 5 ? 'Ingresa tu número de cédula' : null;
+      _errTelefono = telefonoCoValido(_telefono.text) ? null : 'Celular inválido';
+      _errEmail = _emailValido(_email.text) ? null : 'Correo inválido';
+      _errPassword =
+          _password.text.length < 6 ? 'Mínimo 6 caracteres' : null;
+    });
+    return _errNombres == null &&
+        _errApellidos == null &&
+        _errCedula == null &&
+        _errTelefono == null &&
+        _errEmail == null &&
+        _errPassword == null &&
+        _aceptaTerminos;
+  }
 
   Future<void> _continuar() async {
-    setState(() {
-      _errorNombre =
-          _nombre.text.trim().length < 3 ? 'Ingresa tu nombre completo' : null;
-      _errorTelefono =
-          telefonoCoValido(_telefono.text) ? null : 'Celular inválido';
-    });
-    if (!_formularioValido) return;
-
+    if (!_validar()) {
+      if (!_aceptaTerminos) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Debes aceptar los Términos para continuar')));
+      }
+      return;
+    }
     final vm = context.read<RegistroViewModel>();
     final telefono = normalizarTelefonoCo(_telefono.text);
-    final ok = await vm.solicitarCodigo(telefono);
+    final ok = await vm.registrar(
+      nombres: _nombres.text.trim(),
+      apellidos: _apellidos.text.trim(),
+      cedula: _cedula.text.trim(),
+      telefonoE164: telefono,
+      email: _email.text.trim(),
+      password: _password.text,
+    );
     if (!mounted) return;
     if (ok) {
+      // Cuenta creada: validar el teléfono con el código antes de operar.
       context.push(
         Rutas.otp,
         extra: OtpArgs(
           telefono: telefono,
-          nombre: _nombre.text.trim(),
-          email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+          nombre: '${_nombres.text.trim()} ${_apellidos.text.trim()}'.trim(),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos enviar el código')),
+        SnackBar(content: Text(vm.error ?? 'No pudimos crear tu cuenta')),
       );
     }
   }
@@ -99,36 +137,78 @@ class _RegistroViewState extends State<_RegistroView> {
             const Text('Como conductor · gana con los domicilios de tu municipio',
                 style: TextStyle(color: AppColors.inkMuted)),
             const SizedBox(height: AppSpacing.xl),
-            const _Label('Nombre completo'),
+            const _Label('Nombres'),
             TextField(
-              controller: _nombre,
+              controller: _nombres,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
-                hintText: 'Jhon Restrepo',
+                hintText: 'Jhon Alberto',
                 prefixIcon: const Icon(Icons.person_outline),
-                errorText: _errorNombre,
+                errorText: _errNombres,
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
+            const _Label('Apellidos'),
+            TextField(
+              controller: _apellidos,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                hintText: 'Restrepo Gómez',
+                prefixIcon: const Icon(Icons.badge_outlined),
+                errorText: _errApellidos,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const _Label('Cédula'),
+            TextField(
+              controller: _cedula,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                hintText: '1000123456',
+                prefixIcon: const Icon(Icons.credit_card_outlined),
+                errorText: _errCedula,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const _Label('Celular'),
             PhoneField(controller: _telefono),
-            if (_errorTelefono != null)
+            if (_errTelefono != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6, left: 4),
-                child: Text(_errorTelefono!,
+                child: Text(_errTelefono!,
                     style:
                         const TextStyle(color: AppColors.danger, fontSize: 12)),
               ),
-            const SizedBox(height: AppSpacing.lg),
-            const _Label('Correo (opcional)'),
+            const SizedBox(height: AppSpacing.md),
+            const _Label('Correo'),
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'tucorreo@ejemplo.com',
-                prefixIcon: Icon(Icons.mail_outline),
+                prefixIcon: const Icon(Icons.mail_outline),
+                errorText: _errEmail,
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
+            const _Label('Contraseña'),
+            TextField(
+              controller: _password,
+              obscureText: !_verPassword,
+              decoration: InputDecoration(
+                hintText: 'Mínimo 6 caracteres',
+                prefixIcon: const Icon(Icons.lock_outline),
+                errorText: _errPassword,
+                suffixIcon: IconButton(
+                  icon: Icon(_verPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () => setState(() => _verPassword = !_verPassword),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             CheckboxListTile(
               value: _aceptaTerminos,
               onChanged: (v) => setState(() => _aceptaTerminos = v ?? false),
@@ -140,11 +220,11 @@ class _RegistroViewState extends State<_RegistroView> {
                 style: TextStyle(fontSize: 13),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             PrimaryButton(
               label: 'Crear cuenta',
               loading: vm.enviando,
-              onPressed: _formularioValido ? _continuar : null,
+              onPressed: _continuar,
             ),
             const SizedBox(height: AppSpacing.md),
             Center(

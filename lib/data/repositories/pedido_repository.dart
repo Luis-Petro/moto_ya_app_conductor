@@ -36,6 +36,9 @@ class PedidoRepository {
   /// Ofertas de pedidos cercanos para el conductor en línea (fallback de sondeo).
   Future<Result<List<Pedido>>> ofertas() => _service.ofertas();
 
+  /// Rechaza una oferta (deja de aparecer en el sondeo; baja la tasa de aceptación).
+  Future<Result<void>> rechazar(int pedidoId) => _service.rechazar(pedidoId);
+
   Future<Result<void>> reportarPosicion(int pedidoId, LatLng punto) =>
       _service.reportarPosicion(pedidoId, punto);
 

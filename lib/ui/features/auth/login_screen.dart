@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../config/env.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/widgets/brand.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
 import 'otp_screen.dart';
 import 'login_view_model.dart';
+
+/// Logo de marca sin fondo (recortado) para la cabecera del login.
+const String _kLogoLogin = 'assets/images/logo-removebg.png';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -58,18 +59,6 @@ class _LoginViewState extends State<_LoginView> {
     }
   }
 
-  Future<void> _google() async {
-    final vm = context.read<LoginViewModel>();
-    final ok = await vm.loginGoogle();
-    if (!mounted) return;
-    if (ok) {
-      context.go(Rutas.alta);
-    } else if (vm.error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(vm.error!)));
-    }
-  }
-
   Future<void> _ingresarConCelular() async {
     final telefono = await showModalBottomSheet<String>(
       context: context,
@@ -92,86 +81,91 @@ class _LoginViewState extends State<_LoginView> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<LoginViewModel>();
+    // Layout que cabe en pantalla sin scroll: el contenido se ajusta a la
+    // altura visible y solo se desplaza si el teclado reduce el espacio.
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          children: [
-            const SizedBox(height: AppSpacing.lg),
-            const BrandLockup(width: 150),
-            const SizedBox(height: AppSpacing.lg),
-            const Text('Hola de nuevo 👋',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-            const SizedBox(height: AppSpacing.xs),
-            const Text('Ingresa para recibir pedidos en motoYa.',
-                style: TextStyle(color: AppColors.inkMuted)),
-            const SizedBox(height: AppSpacing.xl),
-            const _Label('Correo'),
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                hintText: 'tucorreo@ejemplo.com',
-                prefixIcon: Icon(Icons.mail_outline),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const _Label('Contraseña'),
-            TextField(
-              controller: _password,
-              obscureText: !_verPassword,
-              decoration: InputDecoration(
-                hintText: '••••••••',
-                prefixIcon: const Icon(Icons.lock_outline),
-                suffixIcon: IconButton(
-                  icon: Icon(_verPassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined),
-                  onPressed: () => setState(() => _verPassword = !_verPassword),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: AppSpacing.lg),
+                      Center(
+                        child: Image.asset(_kLogoLogin,
+                            width: 120, fit: BoxFit.contain),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const Text('Hola de nuevo 👋',
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: AppSpacing.xs),
+                      const Text('Ingresa para recibir pedidos en motoYa.',
+                          style: TextStyle(color: AppColors.inkMuted)),
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // Opción de mensaje (código por celular), destacada arriba.
+                      OutlinedButton.icon(
+                        onPressed: _ingresarConCelular,
+                        icon: const Icon(Icons.sms_outlined),
+                        label: const Text('Ingresar con código por mensaje'),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const _Divisor(),
+                      const SizedBox(height: AppSpacing.md),
+
+                      const _Label('Correo'),
+                      TextField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          hintText: 'tucorreo@ejemplo.com',
+                          prefixIcon: Icon(Icons.mail_outline),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      const _Label('Contraseña'),
+                      TextField(
+                        controller: _password,
+                        obscureText: !_verPassword,
+                        onSubmitted: (_) => _login(),
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(_verPassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined),
+                            onPressed: () =>
+                                setState(() => _verPassword = !_verPassword),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      PrimaryButton(
+                          label: 'Ingresar',
+                          loading: vm.cargando,
+                          onPressed: _login),
+
+                      const Spacer(),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => context.go(Rutas.acceso),
+                          child: const Text('¿No tienes cuenta? Regístrate'),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            PrimaryButton(
-                label: 'Ingresar', loading: vm.cargando, onPressed: _login),
-            const SizedBox(height: AppSpacing.md),
-            const _Divisor(),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: vm.googleCargando ? null : _google,
-              icon: vm.googleCargando
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.g_mobiledata_rounded, size: 28),
-              label: const Text('Continuar con Google'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: _ingresarConCelular,
-              icon: const Icon(Icons.sms_outlined),
-              label: const Text('Ingresar con mi celular (código)'),
-            ),
-            if (Env.appleSignInEnabled) ...[
-              const SizedBox(height: AppSpacing.md),
-              OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Apple Sign-In estará disponible pronto.')));
-                },
-                icon: const Icon(Icons.apple),
-                label: const Text('Continuar con Apple'),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.lg),
-            Center(
-              child: TextButton(
-                onPressed: () => context.go(Rutas.acceso),
-                child: const Text('¿No tienes cuenta? Regístrate'),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -187,7 +181,7 @@ class _Divisor extends StatelessWidget {
         Expanded(child: Divider()),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text('o continúa con',
+          child: Text('o con tu correo',
               style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
         ),
         Expanded(child: Divider()),

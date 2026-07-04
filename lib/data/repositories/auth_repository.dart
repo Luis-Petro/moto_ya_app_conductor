@@ -47,15 +47,18 @@ class AuthRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Crea la cuenta (correo + contraseña + cédula + teléfono) **sin** iniciar
+  /// sesión: la sesión se emite al verificar el teléfono por OTP (paso siguiente
+  /// del registro). Así el router no redirige fuera del OTP por estar ya logueado.
   Future<Result<Sesion>> registrar({
     required String nombre,
-    String? telefono,
-    String? email,
+    required String telefono,
+    required String email,
+    required String cedula,
     required String password,
-  }) async {
-    final res = await _auth.register(
-        nombre: nombre, telefono: telefono, email: email, password: password);
-    return _persistirSiOk(res);
+  }) {
+    return _auth.register(
+        nombre: nombre, telefono: telefono, email: email, cedula: cedula, password: password);
   }
 
   Future<Result<Sesion>> loginEmail(String email, String password) async {

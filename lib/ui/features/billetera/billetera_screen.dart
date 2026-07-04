@@ -48,11 +48,17 @@ class _BilleteraView extends StatefulWidget {
 
 class _BilleteraViewState extends State<_BilleteraView> {
   final _monto = TextEditingController();
+  final _cuentaOrigen = TextEditingController();
+  final _titularOrigen = TextEditingController();
+  final _entidadOrigen = TextEditingController();
   bool _montoInicializado = false;
 
   @override
   void dispose() {
     _monto.dispose();
+    _cuentaOrigen.dispose();
+    _titularOrigen.dispose();
+    _entidadOrigen.dispose();
     super.dispose();
   }
 
@@ -68,7 +74,20 @@ class _BilleteraViewState extends State<_BilleteraView> {
       double.tryParse(_monto.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
 
   Future<void> _pagar(BuildContext context, BilleteraViewModel vm) async {
-    final ok = await vm.pagar(_montoIngresado);
+    final esNequi = vm.medioSeleccionado == MedioPago.nequi;
+    // El conductor declara desde qué cuenta envió (para conciliar el pago).
+    if (_cuentaOrigen.text.trim().isEmpty || _titularOrigen.text.trim().isEmpty ||
+        (!esNequi && _entidadOrigen.text.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Indica desde qué cuenta enviaste el pago')));
+      return;
+    }
+    final ok = await vm.pagar(
+      _montoIngresado,
+      cuentaOrigen: _cuentaOrigen.text.trim(),
+      titularOrigen: _titularOrigen.text.trim(),
+      entidadOrigen: esNequi ? null : _entidadOrigen.text.trim(),
+    );
     if (!context.mounted) return;
     if (ok && vm.intencion != null) {
       await _mostrarTransaccion(context, vm.intencion!);
@@ -137,6 +156,11 @@ class _BilleteraViewState extends State<_BilleteraView> {
                                 letterSpacing: 0.4)),
                         const SizedBox(height: AppSpacing.sm),
                         _Medios(vm: vm),
+                        if (vm.datosPago != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          _DestinoPago(
+                              datos: vm.datosPago!, medio: vm.medioSeleccionado),
+                        ],
                         const SizedBox(height: AppSpacing.lg),
                         const Text('MONTO A PAGAR',
                             style: TextStyle(
@@ -163,6 +187,47 @@ class _BilleteraViewState extends State<_BilleteraView> {
                             helperMaxLines: 2,
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.lg),
+                        Text(
+                            vm.medioSeleccionado == MedioPago.nequi
+                                ? 'DESDE QUÉ CUENTA NEQUI ENVIASTE'
+                                : 'DESDE QUÉ CUENTA BRE-B ENVIASTE',
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.inkMuted,
+                                letterSpacing: 0.4)),
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _cuentaOrigen,
+                          keyboardType: TextInputType.text,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                            hintText: vm.medioSeleccionado == MedioPago.nequi
+                                ? 'Tu número Nequi'
+                                : 'Tu llave o cuenta Bre-B',
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        TextField(
+                          controller: _titularOrigen,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.person_outline),
+                            hintText: 'A nombre de quién',
+                          ),
+                        ),
+                        if (vm.medioSeleccionado == MedioPago.breB) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          TextField(
+                            controller: _entidadOrigen,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.account_balance_outlined),
+                              hintText: 'Entidad (banco/billetera)',
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: AppSpacing.xl),
                         PrimaryButton(
                           label: vm.bloqueado
@@ -385,6 +450,67 @@ class _PagoConfirmado extends StatelessWidget {
             onTap: onCerrar,
             child: const Icon(Icons.close_rounded,
                 color: AppColors.success, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Datos de destino a donde transferir según el medio seleccionado (Nequi/Bre-B),
+/// administrados desde el panel. Si no hay datos configurados, avisa.
+class _DestinoPago extends StatelessWidget {
+  const _DestinoPago({required this.datos, required this.medio});
+  final DatosPago datos;
+  final MedioPago medio;
+
+  @override
+  Widget build(BuildContext context) {
+    final esNequi = medio == MedioPago.nequi;
+    final tiene = datos.tieneDatos(medio);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.south_east_rounded,
+              size: 18, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: tiene
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Transfiere a ${esNequi ? 'Nequi' : 'Bre-B'}:',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.inkMuted)),
+                      const SizedBox(height: 2),
+                      Text(
+                        esNequi
+                            ? datos.nequiNumero!
+                            : datos.brebLlave!,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15),
+                      ),
+                      Text(
+                        [
+                          esNequi ? datos.nequiTitular : datos.brebTitular,
+                          if (!esNequi) datos.brebEntidad,
+                        ].whereType<String>().join(' · '),
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.ink),
+                      ),
+                    ],
+                  )
+                : Text(
+                    'Aún no hay una cuenta ${esNequi ? 'Nequi' : 'Bre-B'} configurada. Contacta al administrador.',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.inkMuted),
+                  ),
           ),
         ],
       ),

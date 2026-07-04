@@ -100,4 +100,10 @@ class PedidoService {
   Future<Result<List<Pedido>>> ofertas() {
     return _api.get<List<Pedido>>('/pedidos/ofertas', parse: ApiMappers.pedidos);
   }
+
+  /// Rechaza una oferta: deja de aparecer en el sondeo y baja la tasa de
+  /// aceptación del conductor (`POST /pedidos/{id}/rechazar`).
+  Future<Result<void>> rechazar(int pedidoId) {
+    return _api.post<void>('/pedidos/$pedidoId/rechazar');
+  }
 }

@@ -47,6 +47,18 @@ class _EntranteView extends StatelessWidget {
     }
   }
 
+  Future<void> _rechazar(BuildContext context, PedidoEntranteViewModel vm) async {
+    final ok = await vm.rechazar();
+    if (!context.mounted) return;
+    // Aunque falle el registro, cerramos: el conductor decidió no tomarla.
+    if (!ok && vm.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(vm.error!)),
+      );
+    }
+    context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<PedidoEntranteViewModel>();
@@ -124,7 +136,11 @@ class _EntranteView extends StatelessWidget {
                 ],
               ),
             ),
-            _Acciones(vm: vm, onEnviar: _enviar, expirado: expirado),
+            _Acciones(
+                vm: vm,
+                onEnviar: _enviar,
+                onRechazar: _rechazar,
+                expirado: expirado),
           ],
         ),
       ),
@@ -386,11 +402,13 @@ class _Acciones extends StatelessWidget {
   const _Acciones({
     required this.vm,
     required this.onEnviar,
+    required this.onRechazar,
     required this.expirado,
   });
   final PedidoEntranteViewModel vm;
   final Future<void> Function(BuildContext, PedidoEntranteViewModel,
       {required bool aceptarSugerida}) onEnviar;
+  final Future<void> Function(BuildContext, PedidoEntranteViewModel) onRechazar;
   final bool expirado;
 
   @override
@@ -415,8 +433,14 @@ class _Acciones extends StatelessWidget {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed: vm.enviando ? null : () => context.pop(),
-              child: const Text('Rechazar'),
+              onPressed:
+                  (vm.enviando || vm.rechazando) ? null : () => onRechazar(context, vm),
+              child: vm.rechazando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Rechazar'),
             ),
           ),
           const SizedBox(width: AppSpacing.md),

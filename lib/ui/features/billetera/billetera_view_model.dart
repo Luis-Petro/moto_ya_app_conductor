@@ -25,6 +25,9 @@ class BilleteraViewModel extends ChangeNotifier {
   String? aviso;
   Billetera? billetera;
 
+  /// Datos de destino (Nequi/Bre-B) a donde transferir, administrados por el panel.
+  DatosPago? datosPago;
+
   MedioPago medioSeleccionado = MedioPago.nequi;
 
   /// Última intención de pago iniciada (info de la transacción: referencia,
@@ -82,6 +85,12 @@ class BilleteraViewModel extends ChangeNotifier {
     _resolverPagoPendiente();
     cargando = false;
     if (!_disposed) notifyListeners();
+    // Datos de destino: se cargan una vez (no bloquean el render del saldo).
+    if (datosPago == null) {
+      final d = await _billetera.datosPago();
+      datosPago = d.valueOrNull ?? datosPago;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   /// Marca la intención como confirmada cuando el saldo refleja que el pago se
@@ -121,7 +130,12 @@ class BilleteraViewModel extends ChangeNotifier {
   /// Inicia un pago/abono por [monto] (puede superar la deuda: el excedente
   /// queda como saldo a favor). La confirmación real llega por webhook; aquí
   /// solo se refleja el estado "pendiente" y se reconcilia.
-  Future<bool> pagar(double monto) async {
+  Future<bool> pagar(
+    double monto, {
+    String? cuentaOrigen,
+    String? titularOrigen,
+    String? entidadOrigen,
+  }) async {
     if (monto <= 0) {
       error = 'Ingresa un monto válido';
       notifyListeners();
@@ -134,6 +148,9 @@ class BilleteraViewModel extends ChangeNotifier {
     final res = await _billetera.pagar(
       medioPago: medioSeleccionado,
       monto: monto,
+      cuentaOrigen: cuentaOrigen,
+      titularOrigen: titularOrigen,
+      entidadOrigen: entidadOrigen,
     );
     final ok = res.isSuccess;
     if (ok) {

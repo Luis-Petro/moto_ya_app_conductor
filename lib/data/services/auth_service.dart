@@ -14,6 +14,7 @@ class AuthService {
     required String nombre,
     String? telefono,
     String? email,
+    String? cedula,
     required String password,
   }) {
     return _api.post<Sesion>(
@@ -22,6 +23,7 @@ class AuthService {
         'nombre': nombre,
         'telefono': telefono,
         'email': email,
+        'cedula': cedula,
         'password': password,
         'rol': Rol.conductor.wire,
       },

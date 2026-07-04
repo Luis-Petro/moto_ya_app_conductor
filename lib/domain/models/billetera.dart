@@ -52,6 +52,29 @@ class Billetera {
   }
 }
 
+/// Datos de destino a donde el conductor transfiere para pagar comisiones
+/// (administrados desde el panel). Nequi por número; Bre-B por llave.
+class DatosPago {
+  const DatosPago({
+    this.nequiNumero,
+    this.nequiTitular,
+    this.brebLlave,
+    this.brebTitular,
+    this.brebEntidad,
+  });
+
+  final String? nequiNumero;
+  final String? nequiTitular;
+  final String? brebLlave;
+  final String? brebTitular;
+  final String? brebEntidad;
+
+  /// True si hay datos configurados para [medio].
+  bool tieneDatos(MedioPago medio) => medio == MedioPago.nequi
+      ? (nequiNumero != null && nequiNumero!.isNotEmpty)
+      : (brebLlave != null && brebLlave!.isNotEmpty);
+}
+
 /// Medio de pago para liquidar la deuda (espejo del enum backend `MedioPago`).
 enum MedioPago {
   nequi('NEQUI', 'Nequi'),

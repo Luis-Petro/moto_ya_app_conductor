@@ -23,9 +23,21 @@ class BilleteraRepository {
   Future<Result<IntencionPago>> pagar({
     required MedioPago medioPago,
     required double monto,
+    String? cuentaOrigen,
+    String? titularOrigen,
+    String? entidadOrigen,
   }) {
-    return _service.pagar(medioPago: medioPago, monto: monto);
+    return _service.pagar(
+      medioPago: medioPago,
+      monto: monto,
+      cuentaOrigen: cuentaOrigen,
+      titularOrigen: titularOrigen,
+      entidadOrigen: entidadOrigen,
+    );
   }
+
+  /// Datos de destino (Nequi/Bre-B) configurados por la plataforma.
+  Future<Result<DatosPago>> datosPago() => _service.datosPago();
 
   void limpiar() => _cache = null;
 }

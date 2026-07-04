@@ -87,6 +87,17 @@ class ApiMappers {
     );
   }
 
+  static DatosPago datosPago(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return DatosPago(
+      nequiNumero: m['nequiNumero'] as String?,
+      nequiTitular: m['nequiTitular'] as String?,
+      brebLlave: m['brebLlave'] as String?,
+      brebTitular: m['brebTitular'] as String?,
+      brebEntidad: m['brebEntidad'] as String?,
+    );
+  }
+
   static IntencionPago intencionPago(dynamic json) {
     final m = json as Map<String, dynamic>;
     return IntencionPago(

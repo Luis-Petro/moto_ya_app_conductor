@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/calificacion.dart';
+import '../../domain/models/oferta.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
 import '../models/api_mappers.dart';
@@ -95,10 +96,10 @@ class PedidoService {
     );
   }
 
-  /// Ofertas de pedidos cercanos disponibles para el conductor en línea
-  /// (fallback de sondeo cuando el push FCM no está disponible).
-  Future<Result<List<Pedido>>> ofertas() {
-    return _api.get<List<Pedido>>('/pedidos/ofertas', parse: ApiMappers.pedidos);
+  /// Ofertas dirigidas y vigentes para el conductor en línea (fallback de sondeo
+  /// del canal STOMP). Cada una trae la ventana del servidor (`segundosRestantes`).
+  Future<Result<List<Oferta>>> ofertas() {
+    return _api.get<List<Oferta>>('/pedidos/ofertas', parse: ApiMappers.ofertas);
   }
 
   /// Rechaza una oferta: deja de aparecer en el sondeo y baja la tasa de

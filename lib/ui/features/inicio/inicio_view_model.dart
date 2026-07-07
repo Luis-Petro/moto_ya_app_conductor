@@ -12,6 +12,7 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/estado_pedido.dart';
+import '../../../domain/models/oferta.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/tab_activa.dart';
 
@@ -56,15 +57,15 @@ class InicioViewModel extends ChangeNotifier {
   int pedidosHoy = 0;
   DateTime? _enLineaDesde;
 
-  /// Oferta de pedido cercano detectada por sondeo (fallback sin push FCM).
-  Pedido? ofertaActual;
+  /// Oferta dirigida vigente para el conductor (con la ventana del servidor).
+  Oferta? ofertaActual;
 
   /// Pedido en curso asignado al conductor (ACEPTADO/EN_COMPRA/EN_CAMINO): se
   /// muestra siempre para que pueda continuar el flujo aunque no llegue push.
   Pedido? pedidoActivo;
 
   Timer? _poll;
-  StreamSubscription<int>? _ofertaSub;
+  StreamSubscription<EventoOferta>? _ofertaSub;
   bool _pollLento = false;
   bool _disposed = false;
 
@@ -116,7 +117,7 @@ class InicioViewModel extends ChangeNotifier {
     }));
     if (enLinea) _reporter.start(_onPosicion);
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
-    _ofertaSub ??= _ofertas.connect().listen(_onOfertaStomp);
+    _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
     _iniciarPoll();
   }
 
@@ -126,10 +127,18 @@ class InicioViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// Oferta recibida por STOMP: revalida de inmediato contra `/pedidos/ofertas`
-  /// (para descartar ofertas ya tomadas y aplicar el filtro de cercanía) en vez
-  /// de confiar a ciegas en el id empujado.
-  void _onOfertaStomp(int pedidoId) {
+  /// Evento de oferta por STOMP. `PEDIDO_NUEVO` revalida contra `/pedidos/ofertas`
+  /// (para descartar ofertas ya tomadas) en vez de confiar a ciegas en el id.
+  /// Los eventos de cierre (`OFERTA_EXPIRADA`/`PEDIDO_TOMADO`/`PEDIDO_CANCELADO`)
+  /// retiran de inmediato la oferta mostrada si corresponde a ese pedido.
+  void _onEventoOferta(EventoOferta e) {
+    if (e.tipo.cierraOferta) {
+      if (ofertaActual?.pedidoId == e.pedidoId) {
+        ofertaActual = null;
+        _notificar();
+      }
+      return;
+    }
     if (enLinea && !bloqueadoPorDeuda) _tick();
   }
 
@@ -234,7 +243,7 @@ class InicioViewModel extends ChangeNotifier {
       final lista = res.valueOrNull;
       if (lista != null) {
         final nueva = lista.isEmpty ? null : lista.first;
-        if (nueva?.id != ofertaActual?.id) {
+        if (nueva?.pedidoId != ofertaActual?.pedidoId) {
           ofertaActual = nueva;
           _notificar();
         }

@@ -7,6 +7,7 @@ enum EstadoPedido {
   enCompra('EN_COMPRA', 'En compra'),
   enCamino('EN_CAMINO', 'En camino'),
   entregado('ENTREGADO', 'Entregado'),
+  sinConductor('SIN_CONDUCTOR', 'Sin conductor'),
   cancelado('CANCELADO', 'Cancelado');
 
   const EstadoPedido(this.wire, this.label);
@@ -14,10 +15,12 @@ enum EstadoPedido {
   final String wire;
   final String label;
 
+  /// Estado desconocido (versión de app anterior al backend): se trata como
+  /// finalizado para no dejar la UI en un limbo activo.
   static EstadoPedido fromWire(String? value) {
     return EstadoPedido.values.firstWhere(
       (e) => e.wire == value,
-      orElse: () => EstadoPedido.pendiente,
+      orElse: () => EstadoPedido.cancelado,
     );
   }
 
@@ -52,6 +55,7 @@ enum EstadoPedido {
         return 3;
       case EstadoPedido.entregado:
         return 4;
+      case EstadoPedido.sinConductor:
       case EstadoPedido.cancelado:
         return -1;
     }

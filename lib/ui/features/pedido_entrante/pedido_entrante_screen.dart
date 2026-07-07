@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/pedido_repository.dart';
+import '../../../data/services/ofertas_service.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
@@ -14,14 +15,21 @@ import '../../core/widgets/primary_button.dart';
 import 'pedido_entrante_view_model.dart';
 
 class PedidoEntranteScreen extends StatelessWidget {
-  const PedidoEntranteScreen({super.key, required this.pedidoId});
+  const PedidoEntranteScreen({super.key, required this.pedidoId, this.segundosIniciales});
   final int pedidoId;
+
+  /// Ventana de respuesta del servidor (segundos restantes) para el countdown real.
+  final int? segundosIniciales;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) =>
-          PedidoEntranteViewModel(locator<PedidoRepository>(), pedidoId)..cargar(),
+      create: (_) => PedidoEntranteViewModel(
+        locator<PedidoRepository>(),
+        pedidoId,
+        locator<OfertasService>(),
+        segundosIniciales: segundosIniciales,
+      )..cargar(),
       child: const _EntranteView(),
     );
   }
@@ -83,7 +91,10 @@ class _EntranteView extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _CabeceraNuevo(segundos: vm.segundosRestantes, expirado: expirado),
+            _CabeceraNuevo(
+                segundos: vm.segundosRestantes,
+                expirado: expirado,
+                avisoCierre: vm.avisoCierre),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
@@ -149,14 +160,23 @@ class _EntranteView extends StatelessWidget {
 }
 
 class _CabeceraNuevo extends StatelessWidget {
-  const _CabeceraNuevo({required this.segundos, required this.expirado});
+  const _CabeceraNuevo({
+    required this.segundos,
+    required this.expirado,
+    this.avisoCierre,
+  });
   final int segundos;
   final bool expirado;
+  final String? avisoCierre;
 
   @override
   Widget build(BuildContext context) {
     final mm = (segundos ~/ 60).toString();
     final ss = (segundos % 60).toString().padLeft(2, '0');
+    // Al cerrarse remotamente (tomado/cancelado) prima el aviso del backend.
+    final textoTimer = expirado
+        ? (avisoCierre ?? 'Oferta expirada')
+        : 'Responde en $mm:$ss';
     return Container(
       width: double.infinity,
       color: AppColors.accent,
@@ -183,7 +203,7 @@ class _CabeceraNuevo extends StatelessWidget {
                 const Icon(Icons.timer_outlined, color: Colors.white, size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  expirado ? 'Oferta expirada' : 'Responde en $mm:$ss',
+                  textoTimer,
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.w600),
                 ),

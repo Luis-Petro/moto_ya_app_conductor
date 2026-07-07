@@ -6,6 +6,7 @@ import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/estado_pedido.dart';
 import '../../domain/models/municipio.dart';
+import '../../domain/models/oferta.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
 import '../../domain/models/reputacion_conductor.dart';
@@ -146,6 +147,20 @@ class ApiMappers {
 
   static List<Pedido> pedidos(dynamic json) =>
       (json as List).map(pedido).toList();
+
+  /// Oferta dirigida vigente: envuelve el pedido con la ventana del servidor
+  /// (`GET /pedidos/ofertas` devuelve `{pedido, expiraEn, segundosRestantes}`).
+  static Oferta oferta(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return Oferta(
+      pedido: pedido(m['pedido']),
+      expiraEnMillis: _int(m['expiraEn']) ?? 0,
+      segundosRestantes: _int(m['segundosRestantes']) ?? 0,
+    );
+  }
+
+  static List<Oferta> ofertas(dynamic json) =>
+      (json as List).map(oferta).toList();
 
   static PropuestaTarifa propuesta(dynamic json) {
     final m = json as Map<String, dynamic>;

@@ -179,11 +179,13 @@ class _OfertaBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final oferta = vm.ofertaActual!;
+    final pedido = oferta.pedido;
     return MotoCard(
       color: AppColors.primarySurface,
       borderColor: AppColors.primary,
       onTap: () {
-        context.push(Rutas.pedidoEntrante(oferta.id));
+        // Pasa la ventana del servidor para el countdown real de la tarjeta.
+        context.push(Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes));
         vm.descartarOferta();
       },
       child: Row(
@@ -197,7 +199,7 @@ class _OfertaBanner extends StatelessWidget {
                 const Text('¡Nuevo pedido cerca!',
                     style: TextStyle(fontWeight: FontWeight.w800)),
                 Text(
-                  '${oferta.categoria.label} · sugerido ${Formato.moneda(oferta.tarifaSugerida)}',
+                  '${pedido.categoria.label} · sugerido ${Formato.moneda(pedido.tarifaSugerida)}',
                   style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
                 ),
               ],

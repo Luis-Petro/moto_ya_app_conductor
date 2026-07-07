@@ -6,8 +6,11 @@ void main() {
     test('fromWire mapea los valores del backend', () {
       expect(EstadoPedido.fromWire('EN_CAMINO'), EstadoPedido.enCamino);
       expect(EstadoPedido.fromWire('ENTREGADO'), EstadoPedido.entregado);
-      expect(EstadoPedido.fromWire(null), EstadoPedido.pendiente);
-      expect(EstadoPedido.fromWire('DESCONOCIDO'), EstadoPedido.pendiente);
+      expect(EstadoPedido.fromWire('SIN_CONDUCTOR'), EstadoPedido.sinConductor);
+      // Estado desconocido (app anterior al backend): fallback seguro a cancelado
+      // para no dejar la UI en un limbo activo.
+      expect(EstadoPedido.fromWire(null), EstadoPedido.cancelado);
+      expect(EstadoPedido.fromWire('DESCONOCIDO'), EstadoPedido.cancelado);
     });
 
     test('esFinal y estaActivo', () {

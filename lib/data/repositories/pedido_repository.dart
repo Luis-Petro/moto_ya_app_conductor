@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/calificacion.dart';
 import '../../domain/models/estado_pedido.dart';
+import '../../domain/models/oferta.dart';
 import '../../domain/models/pedido.dart';
 import '../../domain/models/propuesta_tarifa.dart';
 import '../services/api_result.dart';
@@ -33,8 +34,8 @@ class PedidoRepository {
   Future<Result<Pedido>> avanzar(int pedidoId, EstadoPedido destino) =>
       _service.avanzarEstado(pedidoId, destino.wire);
 
-  /// Ofertas de pedidos cercanos para el conductor en línea (fallback de sondeo).
-  Future<Result<List<Pedido>>> ofertas() => _service.ofertas();
+  /// Ofertas dirigidas y vigentes para el conductor en línea (fallback de sondeo).
+  Future<Result<List<Oferta>>> ofertas() => _service.ofertas();
 
   /// Rechaza una oferta (deja de aparecer en el sondeo; baja la tasa de aceptación).
   Future<Result<void>> rechazar(int pedidoId) => _service.rechazar(pedidoId);

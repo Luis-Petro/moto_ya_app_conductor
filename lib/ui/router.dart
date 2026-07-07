@@ -33,7 +33,8 @@ abstract class Rutas {
   static const historial = '/historial';
   static const perfil = '/perfil';
 
-  static String pedidoEntrante(int pedidoId) => '/pedido/$pedidoId/entrante';
+  static String pedidoEntrante(int pedidoId, {int? segundos}) =>
+      '/pedido/$pedidoId/entrante${segundos != null ? '?seg=$segundos' : ''}';
   static String pedidoActivo(int pedidoId) => '/pedido/$pedidoId/activo';
   static String pedidoDetalle(int pedidoId) => '/pedido/$pedidoId/detalle';
 }
@@ -123,8 +124,11 @@ GoRouter crearRouter(AuthRepository auth) {
       GoRoute(
         path: '/pedido/:id/entrante',
         parentNavigatorKey: rootKey,
-        builder: (_, state) =>
-            PedidoEntranteScreen(pedidoId: int.parse(state.pathParameters['id']!)),
+        builder: (_, state) => PedidoEntranteScreen(
+          pedidoId: int.parse(state.pathParameters['id']!),
+          // Ventana del servidor (segundos restantes) para el countdown real.
+          segundosIniciales: int.tryParse(state.uri.queryParameters['seg'] ?? ''),
+        ),
       ),
       GoRoute(
         path: '/pedido/:id/activo',

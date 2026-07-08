@@ -70,5 +70,26 @@ class PushService {
     }
   }
 
+  /// Verifica el permiso de notificaciones y, si aún no está concedido, lo
+  /// solicita (dispara el prompt del SO en Android 13+ / iOS). Devuelve `true`
+  /// si quedó autorizado. Si FCM no está activo (o no está configurado)
+  /// devuelve `true` para no bloquear al conductor por infra que no tenemos:
+  /// el canal STOMP + sondeo de ofertas siguen funcionando sin push.
+  Future<bool> asegurarPermiso() async {
+    if (!_activo) return true;
+    try {
+      var s = await FirebaseMessaging.instance.getNotificationSettings();
+      if (_autorizado(s.authorizationStatus)) return true;
+      s = await FirebaseMessaging.instance.requestPermission();
+      return _autorizado(s.authorizationStatus);
+    } catch (_) {
+      return true; // FCM no configurado: no bloquear
+    }
+  }
+
+  bool _autorizado(AuthorizationStatus st) =>
+      st == AuthorizationStatus.authorized ||
+      st == AuthorizationStatus.provisional;
+
   String get plataforma => Platform.isIOS ? 'IOS' : 'ANDROID';
 }

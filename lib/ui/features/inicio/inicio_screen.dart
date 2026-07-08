@@ -12,6 +12,7 @@ import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
+import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
@@ -35,6 +36,7 @@ class InicioScreen extends StatelessWidget {
         locator<UsuarioRepository>(),
         locator<OfertasService>(),
         locator<MunicipioRepository>(),
+        locator<PermisosService>(),
         locator<TabActiva>(),
       )..cargar(),
       child: const _InicioView(),
@@ -272,19 +274,94 @@ class _ToggleEnLinea extends StatelessWidget {
               value: enLinea,
               activeColor: Colors.white,
               activeTrackColor: AppColors.success,
-              onChanged: deshabilitado
-                  ? null
-                  : (v) async {
-                      final ok = await vm.alternarEnLinea(v);
-                      if (!ok && context.mounted && vm.bloqueadoPorDeuda) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'Cuenta bloqueada por deuda. Ve a Billetera.')),
-                        );
-                      }
-                    },
+              onChanged:
+                  deshabilitado ? null : (v) => _alternar(context, vm, v),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Aplica el cambio de estado y traduce el desenlace a un aviso. Ponerse en
+  /// línea exige ubicación y notificaciones: si faltan, ofrece abrir Ajustes.
+  Future<void> _alternar(
+      BuildContext context, InicioViewModel vm, bool valor) async {
+    final r = await vm.alternarEnLinea(valor);
+    if (!context.mounted) return;
+    switch (r) {
+      case ResultadoEnLinea.ok:
+      case ResultadoEnLinea.noHabilitado:
+        break;
+      case ResultadoEnLinea.bloqueadoDeuda:
+        _snack(context, 'Cuenta bloqueada por deuda. Ve a Billetera.');
+        break;
+      case ResultadoEnLinea.faltaUbicacionServicio:
+        _dialogoPermiso(
+          context,
+          titulo: 'Activa la ubicación',
+          mensaje:
+              'Para recibir pedidos necesitas el GPS encendido: te asignamos '
+              'los pedidos más cercanos a ti.',
+          onAjustes: vm.abrirConfiguracionUbicacion,
+        );
+        break;
+      case ResultadoEnLinea.faltaUbicacionPermiso:
+        _dialogoPermiso(
+          context,
+          titulo: 'Permite la ubicación',
+          mensaje:
+              'motoYa necesita tu ubicación para asignarte pedidos cercanos. '
+              'Actívala en Ajustes para ponerte en línea.',
+          onAjustes: vm.abrirConfiguracionApp,
+        );
+        break;
+      case ResultadoEnLinea.faltaNotificaciones:
+        _dialogoPermiso(
+          context,
+          titulo: 'Activa las notificaciones',
+          mensaje:
+              'Sin notificaciones no podemos avisarte de nuevos pedidos. '
+              'Actívalas en Ajustes para ponerte en línea.',
+          onAjustes: vm.abrirConfiguracionApp,
+        );
+        break;
+      case ResultadoEnLinea.error:
+        _snack(context, vm.error ?? 'No pudimos cambiar tu estado');
+        break;
+    }
+  }
+
+  void _snack(BuildContext context, String mensaje) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensaje)));
+  }
+
+  void _dialogoPermiso(
+    BuildContext context, {
+    required String titulo,
+    required String mensaje,
+    required Future<void> Function() onAjustes,
+  }) {
+    showDialog<void>(
+      context: context,
+      // Dentro de tabs (StatefulShellRoute): con el navigator raíz el diálogo
+      // pinta un velo negro sobre el shell.
+      useRootNavigator: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(titulo),
+        content: Text(mensaje),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Ahora no'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onAjustes();
+            },
+            child: const Text('Abrir ajustes'),
+          ),
         ],
       ),
     );

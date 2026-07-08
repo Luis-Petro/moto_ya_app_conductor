@@ -10,18 +10,31 @@ import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_reporter.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
+import '../../../data/services/permisos_service.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/oferta.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/tab_activa.dart';
 
+/// Desenlace de intentar ponerse en línea. La UI mapea cada caso a su aviso:
+/// los `falta*` ofrecen abrir Ajustes; el resto ya se refleja en el estado.
+enum ResultadoEnLinea {
+  ok,
+  bloqueadoDeuda,
+  noHabilitado,
+  faltaUbicacionServicio,
+  faltaUbicacionPermiso,
+  faltaNotificaciones,
+  error,
+}
+
 /// Estado del Inicio del conductor: disponibilidad, métricas del día, ubicación,
 /// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
 /// activo en curso.
 class InicioViewModel extends ChangeNotifier {
   InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas,
-      this._municipios, this._tab)
+      this._municipios, this._permisos, this._tab)
       : _reporter = LocationReporter() {
     _tab.addListener(_onTabActiva);
   }
@@ -32,6 +45,7 @@ class InicioViewModel extends ChangeNotifier {
   final UsuarioRepository _usuarios;
   final OfertasService _ofertas;
   final MunicipioRepository _municipios;
+  final PermisosService _permisos;
   final TabActiva _tab;
   final LocationReporter _reporter;
 
@@ -115,7 +129,7 @@ class InicioViewModel extends ChangeNotifier {
       pedidoActivo = p;
       _notificar();
     }));
-    if (enLinea) _reporter.start(_onPosicion);
+    if (enLinea) _reporter.start(_onPosicion, background: true);
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
     _iniciarPoll();
@@ -192,10 +206,42 @@ class InicioViewModel extends ChangeNotifier {
     pedidosHoy = cuenta;
   }
 
-  /// Alterna el estado en línea. Devuelve false si está bloqueado por deuda o si
-  /// la cuenta aún no está habilitada por el admin.
-  Future<bool> alternarEnLinea(bool valor) async {
-    if (valor && (bloqueadoPorDeuda || !habilitado)) return false;
+  /// Alterna el estado en línea. Ponerse en línea EXIGE ubicación y
+  /// notificaciones activas (se solicitan si faltan); apagarse nunca las exige.
+  /// Devuelve el desenlace para que la UI muestre el aviso correspondiente.
+  Future<ResultadoEnLinea> alternarEnLinea(bool valor) async {
+    if (!valor) {
+      return await _aplicarEnLinea(false)
+          ? ResultadoEnLinea.ok
+          : ResultadoEnLinea.error;
+    }
+    if (bloqueadoPorDeuda) return ResultadoEnLinea.bloqueadoDeuda;
+    if (!habilitado) return ResultadoEnLinea.noHabilitado;
+
+    // Permisos obligatorios para recibir pedidos.
+    final permisos = await _permisos.asegurarParaOperar();
+    switch (permisos.ubicacion) {
+      case PermisoUbicacion.servicioApagado:
+        return ResultadoEnLinea.faltaUbicacionServicio;
+      case PermisoUbicacion.denegado:
+      case PermisoUbicacion.denegadoPermanente:
+        return ResultadoEnLinea.faltaUbicacionPermiso;
+      case PermisoUbicacion.ok:
+        break;
+    }
+    if (permisos.notificaciones != PermisoNotificaciones.ok) {
+      return ResultadoEnLinea.faltaNotificaciones;
+    }
+
+    // Con permiso recién concedido, refresca la ubicación real antes de
+    // publicar el estado (así no arrancamos en el fallback del municipio).
+    await _resolverUbicacion();
+    return await _aplicarEnLinea(true)
+        ? ResultadoEnLinea.ok
+        : ResultadoEnLinea.error;
+  }
+
+  Future<bool> _aplicarEnLinea(bool valor) async {
     cambiandoEstado = true;
     notifyListeners();
     final res = await _conductores.cambiarEnLinea(valor, ubicacion: ubicacion);
@@ -204,7 +250,7 @@ class InicioViewModel extends ChangeNotifier {
     if (ok) {
       if (valor) {
         _enLineaDesde = DateTime.now();
-        _reporter.start(_onPosicion);
+        _reporter.start(_onPosicion, background: true);
       } else {
         _enLineaDesde = null;
         _reporter.stop();
@@ -216,6 +262,13 @@ class InicioViewModel extends ChangeNotifier {
     notifyListeners();
     return ok;
   }
+
+  /// Abre los Ajustes de la app (permiso de ubicación/notificaciones denegado).
+  Future<void> abrirConfiguracionApp() => _permisos.abrirConfiguracionApp();
+
+  /// Abre los Ajustes de ubicación del sistema (GPS apagado).
+  Future<void> abrirConfiguracionUbicacion() =>
+      _permisos.abrirConfiguracionUbicacion();
 
   void _onPosicion(LatLng punto) {
     ubicacion = punto;

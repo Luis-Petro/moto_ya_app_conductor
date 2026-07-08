@@ -14,6 +14,7 @@ import '../data/services/location_service.dart';
 import '../data/services/municipio_service.dart';
 import '../data/services/notificacion_service.dart';
 import '../data/services/ofertas_service.dart';
+import '../data/services/permisos_service.dart';
 import '../data/services/pedido_service.dart';
 import '../data/services/push_service.dart';
 import '../data/services/session_storage.dart';
@@ -32,6 +33,7 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => SocialAuthService());
   locator.registerLazySingleton(() => PushService());
   locator.registerLazySingleton(() => LocationService());
+  locator.registerLazySingleton(() => PermisosService(locator<PushService>()));
   locator.registerLazySingleton(() => TabActiva());
 
   // ── Services (acceso crudo a la API) ──

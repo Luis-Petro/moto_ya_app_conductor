@@ -48,10 +48,28 @@
 	<!-- Ubicación: mapa, origen del pedido y conductores cerca -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>motoYa usa tu ubicación para mostrar conductores cerca y ubicar tu pedido.</string>
+	<!-- Ubicación en segundo plano: mientras el conductor está en línea seguimos
+	     compartiendo su posición (aunque minimice la app) para asignarle pedidos
+	     cercanos y para el tracking del cliente. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>motoYa comparte tu ubicación mientras estás en línea para asignarte pedidos cercanos, aunque la app esté en segundo plano.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<!-- Cámara y galería: foto opcional del pedido -->
 	<key>NSCameraUsageDescription</key>
 	<string>motoYa usa la cámara para que adjuntes una foto a tu pedido.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>motoYa accede a tus fotos para adjuntar una imagen a tu pedido.</string>
+	<!-- canLaunchUrl (iOS): detectar si Google Maps está instalado para la
+	     navegación guiada; si no, se envía a la App Store. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>itms-apps</string>
+	</array>
 </dict>
 </plist>

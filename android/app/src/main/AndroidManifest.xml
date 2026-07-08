@@ -4,6 +4,12 @@
     <!-- UbicaciÃ³n: mapa de inicio, origen del pedido y conductores cerca -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Servicio en primer plano: mantiene el GPS vivo con la app minimizada
+         mientras el conductor esta en linea (geolocator_android declara el
+         GeolocatorLocationService con foregroundServiceType="location"). Asi
+         sigue "cercano" para el matching aunque no tenga la app abierta. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <!-- CÃ¡mara y galerÃ­a: foto opcional del pedido -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
@@ -60,7 +66,7 @@
             <data android:mimeType="text/plain"/>
         </intent>
         <!-- url_launcher (Android 11+): sin esto canLaunchUrl/launchUrl fallan.
-             https → navegación en Google Maps; tel → llamar al cliente. -->
+             https → ruta en navegador / Play Store; tel → llamar al cliente. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
@@ -68,6 +74,18 @@
         <intent>
             <action android:name="android.intent.action.DIAL"/>
             <data android:scheme="tel"/>
+        </intent>
+        <!-- Navegación guiada en la app de Google Maps: el esquema
+             google.navigation: solo lo resuelve Maps, así que canLaunchUrl nos
+             dice si está instalado (si no, ofrecemos instalarlo). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="google.navigation"/>
+        </intent>
+        <!-- market: → abrir la ficha de Google Maps en la Play Store. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="market"/>
         </intent>
     </queries>
 </manifest>

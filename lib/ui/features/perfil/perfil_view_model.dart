@@ -95,6 +95,12 @@ class PerfilViewModel extends ChangeNotifier {
   }
 
   Future<void> cerrarSesion() async {
+    // Deja al conductor FUERA de línea en el backend antes de borrar el JWT: si
+    // no, seguiría `en_linea=1` y el dispatcher podría ofrecerle pedidos con la
+    // app cerrada. Best-effort: no bloquea el logout si la red falla.
+    if (_conductores.enLinea) {
+      await _conductores.cambiarEnLinea(false);
+    }
     await _auth.cerrarSesion();
     _conductores.limpiar();
     _usuarios.limpiar();

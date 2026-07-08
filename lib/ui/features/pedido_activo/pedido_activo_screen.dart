@@ -66,15 +66,62 @@ class _ActivoViewState extends State<_ActivoView> {
   }
 
   /// Abre la navegación guiada en Google Maps hacia el punto indicado (nuestro
-  /// mapa OSM no ofrece turn-by-turn; Maps sí, y todo conductor lo tiene).
+  /// mapa OSM no ofrece turn-by-turn; Maps sí). Los esquemas `google.navigation:`
+  /// (Android) y `comgooglemaps://` (iOS) SOLO los resuelve la app instalada, así
+  /// que `canLaunchUrl` nos dice si el conductor la tiene; si no, le ofrecemos
+  /// instalarla (o abrirla en el navegador como salida).
   Future<void> _comoLlegar(LatLng punto) async {
-    final uri = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=${punto.latitude},${punto.longitude}&travelmode=driving');
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No pudimos abrir Google Maps')),
-      );
+    final destino = '${punto.latitude},${punto.longitude}';
+    final appUri = Platform.isIOS
+        ? Uri.parse('comgooglemaps://?daddr=$destino&directionsmode=driving')
+        : Uri.parse('google.navigation:q=$destino&mode=d');
+
+    if (await canLaunchUrl(appUri)) {
+      await launchUrl(appUri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (mounted) await _ofrecerInstalarMaps(destino);
+  }
+
+  /// Google Maps no está instalado: ofrece ir a la tienda o, como salida, abrir
+  /// la ruta en el navegador (así el conductor nunca queda sin cómo llegar).
+  Future<void> _ofrecerInstalarMaps(String destino) async {
+    final store = Platform.isIOS
+        ? Uri.parse('https://apps.apple.com/app/google-maps/id585027354')
+        : Uri.parse('market://details?id=com.google.android.apps.maps');
+    final storeWeb = Uri.parse(Platform.isIOS
+        ? 'https://apps.apple.com/app/google-maps/id585027354'
+        : 'https://play.google.com/store/apps/details?id=com.google.android.apps.maps');
+    final web = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$destino&travelmode=driving');
+
+    // pedido_activo se abre sobre el navigator raíz: showDialog por defecto es
+    // correcto aquí (no aplica el gotcha de tabs).
+    final accion = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Google Maps no está instalado'),
+        content: const Text(
+            'Instala Google Maps para la navegación guiada, o abre la ruta en '
+            'el navegador.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('navegador'),
+            child: const Text('Abrir en el navegador'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('instalar'),
+            child: const Text('Instalar'),
+          ),
+        ],
+      ),
+    );
+    if (accion == 'instalar') {
+      if (!await launchUrl(store, mode: LaunchMode.externalApplication)) {
+        await launchUrl(storeWeb, mode: LaunchMode.externalApplication);
+      }
+    } else if (accion == 'navegador') {
+      await launchUrl(web, mode: LaunchMode.externalApplication);
     }
   }
 

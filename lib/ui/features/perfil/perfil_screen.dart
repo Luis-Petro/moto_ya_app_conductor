@@ -115,6 +115,13 @@ class _PerfilViewState extends State<_PerfilView> {
               icon: Icon(vm.editando ? Icons.close : Icons.edit_outlined),
               onPressed: () => vm.activarEdicion(!vm.editando),
             ),
+          // Cerrar sesión SIEMPRE accesible: aunque el perfil no cargue (401 o
+          // error de red), el conductor debe poder salir y no quedar atrapado.
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
+            onPressed: () => _confirmarSalir(vm),
+          ),
         ],
       ),
       body: SafeArea(

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
+import '../../../data/services/api_result.dart';
 import '../../../di/locator.dart';
 import '../../core/widgets/brand.dart';
 import '../../router.dart';
@@ -39,8 +40,18 @@ class _SplashScreenState extends State<SplashScreen> {
       // Resuelve el perfil de conductor: con perfil completo va a Inicio; si no,
       // al alta. Un fallo de red también manda al alta (allí puede reintentar).
       final conductores = locator<ConductorRepository>();
-      await conductores.cargar(forzar: true);
+      final res = await conductores.cargar(forzar: true);
       if (!mounted) return;
+      // Un 401 (token vencido o firma inválida tras rotar JWT_SECRET) NO es un
+      // fallo de red ni un "sin perfil": es una sesión muerta. Se limpia y va a
+      // login, en vez de dejar al conductor atrapado en el alta con todo vacío.
+      if (res case Err(failure: final f) when f.isUnauthorized) {
+        await auth.sesionExpirada();
+        conductores.limpiar();
+        if (!mounted) return;
+        context.go(Rutas.login);
+        return;
+      }
       context.go(conductores.perfilCompleto ? Rutas.inicio : Rutas.alta);
       return;
     }

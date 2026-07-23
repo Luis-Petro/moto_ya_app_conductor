@@ -10,10 +10,24 @@ import 'package:latlong2/latlong.dart';
 /// activo y DEBE llamar a [stop] al salir (anti-patrón: dejar el GPS activo).
 class LocationReporter {
   StreamSubscription<Position>? _sub;
+  Timer? _heartbeat;
+  LatLng? _ultima;
 
   bool get activo => _sub != null;
 
+  /// Latido que reenvía la última posición conocida aunque el conductor no se
+  /// mueva. Debe ser holgadamente menor que `MATCHING_UBICACION_TTL_SEGUNDOS`
+  /// (default backend 300s) para que un conductor en línea pero quieto no
+  /// caduque y desaparezca del conteo de "conductores cerca" / del matching.
+  static const Duration _intervaloLatido = Duration(seconds: 60);
+
   /// Comienza a reportar posiciones. [onPosition] recibe cada punto significativo.
+  ///
+  /// El stream de GPS solo emite al desplazarse [distanceFilterM] metros, así que
+  /// un conductor quieto dejaría de reportar; para evitarlo se añade un **latido**
+  /// ([_intervaloLatido]) que reenvía la última ubicación conocida y mantiene la
+  /// frescura que exige el backend. [inicial] siembra ese latido para no depender
+  /// del primer fix del stream (útil justo al ponerse en línea).
   ///
   /// Con [background] = true el reporte sobrevive a que la app pase a segundo
   /// plano o se bloquee la pantalla: en Android levanta un servicio en primer
@@ -26,14 +40,25 @@ class LocationReporter {
     void Function(LatLng punto) onPosition, {
     int distanceFilterM = 30,
     bool background = false,
+    LatLng? inicial,
   }) {
     stop();
+    _ultima = inicial;
     _sub = Geolocator.getPositionStream(
       locationSettings: _settings(distanceFilterM, background),
     ).listen(
-      (pos) => onPosition(LatLng(pos.latitude, pos.longitude)),
+      (pos) {
+        _ultima = LatLng(pos.latitude, pos.longitude);
+        onPosition(_ultima!);
+      },
       onError: (_) {/* permiso revocado / GPS off: se detiene con gracia */},
     );
+    // Latido: reenvía la última ubicación conocida aunque el GPS no emita
+    // (conductor quieto), para no caducar frente al TTL del backend.
+    _heartbeat = Timer.periodic(_intervaloLatido, (_) {
+      final punto = _ultima;
+      if (punto != null) onPosition(punto);
+    });
   }
 
   LocationSettings _settings(int distanceFilterM, bool background) {
@@ -76,5 +101,8 @@ class LocationReporter {
   void stop() {
     _sub?.cancel();
     _sub = null;
+    _heartbeat?.cancel();
+    _heartbeat = null;
+    _ultima = null;
   }
 }

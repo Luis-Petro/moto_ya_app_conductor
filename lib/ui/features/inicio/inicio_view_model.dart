@@ -129,7 +129,7 @@ class InicioViewModel extends ChangeNotifier {
       pedidoActivo = p;
       _notificar();
     }));
-    if (enLinea) _reporter.start(_onPosicion, background: true);
+    if (enLinea) _reporter.start(_onPosicion, background: true, inicial: ubicacion);
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
     _iniciarPoll();
@@ -250,7 +250,7 @@ class InicioViewModel extends ChangeNotifier {
     if (ok) {
       if (valor) {
         _enLineaDesde = DateTime.now();
-        _reporter.start(_onPosicion, background: true);
+        _reporter.start(_onPosicion, background: true, inicial: ubicacion);
       } else {
         _enLineaDesde = null;
         _reporter.stop();

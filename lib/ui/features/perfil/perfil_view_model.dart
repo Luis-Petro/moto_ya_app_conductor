@@ -31,9 +31,11 @@ class PerfilViewModel extends ChangeNotifier {
   String? error;
   Usuario? usuario;
 
-  bool editando = false;
-  bool guardando = false;
   bool subiendoFoto = false;
+
+  /// Estado del flujo de cambio de correo (verificado por código).
+  bool enviandoCodigo = false;
+  bool verificandoCodigo = false;
 
   Conductor? get conductor => _conductores.conductor;
 
@@ -71,27 +73,30 @@ class PerfilViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void activarEdicion(bool v) {
-    editando = v;
+  /// Paso 1 del cambio de correo: envía un código al correo nuevo. Devuelve el
+  /// mensaje de error o null si se envió bien.
+  Future<String?> solicitarCambioCorreo(String email) async {
+    enviandoCodigo = true;
     notifyListeners();
+    final res = await _usuarios.solicitarCambioEmail(email);
+    enviandoCodigo = false;
+    notifyListeners();
+    return res.when(ok: (_) => null, err: (f) => f.message);
   }
 
-  /// Guarda los datos editables del perfil (solo el correo: nombre y celular
-  /// son la identidad verificada del conductor).
-  Future<bool> guardar({String? email}) async {
-    guardando = true;
+  /// Paso 2: confirma el código; al aceptar, actualiza el correo mostrado.
+  /// Devuelve el mensaje de error o null si se confirmó.
+  Future<String?> confirmarCambioCorreo(String codigo) async {
+    verificandoCodigo = true;
     notifyListeners();
-    final res = await _usuarios.actualizar(email: email);
-    guardando = false;
-    final ok = res.isSuccess;
-    if (ok) {
-      usuario = res.valueOrNull;
-      editando = false;
-    } else {
-      error = res.when(ok: (_) => null, err: (f) => f.message);
-    }
+    final res = await _usuarios.verificarCambioEmail(codigo);
+    verificandoCodigo = false;
+    final err = res.when(ok: (u) {
+      usuario = u;
+      return null;
+    }, err: (f) => f.message);
     notifyListeners();
-    return ok;
+    return err;
   }
 
   Future<void> cerrarSesion() async {

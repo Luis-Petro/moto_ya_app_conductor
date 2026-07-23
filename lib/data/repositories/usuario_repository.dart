@@ -22,12 +22,24 @@ class UsuarioRepository {
 
   Future<Result<Usuario>> actualizar({
     String? nombre,
-    String? email,
     String? telefono,
     int? municipioId,
   }) async {
     final res = await _service.actualizarPerfil(
-        nombre: nombre, email: email, telefono: telefono, municipioId: municipioId);
+        nombre: nombre, telefono: telefono, municipioId: municipioId);
+    if (res case Ok<Usuario>(value: final u)) {
+      _cache = u;
+    }
+    return res;
+  }
+
+  /// Paso 1 del cambio de correo: envía un código al correo nuevo.
+  Future<Result<void>> solicitarCambioEmail(String email) =>
+      _service.solicitarCambioEmail(email);
+
+  /// Paso 2: confirma el código; al aceptar, refresca la caché con el correo nuevo.
+  Future<Result<Usuario>> verificarCambioEmail(String codigo) async {
+    final res = await _service.verificarCambioEmail(codigo);
     if (res case Ok<Usuario>(value: final u)) {
       _cache = u;
     }

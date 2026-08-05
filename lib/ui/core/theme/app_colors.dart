@@ -16,9 +16,11 @@ class AppColors {
 
   // Estados
   static const Color success = Color(0xFF1FA971);
+  static const Color successSurface = Color(0xFFEAF7F1);
   static const Color danger = Color(0xFFE5484D);
   static const Color dangerSurface = Color(0xFFFDEBEC);
   static const Color warning = Color(0xFFF59E0B);
+  static const Color warningSurface = Color(0xFFFEF3E2);
 
   // Neutros (texto en azul marino del logo)
   static const Color ink = Color(0xFF17293D); // texto principal

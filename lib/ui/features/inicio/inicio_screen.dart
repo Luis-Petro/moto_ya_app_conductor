@@ -21,6 +21,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/skeleton.dart';
 import 'inicio_view_model.dart';
 
 class InicioScreen extends StatelessWidget {
@@ -53,7 +54,7 @@ class _InicioView extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: vm.cargando
-            ? const Center(child: CircularProgressIndicator())
+            ? const SkeletonInicio()
             : RefreshIndicator(
                 onRefresh: vm.refrescar,
                 child: ListView(
@@ -214,6 +215,10 @@ class _OfertaBanner extends StatelessWidget {
   }
 }
 
+/// Interruptor de disponibilidad: la acción más importante de la app del
+/// conductor. Toda la tarjeta es el área táctil (no solo el switch de 40dp), y
+/// fuera de línea el texto nombra la consecuencia real —los pedidos se ofrecen
+/// a otros— en vez de un neutro "no recibes pedidos".
 class _ToggleEnLinea extends StatelessWidget {
   const _ToggleEnLinea({required this.vm});
   final InicioViewModel vm;
@@ -224,15 +229,22 @@ class _ToggleEnLinea extends StatelessWidget {
     final noHabilitado = !vm.habilitado && !bloqueado; // en revisión / rechazado
     final deshabilitado = bloqueado || noHabilitado;
     final enLinea = vm.enLinea;
+    final activo = enLinea && !deshabilitado;
     final color = deshabilitado
         ? AppColors.danger
         : (enLinea ? AppColors.accent : AppColors.inkMuted);
     return MotoCard(
-      color: enLinea && !deshabilitado ? AppColors.accent : AppColors.surface,
+      color: activo ? AppColors.accent : AppColors.surface,
+      borderColor: activo
+          ? AppColors.accent
+          : (deshabilitado ? AppColors.danger : AppColors.line),
+      onTap: (deshabilitado || vm.cambiandoEstado)
+          ? null
+          : () => _alternar(context, vm, !enLinea),
       child: Row(
         children: [
           Icon(deshabilitado ? Icons.lock_outline : Icons.bolt_rounded,
-              color: enLinea && !deshabilitado ? Colors.white : color),
+              color: activo ? Colors.white : color),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -247,7 +259,7 @@ class _ToggleEnLinea extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: enLinea && !deshabilitado ? Colors.white : AppColors.ink,
+                    color: activo ? Colors.white : AppColors.ink,
                   ),
                 ),
                 Text(
@@ -255,27 +267,31 @@ class _ToggleEnLinea extends StatelessWidget {
                       ? 'Paga tu deuda para recibir pedidos'
                       : noHabilitado
                           ? 'En revisión: aún no puedes recibir pedidos'
-                          : (enLinea ? 'Recibiendo pedidos' : 'No recibes pedidos'),
+                          : (enLinea
+                              ? 'Recibiendo pedidos de tu zona'
+                              : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: enLinea && !deshabilitado
-                        ? Colors.white70
-                        : AppColors.inkMuted,
+                    color: activo ? Colors.white70 : AppColors.inkMuted,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: AppSpacing.sm),
           if (vm.cambiandoEstado)
             const SizedBox(
                 width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
           else
-            Switch(
-              value: enLinea,
-              activeColor: Colors.white,
-              activeTrackColor: AppColors.success,
-              onChanged:
-                  deshabilitado ? null : (v) => _alternar(context, vm, v),
+            // Se mantiene por legibilidad del estado; el toque real lo captura
+            // la tarjeta entera.
+            IgnorePointer(
+              child: Switch(
+                value: enLinea,
+                activeColor: Colors.white,
+                activeTrackColor: AppColors.success,
+                onChanged: deshabilitado ? null : (_) {},
+              ),
             ),
         ],
       ),

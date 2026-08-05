@@ -16,7 +16,8 @@ enum EstadoEntrante { cargando, disponible, expirado, error }
 class PedidoEntranteViewModel extends ChangeNotifier {
   PedidoEntranteViewModel(this._pedidos, this.pedidoId, this._ofertas,
       {int? segundosIniciales})
-      : segundosRestantes = segundosIniciales ?? ventanaSegundos {
+      : segundosRestantes = segundosIniciales ?? ventanaSegundos,
+        ventanaTotal = segundosIniciales ?? ventanaSegundos {
     _suscribirEventos();
   }
 
@@ -37,6 +38,16 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   Pedido? pedido;
 
   int segundosRestantes;
+
+  /// Ventana completa concedida por el servidor, para dibujar cuánto queda del
+  /// tiempo (no solo el número): una barra que se vacía comunica la urgencia
+  /// sin que el conductor tenga que leer y restar.
+  final int ventanaTotal;
+
+  /// Proporción de la ventana que aún queda (1 → recién llegada, 0 → vencida).
+  double get fraccionTiempo => ventanaTotal <= 0
+      ? 0
+      : (segundosRestantes / ventanaTotal).clamp(0.0, 1.0);
 
   /// Fin local de la ventana = ahora + segundos del servidor. Basar el countdown
   /// en esto (no en un contador que se decrementa) lo hace inmune al reloj

@@ -68,6 +68,15 @@ class _AltaViewState extends State<_AltaView> {
         if (!vm.tieneCedula) 'la foto de tu cédula',
       ];
 
+  bool get _motoLista =>
+      _vehiculo.text.trim().isNotEmpty && _placa.text.trim().length >= 5;
+
+  /// Hitos del alta. El primero ya está cumplido al llegar aquí (la cuenta
+  /// existe), así que el conductor nunca ve una barra en cero: arrancar con
+  /// avance visible es lo que hace que la gente termine formularios largos.
+  int _completados(AltaConductorViewModel vm) =>
+      [true, _motoLista, vm.tieneCedula].where((hecho) => hecho).length;
+
   Future<void> _guardar(AltaConductorViewModel vm) async {
     if (!_valido(vm)) return;
     final ok = await vm.guardar(
@@ -149,6 +158,8 @@ class _AltaViewState extends State<_AltaView> {
             : ListView(
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
+                  _ProgresoAlta(hechos: _completados(vm), total: 3),
+                  const SizedBox(height: AppSpacing.lg),
                   const Text('Cuéntanos de tu moto',
                       style: TextStyle(
                           fontSize: 22, fontWeight: FontWeight.w800)),
@@ -237,7 +248,12 @@ class _AltaViewState extends State<_AltaView> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   const _AvisoRevision(),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
+                  _Checklist(
+                    motoLista: _motoLista,
+                    cedulaLista: vm.tieneCedula,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
                   PrimaryButton(
                     label: vm.guardando
                         ? 'Enviando tus datos…'
@@ -256,6 +272,111 @@ class _AltaViewState extends State<_AltaView> {
                   ],
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// Avance del alta contando lo que el conductor ya hizo. La cuenta creada es
+/// un hito real y ya cumplido: reconocerlo evita presentar el trámite como
+/// "0 de 3" justo cuando es más fácil abandonarlo.
+class _ProgresoAlta extends StatelessWidget {
+  const _ProgresoAlta({required this.hechos, required this.total});
+
+  final int hechos;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraccion = (hechos / total).clamp(0.0, 1.0);
+    final completo = hechos >= total;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                completo
+                    ? '¡Listo! Ya puedes enviar tu solicitud'
+                    : 'Ya llevas $hechos de $total',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
+            Text('${(fraccion * 100).round()}%',
+                style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14)),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: fraccion),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+            builder: (_, valor, __) => LinearProgressIndicator(
+              value: valor,
+              minHeight: 8,
+              backgroundColor: AppColors.line,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                  completo ? AppColors.success : AppColors.primary),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Qué falta y qué ya está, en positivo y junto al botón de envío.
+class _Checklist extends StatelessWidget {
+  const _Checklist({required this.motoLista, required this.cedulaLista});
+
+  final bool motoLista;
+  final bool cedulaLista;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const _ItemChecklist(hecho: true, texto: 'Cuenta creada'),
+        _ItemChecklist(hecho: motoLista, texto: 'Datos de tu moto y placa'),
+        _ItemChecklist(hecho: cedulaLista, texto: 'Foto de tu cédula'),
+      ],
+    );
+  }
+}
+
+class _ItemChecklist extends StatelessWidget {
+  const _ItemChecklist({required this.hecho, required this.texto});
+
+  final bool hecho;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(hecho ? Icons.check_circle_rounded : Icons.circle_outlined,
+              size: 20, color: hecho ? AppColors.success : AppColors.line),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              texto,
+              style: TextStyle(
+                fontSize: 14,
+                color: hecho ? AppColors.ink : AppColors.inkMuted,
+                fontWeight: hecho ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

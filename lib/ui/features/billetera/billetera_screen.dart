@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/repositories/billetera_repository.dart';
@@ -47,11 +48,46 @@ class _BilleteraView extends StatefulWidget {
 }
 
 class _BilleteraViewState extends State<_BilleteraView> {
+  // Cuenta desde la que el conductor pagó la última vez. Es siempre la misma
+  // (la suya), así que volver a teclearla en cada pago es fricción pura.
+  static const _kCuentaOrigen = 'billetera.cuenta_origen';
+  static const _kTitularOrigen = 'billetera.titular_origen';
+  static const _kEntidadOrigen = 'billetera.entidad_origen';
+
   final _monto = TextEditingController();
   final _cuentaOrigen = TextEditingController();
   final _titularOrigen = TextEditingController();
   final _entidadOrigen = TextEditingController();
   bool _montoInicializado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recuperarCuentaOrigen();
+  }
+
+  Future<void> _recuperarCuentaOrigen() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      if (_cuentaOrigen.text.isEmpty) {
+        _cuentaOrigen.text = prefs.getString(_kCuentaOrigen) ?? '';
+      }
+      if (_titularOrigen.text.isEmpty) {
+        _titularOrigen.text = prefs.getString(_kTitularOrigen) ?? '';
+      }
+      if (_entidadOrigen.text.isEmpty) {
+        _entidadOrigen.text = prefs.getString(_kEntidadOrigen) ?? '';
+      }
+    });
+  }
+
+  Future<void> _recordarCuentaOrigen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCuentaOrigen, _cuentaOrigen.text.trim());
+    await prefs.setString(_kTitularOrigen, _titularOrigen.text.trim());
+    await prefs.setString(_kEntidadOrigen, _entidadOrigen.text.trim());
+  }
 
   @override
   void dispose() {
@@ -90,6 +126,8 @@ class _BilleteraViewState extends State<_BilleteraView> {
     );
     if (!context.mounted) return;
     if (ok && vm.intencion != null) {
+      await _recordarCuentaOrigen();
+      if (!context.mounted) return;
       await _mostrarTransaccion(context, vm.intencion!);
     } else if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -363,7 +401,7 @@ class _EstadoCuenta extends StatelessWidget {
   Widget build(BuildContext context) {
     final bloqueado = billetera.bloqueado;
     final color = bloqueado ? AppColors.danger : AppColors.success;
-    final surface = bloqueado ? AppColors.dangerSurface : const Color(0xFFEAF7F1);
+    final surface = bloqueado ? AppColors.dangerSurface : AppColors.successSurface;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -431,7 +469,7 @@ class _PagoConfirmado extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF7F1),
+        color: AppColors.successSurface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
         border: Border.all(color: AppColors.success),
       ),
@@ -459,15 +497,29 @@ class _PagoConfirmado extends StatelessWidget {
 
 /// Datos de destino a donde transferir según el medio seleccionado (Nequi/Bre-B),
 /// administrados desde el panel. Si no hay datos configurados, avisa.
+///
+/// El número se puede copiar de un toque: el conductor tiene que salir a la app
+/// del banco para transferir, y memorizar diez dígitos entre una app y otra es
+/// donde se pierden y se equivocan de cuenta.
 class _DestinoPago extends StatelessWidget {
   const _DestinoPago({required this.datos, required this.medio});
   final DatosPago datos;
   final MedioPago medio;
 
+  Future<void> _copiar(BuildContext context, String valor) async {
+    await Clipboard.setData(ClipboardData(text: valor));
+    await HapticFeedback.selectionClick();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Número copiado')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final esNequi = medio == MedioPago.nequi;
     final tiene = datos.tieneDatos(medio);
+    final destino = esNequi ? datos.nequiNumero : datos.brebLlave;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -490,11 +542,9 @@ class _DestinoPago extends StatelessWidget {
                               fontSize: 12, color: AppColors.inkMuted)),
                       const SizedBox(height: 2),
                       Text(
-                        esNequi
-                            ? datos.nequiNumero!
-                            : datos.brebLlave!,
+                        destino!,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 15),
+                            fontWeight: FontWeight.w800, fontSize: 17),
                       ),
                       Text(
                         [
@@ -512,6 +562,15 @@ class _DestinoPago extends StatelessWidget {
                         fontSize: 13, color: AppColors.inkMuted),
                   ),
           ),
+          if (tiene)
+            TextButton.icon(
+              onPressed: () => _copiar(context, destino!),
+              icon: const Icon(Icons.copy_rounded, size: 18),
+              label: const Text('Copiar'),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, AppSpacing.minTouchTarget),
+              ),
+            ),
         ],
       ),
     );

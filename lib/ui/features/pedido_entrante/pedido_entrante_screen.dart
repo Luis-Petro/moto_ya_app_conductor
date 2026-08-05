@@ -93,6 +93,7 @@ class _EntranteView extends StatelessWidget {
           children: [
             _CabeceraNuevo(
                 segundos: vm.segundosRestantes,
+                fraccion: vm.fraccionTiempo,
                 expirado: expirado,
                 avisoCierre: vm.avisoCierre),
             Expanded(
@@ -159,13 +160,18 @@ class _EntranteView extends StatelessWidget {
   }
 }
 
+/// Encabezado con el tiempo restante como barra que se vacía y cambia de color.
+/// La urgencia se ve de un vistazo: el conductor decide en la calle, muchas
+/// veces con el casco puesto, y no está para leer y restar segundos.
 class _CabeceraNuevo extends StatelessWidget {
   const _CabeceraNuevo({
     required this.segundos,
+    required this.fraccion,
     required this.expirado,
     this.avisoCierre,
   });
   final int segundos;
+  final double fraccion;
   final bool expirado;
   final String? avisoCierre;
 
@@ -177,11 +183,13 @@ class _CabeceraNuevo extends StatelessWidget {
     final textoTimer = expirado
         ? (avisoCierre ?? 'Oferta expirada')
         : 'Responde en $mm:$ss';
+    final colorBarra = fraccion > 0.5
+        ? AppColors.success
+        : (fraccion > 0.25 ? AppColors.warning : AppColors.danger);
     return Container(
       width: double.infinity,
       color: AppColors.accent,
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         children: [
           const Text('¡Nuevo pedido!',
@@ -189,27 +197,32 @@ class _CabeceraNuevo extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 22,
                   fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.timer_outlined, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  textoTimer,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(expirado ? Icons.timer_off_outlined : Icons.timer_outlined,
+                  color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                textoTimer,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
+          if (!expirado) ...[
+            const SizedBox(height: AppSpacing.sm),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fraccion,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                valueColor: AlwaysStoppedAnimation<Color>(colorBarra),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -386,33 +399,87 @@ class _Fila extends StatelessWidget {
   }
 }
 
+/// Ajuste de la contraoferta. La tarifa sugerida queda visible como ancla: sin
+/// una referencia el conductor pide contra su imaginación y suele pasarse.
 class _ProponerTarifa extends StatelessWidget {
   const _ProponerTarifa({required this.vm});
   final PedidoEntranteViewModel vm;
 
   @override
   Widget build(BuildContext context) {
+    final diferencia = vm.montoPropuesto - vm.tarifaSugerida;
     return MotoCard(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            child: Text('Proponer otra tarifa',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-          IconButton(
-            onPressed: () => vm.ajustarMonto(-500),
-            icon: const Icon(Icons.remove_circle_outline),
-            color: AppColors.primary,
-          ),
-          Text(Formato.moneda(vm.montoPropuesto),
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 16)),
-          IconButton(
-            onPressed: () => vm.ajustarMonto(500),
-            icon: const Icon(Icons.add_circle),
-            color: AppColors.primary,
+          const Text('Proponer otra tarifa',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text('Sugerida ${Formato.moneda(vm.tarifaSugerida)}',
+              style:
+                  const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _BotonAjuste(
+                icon: Icons.remove_rounded,
+                onTap: () => vm.ajustarMonto(-500),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(Formato.moneda(vm.montoPropuesto),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 22)),
+                    if (diferencia != 0)
+                      Text(
+                        diferencia > 0
+                            ? '+${Formato.moneda(diferencia)} sobre la sugerida'
+                            : '${Formato.moneda(diferencia)} bajo la sugerida',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: diferencia > 0
+                              ? AppColors.warning
+                              : AppColors.inkMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _BotonAjuste(
+                icon: Icons.add_rounded,
+                onTap: () => vm.ajustarMonto(500),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botón circular de ±$500 con área táctil holgada (se usa con guantes y en
+/// movimiento; un icono de 24dp se falla demasiado).
+class _BotonAjuste extends StatelessWidget {
+  const _BotonAjuste({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primarySurface,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: AppSpacing.minTouchTarget,
+          height: AppSpacing.minTouchTarget,
+          child: Icon(icon, color: AppColors.primary, size: 26),
+        ),
       ),
     );
   }
@@ -449,30 +516,56 @@ class _Acciones extends StatelessWidget {
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed:
-                  (vm.enviando || vm.rechazando) ? null : () => onRechazar(context, vm),
-              child: vm.rechazando
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Rechazar'),
-            ),
+          // La cifra que realmente decide es la ganancia neta, no la tarifa
+          // bruta: va pegada al botón y se actualiza con la contraoferta.
+          Row(
+            children: [
+              const Icon(Icons.savings_outlined,
+                  size: 18, color: AppColors.success),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text('Ganas por este pedido',
+                    style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+              ),
+              Text(Formato.moneda(vm.gananciaNeta),
+                  style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.success)),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            flex: 2,
-            child: PrimaryButton(
-              label: contra
-                  ? 'Proponer ${Formato.moneda(vm.montoPropuesto)}'
-                  : 'Aceptar ${Formato.moneda(vm.tarifaSugerida)}',
-              loading: vm.enviando,
-              onPressed: () => onEnviar(context, vm, aceptarSugerida: !contra),
-            ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: (vm.enviando || vm.rechazando)
+                      ? null
+                      : () => onRechazar(context, vm),
+                  child: vm.rechazando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Rechazar'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                flex: 2,
+                child: PrimaryButton(
+                  label: contra
+                      ? 'Proponer ${Formato.moneda(vm.montoPropuesto)}'
+                      : 'Aceptar ${Formato.moneda(vm.tarifaSugerida)}',
+                  loading: vm.enviando,
+                  onPressed: () =>
+                      onEnviar(context, vm, aceptarSugerida: !contra),
+                ),
+              ),
+            ],
           ),
         ],
       ),

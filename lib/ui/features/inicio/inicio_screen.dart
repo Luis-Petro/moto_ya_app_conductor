@@ -186,10 +186,14 @@ class _OfertaBanner extends StatelessWidget {
     return MotoCard(
       color: AppColors.primarySurface,
       borderColor: AppColors.primary,
-      onTap: () {
+      onTap: () async {
         // Pasa la ventana del servidor para el countdown real de la tarjeta.
-        context.push(Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes));
+        await context
+            .push(Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes));
         vm.descartarOferta();
+        // Responder (o rechazar) mueve la tasa de aceptación en el backend: sin
+        // este refresco el Inicio seguiría mostrando el valor cacheado.
+        await vm.refrescar();
       },
       child: Row(
         children: [

@@ -20,7 +20,15 @@ class _PerfilAccesoScreenState extends State<PerfilAccesoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      // Se llega aquí con `go` (sin pila): la flecha va explícita para no dejar
+      // una barra vacía que no lleva a ninguna parte.
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(Rutas.login),
+          tooltip: 'Atrás',
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),

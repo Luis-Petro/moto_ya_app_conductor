@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/repositories/billetera_repository.dart';
@@ -48,57 +47,21 @@ class _BilleteraView extends StatefulWidget {
 }
 
 class _BilleteraViewState extends State<_BilleteraView> {
-  // Cuenta desde la que el conductor pagó la última vez. Es siempre la misma
-  // (la suya), así que volver a teclearla en cada pago es fricción pura. El
-  // titular NO se guarda: se limpia tras pagar para que nadie mande dos veces
-  // los mismos datos sin querer.
-  static const _kCuentaOrigen = 'billetera.cuenta_origen';
-  static const _kEntidadOrigen = 'billetera.entidad_origen';
-
   final _monto = TextEditingController();
-  final _cuentaOrigen = TextEditingController();
+
+  /// Único dato que se le pide al conductor para conciliar: a nombre de quién
+  /// salió la transferencia. El número de cuenta lo aportaba a mano y llegaba
+  /// mal tecleado la mitad de las veces; para cruzar el movimiento basta el
+  /// nombre del titular, el monto y la hora.
   final _titularOrigen = TextEditingController();
-  final _entidadOrigen = TextEditingController();
   bool _montoInicializado = false;
 
   final _scroll = ScrollController();
 
-  /// Ancla de la tarjeta de pago en proceso: tras pagar, la vista sube hasta
-  /// ella. El formulario está al final de una lista larga y, sin esto, el
-  /// conductor se quedaba mirando el botón sin ver que su pago quedó registrado.
-  final _anclaPendiente = GlobalKey();
-
-  @override
-  void initState() {
-    super.initState();
-    _recuperarCuentaOrigen();
-  }
-
-  Future<void> _recuperarCuentaOrigen() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      if (_cuentaOrigen.text.isEmpty) {
-        _cuentaOrigen.text = prefs.getString(_kCuentaOrigen) ?? '';
-      }
-      if (_entidadOrigen.text.isEmpty) {
-        _entidadOrigen.text = prefs.getString(_kEntidadOrigen) ?? '';
-      }
-    });
-  }
-
-  Future<void> _recordarCuentaOrigen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kCuentaOrigen, _cuentaOrigen.text.trim());
-    await prefs.setString(_kEntidadOrigen, _entidadOrigen.text.trim());
-  }
-
   @override
   void dispose() {
     _monto.dispose();
-    _cuentaOrigen.dispose();
     _titularOrigen.dispose();
-    _entidadOrigen.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -115,31 +78,26 @@ class _BilleteraViewState extends State<_BilleteraView> {
       double.tryParse(_monto.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
 
   Future<void> _pagar(BuildContext context, BilleteraViewModel vm) async {
-    final esNequi = vm.medioSeleccionado == MedioPago.nequi;
-    // El conductor declara desde qué cuenta envió (para conciliar el pago).
-    if (_cuentaOrigen.text.trim().isEmpty || _titularOrigen.text.trim().isEmpty ||
-        (!esNequi && _entidadOrigen.text.trim().isEmpty)) {
+    if (_titularOrigen.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Indica desde qué cuenta enviaste el pago')));
+          content: Text('Escribe a nombre de quién enviaste la transferencia')));
       return;
     }
     final ok = await vm.pagar(
       _montoIngresado,
-      cuentaOrigen: _cuentaOrigen.text.trim(),
       titularOrigen: _titularOrigen.text.trim(),
-      entidadOrigen: esNequi ? null : _entidadOrigen.text.trim(),
     );
     if (!context.mounted) return;
     if (ok && vm.intencion != null) {
-      await _recordarCuentaOrigen();
-      // El pago ya quedó registrado: se limpia lo que no debe reenviarse tal
-      // cual (monto y titular); la cuenta origen se conserva.
+      // El pago ya quedó registrado: el formulario se vacía para que nadie
+      // reenvíe el mismo abono de un segundo toque.
       _monto.clear();
       _titularOrigen.clear();
+      FocusScope.of(context).unfocus();
       if (mounted) setState(() {});
       if (!context.mounted) return;
       await _mostrarTransaccion(context, vm.intencion!);
-      _irAPagoPendiente();
+      _irAlEstado();
     } else if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.error ?? 'No pudimos iniciar el pago')),
@@ -147,17 +105,23 @@ class _BilleteraViewState extends State<_BilleteraView> {
     }
   }
 
-  /// Lleva la vista hasta la tarjeta del pago en proceso (tras cerrar la ficha
-  /// de la transacción), para que el conductor vea dónde quedó su pago.
-  void _irAPagoPendiente() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _anclaPendiente.currentContext;
-      if (ctx == null) return;
-      Scrollable.ensureVisible(ctx,
-          duration: const Duration(milliseconds: 350),
-          alignment: 0.1,
-          curve: Curves.easeOut);
-    });
+  /// Sube al principio tras pagar. El formulario queda al final de la pantalla
+  /// y, sin esto, el conductor se quedaba mirando el botón vacío sin ver que su
+  /// pago quedó registrado y en revisión.
+  void _irAlEstado() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(0,
+        duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+  }
+
+  /// Historial completo en una hoja: se consulta de vez en cuando (una duda,
+  /// un reclamo), no en cada pago.
+  Future<void> _verHistorial(BuildContext context, List<PagoRealizado> pagos) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _HistorialSheet(pagos: pagos),
+    );
   }
 
   /// Ficha de la transacción iniciada: monto, destino, referencia y siguiente paso.
@@ -199,7 +163,6 @@ class _BilleteraViewState extends State<_BilleteraView> {
                         if (vm.pagoPendiente != null) ...[
                           const SizedBox(height: AppSpacing.lg),
                           _PagoEnProceso(
-                            key: _anclaPendiente,
                             pago: vm.pagoPendiente!,
                             onVer: vm.intencion == null
                                 ? null
@@ -254,46 +217,25 @@ class _BilleteraViewState extends State<_BilleteraView> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.lg),
-                        Text(
-                            vm.medioSeleccionado == MedioPago.nequi
-                                ? 'DESDE QUÉ CUENTA NEQUI ENVIASTE'
-                                : 'DESDE QUÉ CUENTA BRE-B ENVIASTE',
-                            style: const TextStyle(
+                        const Text('¿QUIÉN ENVÍA LA TRANSFERENCIA?',
+                            style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.inkMuted,
                                 letterSpacing: 0.4)),
                         const SizedBox(height: AppSpacing.sm),
                         TextField(
-                          controller: _cuentaOrigen,
-                          keyboardType: TextInputType.text,
-                          decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
-                            hintText: vm.medioSeleccionado == MedioPago.nequi
-                                ? 'Tu número Nequi'
-                                : 'Tu llave o cuenta Bre-B',
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextField(
                           controller: _titularOrigen,
                           textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.person_outline),
-                            hintText: 'A nombre de quién',
+                            hintText: 'Nombre de quien envía',
+                            helperText:
+                                'Con el nombre, el monto y la hora cruzamos tu pago.',
+                            helperMaxLines: 2,
                           ),
                         ),
-                        if (vm.medioSeleccionado == MedioPago.breB) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          TextField(
-                            controller: _entidadOrigen,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.account_balance_outlined),
-                              hintText: 'Entidad (banco/billetera)',
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: AppSpacing.xl),
                         PrimaryButton(
                           label: vm.bloqueado
@@ -305,12 +247,19 @@ class _BilleteraViewState extends State<_BilleteraView> {
                               ? Icons.lock_open_rounded
                               : Icons.savings_outlined,
                           loading: vm.pagando,
-                          onPressed: _montoIngresado <= 0
+                          onPressed: (_montoIngresado <= 0 ||
+                                  _titularOrigen.text.trim().isEmpty)
                               ? null
                               : () => _pagar(context, vm),
                         ),
                         const SizedBox(height: AppSpacing.xl),
-                        _HistorialPagos(pagos: vm.pagos),
+                        // El historial no vive en la pantalla principal: es
+                        // consulta ocasional y empujaba el formulario de pago
+                        // (lo que el conductor viene a hacer) fuera de vista.
+                        _AccesoHistorial(
+                          pagos: vm.pagos,
+                          onVer: () => _verHistorial(context, vm.pagos),
+                        ),
                       ],
                     ),
                   ),
@@ -460,7 +409,7 @@ class _EstadoCuenta extends StatelessWidget {
 /// Pago registrado y pendiente de confirmación, con acceso a su detalle si
 /// todavía tenemos las instrucciones del proveedor en esta sesión.
 class _PagoEnProceso extends StatelessWidget {
-  const _PagoEnProceso({super.key, required this.pago, this.onVer});
+  const _PagoEnProceso({required this.pago, this.onVer});
   final PagoRealizado pago;
   final VoidCallback? onVer;
 
@@ -500,45 +449,84 @@ class _PagoEnProceso extends StatelessWidget {
   }
 }
 
-/// Pagos recientes del conductor: monto, medio, fecha y estado.
+/// Entrada al historial: una fila discreta con el último pago como referencia.
 ///
-/// Sin esta lista, un pago confirmado ayer no dejaba rastro en la app y la
-/// única prueba de haber pagado era el comprobante del banco.
-class _HistorialPagos extends StatelessWidget {
-  const _HistorialPagos({required this.pagos});
+/// Sin ella, un pago confirmado ayer no dejaba rastro en la app y la única
+/// prueba de haber pagado era el comprobante del banco.
+class _AccesoHistorial extends StatelessWidget {
+  const _AccesoHistorial({required this.pagos, required this.onVer});
+  final List<PagoRealizado> pagos;
+  final VoidCallback onVer;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pagos.isEmpty) {
+      return const MotoCard(
+        padding: EdgeInsets.all(AppSpacing.md),
+        child: Text('Aún no has registrado pagos de comisión.',
+            style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+      );
+    }
+    final ultimo = pagos.first;
+    return MotoCard(
+      onTap: onVer,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          const Icon(Icons.receipt_long_outlined,
+              size: 20, color: AppColors.inkMuted),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Mis pagos',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  'Último: ${Formato.moneda(ultimo.valor)} · ${ultimo.estadoLabel.toLowerCase()}',
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppColors.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkMuted),
+        ],
+      ),
+    );
+  }
+}
+
+/// Historial completo de pagos, en hoja inferior.
+class _HistorialSheet extends StatelessWidget {
+  const _HistorialSheet({required this.pagos});
   final List<PagoRealizado> pagos;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('PAGOS RECIENTES',
-            style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkMuted,
-                letterSpacing: 0.4)),
-        const SizedBox(height: AppSpacing.sm),
-        if (pagos.isEmpty)
-          const MotoCard(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Text('Aún no has registrado pagos de comisión.',
-                style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
-          )
-        else
-          MotoCard(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-            child: Column(
-              children: [
-                for (var i = 0; i < pagos.length; i++) ...[
-                  if (i > 0) const Divider(height: 1),
-                  _FilaPago(pago: pagos[i]),
-                ],
-              ],
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.9,
+      minChildSize: 0.4,
+      expand: false,
+      builder: (_, scroll) => Column(
+        children: [
+          const SizedBox(height: AppSpacing.md),
+          const Text('Mis pagos',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: AppSpacing.sm),
+          Expanded(
+            child: ListView.separated(
+              controller: scroll,
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+              itemCount: pagos.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) => _FilaPago(pago: pagos[i]),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }

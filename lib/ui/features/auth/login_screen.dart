@@ -131,16 +131,6 @@ class _LoginViewState extends State<_LoginView> {
                           style: TextStyle(color: AppColors.inkMuted)),
                       const SizedBox(height: AppSpacing.lg),
 
-                      // Opción de mensaje (código por celular), destacada arriba.
-                      OutlinedButton.icon(
-                        onPressed: _ingresarConCelular,
-                        icon: const Icon(Icons.sms_outlined),
-                        label: const Text('Ingresar con código por mensaje'),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      const _Divisor(),
-                      const SizedBox(height: AppSpacing.md),
-
                       const _Label('Correo'),
                       TextField(
                         controller: _email,
@@ -181,6 +171,21 @@ class _LoginViewState extends State<_LoginView> {
                           label: 'Ingresar',
                           loading: vm.cargando,
                           onPressed: _login),
+
+                      // El código por mensaje queda como alternativa, no como
+                      // vía principal: cada intento cuesta un SMS y la mayoría
+                      // de los conductores ya entran con su correo.
+                      const SizedBox(height: AppSpacing.lg),
+                      const _Divisor(),
+                      const SizedBox(height: AppSpacing.sm),
+                      TextButton.icon(
+                        onPressed: _ingresarConCelular,
+                        icon: const Icon(Icons.sms_outlined, size: 18),
+                        label: const Text('Ingresar con código por mensaje'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.inkMuted,
+                        ),
+                      ),
 
                       const Spacer(),
                       Center(
@@ -286,7 +291,7 @@ class _Divisor extends StatelessWidget {
         Expanded(child: Divider()),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text('o con tu correo',
+          child: Text('¿sin contraseña a la mano?',
               style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
         ),
         Expanded(child: Divider()),

@@ -96,56 +96,18 @@ class _EntranteView extends StatelessWidget {
                 fraccion: vm.fraccionTiempo,
                 expirado: expirado,
                 avisoCierre: vm.avisoCierre),
+            // Todo lo que decide la oferta cabe sin desplazar: el conductor
+            // tiene un minuto y suele mirar la pantalla con el casco puesto.
+            // Lo que se puede desplegar (desglose, mandado largo) va plegado.
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md,
+                    AppSpacing.lg, AppSpacing.md),
                 children: [
-                  Row(
-                    children: [
-                      Icon(pedido.categoria.icon,
-                          size: 18, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text(pedido.categoria.label,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const Spacer(),
-                      const Icon(Icons.navigation_outlined,
-                          size: 15, color: AppColors.inkMuted),
-                      const SizedBox(width: 2),
-                      Text('#${pedido.id}',
-                          style: const TextStyle(
-                              color: AppColors.inkMuted, fontSize: 13)),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  MotoCard(
-                    child: Column(
-                      children: [
-                        _PuntoRuta(
-                          icon: Icons.circle_outlined,
-                          titulo: 'Recoger',
-                          detalle: pedido.direccionRecogida ??
-                              pedido.descripcion,
-                          referencia: pedido.referenciaRecogida,
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Divider(height: 1),
-                        ),
-                        _PuntoRuta(
-                          icon: Icons.location_on_outlined,
-                          titulo: 'Entregar',
-                          detalle: pedido.direccionDestino ?? '—',
-                          referencia: pedido.referencia,
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _RecorridoYDetalle(pedido: pedido),
-                  const SizedBox(height: AppSpacing.md),
-                  _Desglose(vm: vm),
-                  const SizedBox(height: AppSpacing.md),
+                  _TarjetaRuta(pedido: pedido),
+                  const SizedBox(height: AppSpacing.sm),
+                  _TarjetaDinero(vm: vm),
+                  const SizedBox(height: AppSpacing.sm),
                   _ProponerTarifa(vm: vm),
                 ],
               ),
@@ -188,28 +150,33 @@ class _CabeceraNuevo extends StatelessWidget {
     final colorBarra = fraccion > 0.5
         ? AppColors.success
         : (fraccion > 0.25 ? AppColors.warning : AppColors.danger);
+    // Título y reloj comparten línea: cada píxel del encabezado es un píxel que
+    // le quita a la ruta y al dinero, que es lo que decide la oferta.
     return Container(
       width: double.infinity,
       color: AppColors.accent,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),
       child: Column(
         children: [
-          const Text('¡Nuevo pedido!',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: AppSpacing.sm),
           Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
+              const Expanded(
+                child: Text('¡Nuevo pedido!',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800)),
+              ),
               Icon(expirado ? Icons.timer_off_outlined : Icons.timer_outlined,
                   color: Colors.white, size: 16),
               const SizedBox(width: 6),
               Text(
                 textoTimer,
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15),
               ),
             ],
           ),
@@ -292,65 +259,114 @@ class _PuntoRuta extends StatelessWidget {
   }
 }
 
-/// Distancia y tiempo estimados, mensaje completo del mandado y monto de compra
-/// (si el pedido requiere adelantar dinero).
-class _RecorridoYDetalle extends StatelessWidget {
-  const _RecorridoYDetalle({required this.pedido});
+/// Tarjeta única de "qué hay que hacer": categoría, distancia/tiempo, los dos
+/// puntos con su referencia, el mandado y el adelanto de la compra.
+///
+/// Antes eran dos tarjetas; juntarlas ahorra un salto de lectura y el alto que
+/// hacía falta para que el dinero cupiera en la misma pantalla. El texto del
+/// mandado va a dos líneas y se despliega al tocarlo: los largos son la
+/// excepción y no pueden empujar la ganancia fuera de vista.
+class _TarjetaRuta extends StatefulWidget {
+  const _TarjetaRuta({required this.pedido});
   final Pedido pedido;
 
   @override
+  State<_TarjetaRuta> createState() => _TarjetaRutaState();
+}
+
+class _TarjetaRutaState extends State<_TarjetaRuta> {
+  bool _mandadoCompleto = false;
+
+  @override
   Widget build(BuildContext context) {
+    final pedido = widget.pedido;
+    final descripcion = pedido.descripcion.trim();
     return MotoCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Icon(pedido.categoria.icon, size: 17, color: AppColors.primary),
+              const SizedBox(width: 5),
+              Text(pedido.categoria.label,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13.5)),
+              const Spacer(),
               const Icon(Icons.straighten_rounded,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
+                  size: 15, color: AppColors.inkMuted),
+              const SizedBox(width: 3),
               Text(Formato.distancia(pedido.distanciaEstimadaMetros),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(width: AppSpacing.lg),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(width: AppSpacing.md),
               const Icon(Icons.schedule_rounded,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
+                  size: 15, color: AppColors.inkMuted),
+              const SizedBox(width: 3),
               Text(Formato.duracion(pedido.duracionEstimadaSegundos),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13)),
             ],
           ),
-          if (pedido.descripcion.trim().isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Divider(height: 1),
+          ),
+          _PuntoRuta(
+            icon: Icons.circle_outlined,
+            titulo: 'Recoger',
+            detalle: pedido.direccionRecogida ?? descripcion,
+            referencia: pedido.referenciaRecogida,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 6),
+            child: Divider(height: 1),
+          ),
+          _PuntoRuta(
+            icon: Icons.location_on_outlined,
+            titulo: 'Entregar',
+            detalle: pedido.direccionDestino ?? '—',
+            referencia: pedido.referencia,
+            color: AppColors.primary,
+          ),
+          if (descripcion.isNotEmpty) ...[
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.symmetric(vertical: 6),
               child: Divider(height: 1),
             ),
-            const Text('Detalle del mandado',
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700,
-                    color: AppColors.inkMuted)),
-            const SizedBox(height: 2),
-            Text(pedido.descripcion,
-                style: const TextStyle(fontSize: 14)),
+            InkWell(
+              onTap: () =>
+                  setState(() => _mandadoCompleto = !_mandadoCompleto),
+              child: Text(
+                descripcion,
+                maxLines: _mandadoCompleto ? null : 2,
+                overflow: _mandadoCompleto ? null : TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13.5),
+              ),
+            ),
           ],
           if (pedido.requiereCompra) ...[
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.sm),
             Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.shopping_bag_outlined,
-                      size: 18, color: AppColors.primary),
-                  const SizedBox(width: AppSpacing.sm),
+                      size: 16, color: AppColors.primary),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       pedido.montoCompraEstimado != null
-                          ? 'Debes adelantar ~${Formato.moneda(pedido.montoCompraEstimado)} para la compra (el cliente te lo reembolsa).'
-                          : 'Este pedido requiere que adelantes la compra (el cliente te la reembolsa).',
-                      style: const TextStyle(fontSize: 13, color: AppColors.ink),
+                          ? 'Adelantas ${Formato.moneda(pedido.montoCompraEstimado)} · te los reembolsa el cliente'
+                          : 'Adelantas la compra · te la reembolsa el cliente',
+                      style:
+                          const TextStyle(fontSize: 12.5, color: AppColors.ink),
                     ),
                   ),
                 ],
@@ -363,30 +379,101 @@ class _RecorridoYDetalle extends StatelessWidget {
   }
 }
 
-/// Cómo se arma el dinero del pedido: primero de dónde sale la tarifa sugerida
-/// (recorrido + recargos), luego qué queda tras la comisión. Sin el desglose,
-/// una sugerida "alta" por 20 minutos de cola parece un regalo y el conductor
-/// la contraoferta a la baja sin saber qué está descontando.
-class _Desglose extends StatelessWidget {
-  const _Desglose({required this.vm});
+/// El dinero del pedido. Arriba, en grande, lo único que decide: lo que le
+/// queda al conductor. Debajo, en una línea, tarifa y comisión.
+///
+/// El desglose de la tarifa (recorrido + adelanto + espera) va plegado: importa
+/// cuando la sugerida sorprende — una "alta" por 20 minutos de cola parece un
+/// regalo si no se ve de dónde sale — pero no en cada oferta, y desplegado
+/// empujaba la ganancia fuera de la pantalla.
+class _TarjetaDinero extends StatefulWidget {
+  const _TarjetaDinero({required this.vm});
   final PedidoEntranteViewModel vm;
 
   @override
+  State<_TarjetaDinero> createState() => _TarjetaDineroState();
+}
+
+class _TarjetaDineroState extends State<_TarjetaDinero> {
+  bool _abierto = false;
+
+  @override
   Widget build(BuildContext context) {
+    final vm = widget.vm;
     final p = vm.pedido!;
     final hayRecargos = p.tieneRecargos;
     return MotoCard(
       color: AppColors.primarySurface,
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (hayRecargos) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Expanded(
+                child: Text('Ganas por este pedido',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.inkMuted)),
+              ),
+              Text(Formato.moneda(vm.gananciaNeta),
+                  style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.success)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${vm.esContraoferta ? 'Tu propuesta' : 'Tarifa'} '
+                  '${Formato.moneda(vm.montoPropuesto)} · comisión '
+                  '${Formato.moneda(vm.comision)}',
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppColors.inkMuted),
+                ),
+              ),
+              if (hayRecargos)
+                InkWell(
+                  onTap: () => setState(() => _abierto = !_abierto),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 4),
+                    child: Row(
+                      children: [
+                        Text(_abierto ? 'Ocultar' : 'Ver desglose',
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary)),
+                        Icon(
+                            _abierto
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            size: 18,
+                            color: AppColors.primary),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (hayRecargos && _abierto) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Divider(height: 1),
+            ),
             _Fila(
               label: 'Recorrido',
               valor: Formato.moneda(p.tarifaDistancia ?? 0),
               tenue: true,
             ),
             if ((p.recargoAdelanto ?? 0) > 0) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               _Fila(
                 label: 'Por adelantar la compra',
                 valor: Formato.moneda(p.recargoAdelanto),
@@ -394,7 +481,7 @@ class _Desglose extends StatelessWidget {
               ),
             ],
             if ((p.recargoEspera ?? 0) > 0) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               _Fila(
                 label: p.minutosEsperaEstimados != null
                     ? 'Por esperar (~${p.minutosEsperaEstimados} min)'
@@ -403,38 +490,6 @@ class _Desglose extends StatelessWidget {
                 tenue: true,
               ),
             ],
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Divider(height: 1),
-            ),
-          ],
-          _Fila(
-            label: vm.esContraoferta ? 'Tu propuesta' : 'Tarifa sugerida',
-            valor: Formato.moneda(vm.montoPropuesto),
-          ),
-          const SizedBox(height: 6),
-          _Fila(
-            label: 'Comisión plataforma (15%)',
-            valor: '-${Formato.moneda(vm.comision)}',
-            valorColor: AppColors.danger,
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Divider(height: 1),
-          ),
-          _Fila(
-            label: 'Ganancia neta',
-            valor: Formato.moneda(vm.gananciaNeta),
-            bold: true,
-            valorColor: AppColors.success,
-          ),
-          if (p.requiereCompra && (p.montoCompraEstimado ?? 0) > 0) ...[
-            const SizedBox(height: 6),
-            _Fila(
-              label: 'Compra (te la reembolsa el cliente)',
-              valor: Formato.moneda(p.montoCompraEstimado),
-              tenue: true,
-            ),
           ],
         ],
       ),
@@ -442,26 +497,20 @@ class _Desglose extends StatelessWidget {
   }
 }
 
+/// Componente del desglose de la tarifa: pequeña y apagada, para que la
+/// ganancia siga siendo lo primero que se lee.
 class _Fila extends StatelessWidget {
   const _Fila({
     required this.label,
     required this.valor,
-    this.bold = false,
     this.tenue = false,
-    this.valorColor,
   });
   final String label;
   final String valor;
-  final bool bold;
-
-  /// Fila de detalle (componente de la tarifa): más pequeña y apagada, para que
-  /// el total y la ganancia sigan siendo lo primero que se lee.
   final bool tenue;
-  final Color? valorColor;
 
   @override
   Widget build(BuildContext context) {
-    final peso = bold ? FontWeight.w800 : FontWeight.w500;
     final tam = tenue ? 13.0 : 14.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -469,7 +518,7 @@ class _Fila extends StatelessWidget {
         Expanded(
           child: Text(label,
               style: TextStyle(
-                  fontWeight: peso,
+                  fontWeight: FontWeight.w500,
                   fontSize: tam,
                   color: tenue ? AppColors.inkMuted : AppColors.ink)),
         ),
@@ -477,15 +526,15 @@ class _Fila extends StatelessWidget {
         Text(valor,
             style: TextStyle(
                 fontWeight: tenue ? FontWeight.w600 : FontWeight.w800,
-                fontSize: bold ? 18 : tam,
-                color: valorColor ?? (tenue ? AppColors.inkMuted : AppColors.ink))),
+                fontSize: tam,
+                color: tenue ? AppColors.inkMuted : AppColors.ink)),
       ],
     );
   }
 }
 
-/// Ajuste de la contraoferta. La tarifa sugerida queda visible como ancla: sin
-/// una referencia el conductor pide contra su imaginación y suele pasarse.
+/// Ajuste de la contraoferta en una sola fila. La sugerida queda como ancla:
+/// sin una referencia el conductor pide contra su imaginación y suele pasarse.
 class _ProponerTarifa extends StatelessWidget {
   const _ProponerTarifa({required this.vm});
   final PedidoEntranteViewModel vm;
@@ -494,49 +543,48 @@ class _ProponerTarifa extends StatelessWidget {
   Widget build(BuildContext context) {
     final diferencia = vm.montoPropuesto - vm.tarifaSugerida;
     return MotoCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
         children: [
-          const Text('Proponer otra tarifa',
-              style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text('Sugerida ${Formato.moneda(vm.tarifaSugerida)}',
-              style:
-                  const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _BotonAjuste(
-                icon: Icons.remove_rounded,
-                onTap: () => vm.ajustarMonto(-500),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(Formato.moneda(vm.montoPropuesto),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 22)),
-                    if (diferencia != 0)
-                      Text(
-                        diferencia > 0
-                            ? '+${Formato.moneda(diferencia)} sobre la sugerida'
-                            : '${Formato.moneda(diferencia)} bajo la sugerida',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: diferencia > 0
-                              ? AppColors.warning
-                              : AppColors.inkMuted,
-                        ),
-                      ),
-                  ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Proponer otra tarifa',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text(
+                  diferencia == 0
+                      ? 'Sugerida ${Formato.moneda(vm.tarifaSugerida)}'
+                      : (diferencia > 0
+                          ? '+${Formato.moneda(diferencia)} sobre la sugerida'
+                          : '${Formato.moneda(diferencia)} bajo la sugerida'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: diferencia > 0
+                        ? AppColors.warning
+                        : AppColors.inkMuted,
+                  ),
                 ),
-              ),
-              _BotonAjuste(
-                icon: Icons.add_rounded,
-                onTap: () => vm.ajustarMonto(500),
-              ),
-            ],
+              ],
+            ),
+          ),
+          _BotonAjuste(
+            icon: Icons.remove_rounded,
+            onTap: () => vm.ajustarMonto(-500),
+          ),
+          SizedBox(
+            width: 96,
+            child: Text(Formato.moneda(vm.montoPropuesto),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 19)),
+          ),
+          _BotonAjuste(
+            icon: Icons.add_rounded,
+            onTap: () => vm.ajustarMonto(500),
           ),
         ],
       ),
@@ -601,56 +649,32 @@ class _Acciones extends StatelessWidget {
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      // La ganancia ya va en grande arriba: repetirla aquí solo costaba alto.
+      child: Row(
         children: [
-          // La cifra que realmente decide es la ganancia neta, no la tarifa
-          // bruta: va pegada al botón y se actualiza con la contraoferta.
-          Row(
-            children: [
-              const Icon(Icons.savings_outlined,
-                  size: 18, color: AppColors.success),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text('Ganas por este pedido',
-                    style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
-              ),
-              Text(Formato.moneda(vm.gananciaNeta),
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.success)),
-            ],
+          Expanded(
+            child: OutlinedButton(
+              onPressed: (vm.enviando || vm.rechazando)
+                  ? null
+                  : () => onRechazar(context, vm),
+              child: vm.rechazando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Rechazar'),
+            ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: (vm.enviando || vm.rechazando)
-                      ? null
-                      : () => onRechazar(context, vm),
-                  child: vm.rechazando
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Rechazar'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                flex: 2,
-                child: PrimaryButton(
-                  label: contra
-                      ? 'Proponer ${Formato.moneda(vm.montoPropuesto)}'
-                      : 'Aceptar ${Formato.moneda(vm.tarifaSugerida)}',
-                  loading: vm.enviando,
-                  onPressed: () =>
-                      onEnviar(context, vm, aceptarSugerida: !contra),
-                ),
-              ),
-            ],
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            flex: 2,
+            child: PrimaryButton(
+              label: contra
+                  ? 'Proponer ${Formato.moneda(vm.montoPropuesto)}'
+                  : 'Aceptar ${Formato.moneda(vm.tarifaSugerida)}',
+              loading: vm.enviando,
+              onPressed: () => onEnviar(context, vm, aceptarSugerida: !contra),
+            ),
           ),
         ],
       ),

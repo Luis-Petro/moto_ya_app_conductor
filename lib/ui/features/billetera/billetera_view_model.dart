@@ -153,12 +153,7 @@ class BilleteraViewModel extends ChangeNotifier {
   /// Inicia un pago/abono por [monto] (puede superar la deuda: el excedente
   /// queda como saldo a favor). La confirmación real llega por webhook; aquí
   /// solo se refleja el estado "pendiente" y se reconcilia.
-  Future<bool> pagar(
-    double monto, {
-    String? cuentaOrigen,
-    String? titularOrigen,
-    String? entidadOrigen,
-  }) async {
+  Future<bool> pagar(double monto, {String? titularOrigen}) async {
     if (monto <= 0) {
       error = 'Ingresa un monto válido';
       notifyListeners();
@@ -171,9 +166,7 @@ class BilleteraViewModel extends ChangeNotifier {
     final res = await _billetera.pagar(
       medioPago: medioSeleccionado,
       monto: monto,
-      cuentaOrigen: cuentaOrigen,
       titularOrigen: titularOrigen,
-      entidadOrigen: entidadOrigen,
     );
     final ok = res.isSuccess;
     if (ok) {

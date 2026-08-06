@@ -122,9 +122,24 @@ class _RegistroViewState extends State<_RegistroView> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<RegistroViewModel>();
-    return Scaffold(
-      appBar: AppBar(),
-      body: SafeArea(
+    // A esta pantalla se llega con `go` (sin pila), así que el AppBar no pinta
+    // flecha por su cuenta: se pone explícita, y el botón atrás del sistema
+    // hace lo mismo en vez de no hacer nada.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _volver();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _volver,
+            tooltip: 'Atrás',
+          ),
+          title: const Text('Crear cuenta'),
+        ),
+        body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.xl),
           children: [
@@ -171,7 +186,7 @@ class _RegistroViewState extends State<_RegistroView> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            const _Label('Celular'),
+            // PhoneField ya pinta su propia etiqueta: no anteponerle otra.
             PhoneField(controller: _telefono),
             if (_errTelefono != null)
               Padding(
@@ -235,9 +250,13 @@ class _RegistroViewState extends State<_RegistroView> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
+
+  /// Vuelve al paso anterior del alta (elección de perfil).
+  void _volver() => context.go(Rutas.acceso);
 }
 
 class _Label extends StatelessWidget {

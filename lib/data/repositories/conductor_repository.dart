@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/conductor.dart';
+import '../../domain/models/demanda_zonas.dart';
 import '../services/api_result.dart';
 import '../services/conductor_service.dart';
 
@@ -67,12 +68,30 @@ class ConductorRepository extends ChangeNotifier {
     return res;
   }
 
-  /// Sube los papeles de la moto (opcionales) y refresca el perfil.
+  /// Sube la tarjeta de propiedad de la moto y refresca el perfil.
   Future<Result<void>> subirPapelesMoto(MultipartFile archivo) async {
     final res = await _service.subirPapelesMoto(archivo);
     if (res.isSuccess) await cargar(forzar: true);
     return res;
   }
+
+  /// Sube la selfie de verificación y refresca el perfil.
+  Future<Result<void>> subirSelfie(MultipartFile archivo) async {
+    final res = await _service.subirSelfie(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
+    return res;
+  }
+
+  /// Sube la foto de la moto y refresca el perfil.
+  Future<Result<void>> subirFotoMoto(MultipartFile archivo) async {
+    final res = await _service.subirFotoMoto(archivo);
+    if (res.isSuccess) await cargar(forzar: true);
+    return res;
+  }
+
+  /// Demanda reciente por zonas. No se cachea: el sentido del dato es que
+  /// esté fresco cada vez que el conductor mira dónde ubicarse.
+  Future<Result<DemandaZonas>> demanda() => _service.demanda();
 
   Future<Result<Conductor>> cambiarEnLinea(bool enLinea, {LatLng? ubicacion}) async {
     final res = await _service.cambiarEnLinea(enLinea, ubicacion: ubicacion);

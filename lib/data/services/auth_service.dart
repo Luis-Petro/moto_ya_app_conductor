@@ -56,6 +56,13 @@ class AuthService {
     return _api.post<void>('/auth/otp/solicitar', body: {'telefono': telefono});
   }
 
+  /// Pide el enlace de recuperación de contraseña. El backend responde 202
+  /// exista o no la cuenta, así que un éxito aquí **no** confirma que el correo
+  /// esté registrado (y el mensaje al usuario debe ser neutro).
+  Future<Result<void>> solicitarRecuperacionPassword(String email) {
+    return _api.post<void>('/auth/password/solicitar', body: {'email': email});
+  }
+
   Future<Result<Sesion>> verificarOtp({
     required String telefono,
     required String codigo,

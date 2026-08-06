@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/conductor.dart';
+import '../../domain/models/demanda_zonas.dart';
 import '../models/api_mappers.dart';
 import 'api_client.dart';
 import 'api_result.dart';
@@ -85,11 +86,36 @@ class ConductorService {
     );
   }
 
-  /// Sube los papeles de la moto (opcionales).
+  /// Sube la tarjeta de propiedad de la moto (el endpoint conserva el nombre
+  /// `papeles-moto` por compatibilidad).
   Future<Result<void>> subirPapelesMoto(MultipartFile archivo) {
     return _api.postMultipart<void>(
       '/conductores/me/papeles-moto',
       fields: {'file': archivo},
     );
+  }
+
+  /// Sube la selfie de verificación (una de las cuatro fotos que el admin
+  /// necesita para habilitar la cuenta).
+  Future<Result<void>> subirSelfie(MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/conductores/me/selfie',
+      fields: {'file': archivo},
+    );
+  }
+
+  /// Sube la foto de la moto con la placa visible.
+  Future<Result<void>> subirFotoMoto(MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/conductores/me/foto-moto',
+      fields: {'file': archivo},
+    );
+  }
+
+  /// Demanda reciente por zonas del ámbito del conductor. Puede venir con
+  /// `celdas` vacía: significa "no hay datos suficientes", no un error.
+  Future<Result<DemandaZonas>> demanda() {
+    return _api.get<DemandaZonas>('/matching/demanda',
+        parse: ApiMappers.demandaZonas);
   }
 }

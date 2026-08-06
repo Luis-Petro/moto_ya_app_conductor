@@ -13,18 +13,17 @@ class UsuarioService {
     return _api.get<Usuario>('/usuarios/me', parse: ApiMappers.usuario);
   }
 
-  /// El correo NO se cambia aquí: pasa por el flujo verificado
-  /// ([solicitarCambioEmail] + [verificarCambioEmail]).
+  /// Ni el correo ni el celular se cambian aquí: ambos son credenciales de
+  /// acceso y pasan por su flujo verificado ([solicitarCambioEmail] /
+  /// [solicitarCambioTelefono]). El backend ignora esos campos en este PUT.
   Future<Result<Usuario>> actualizarPerfil({
     String? nombre,
-    String? telefono,
     int? municipioId,
   }) {
     return _api.put<Usuario>(
       '/usuarios/me',
       body: {
         'nombre': nombre,
-        'telefono': telefono,
         'municipioId': municipioId,
       },
       parse: ApiMappers.usuario,
@@ -39,6 +38,18 @@ class UsuarioService {
   /// Paso 2: confirma el código y aplica el correo nuevo.
   Future<Result<Usuario>> verificarCambioEmail(String codigo) {
     return _api.post<Usuario>('/usuarios/me/email/verificar',
+        body: {'codigo': codigo}, parse: ApiMappers.usuario);
+  }
+
+  /// Paso 1 del cambio de celular: envía un OTP al número NUEVO.
+  Future<Result<void>> solicitarCambioTelefono(String telefono) {
+    return _api.post<void>('/usuarios/me/telefono/solicitar',
+        body: {'telefono': telefono});
+  }
+
+  /// Paso 2: confirma el código, aplica el número y lo marca verificado.
+  Future<Result<Usuario>> verificarCambioTelefono(String codigo) {
+    return _api.post<Usuario>('/usuarios/me/telefono/verificar',
         body: {'codigo': codigo}, parse: ApiMappers.usuario);
   }
 }

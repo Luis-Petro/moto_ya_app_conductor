@@ -4,6 +4,7 @@ import '../../domain/models/billetera.dart';
 import '../../domain/models/calificacion.dart';
 import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
+import '../../domain/models/demanda_zonas.dart';
 import '../../domain/models/estado_pedido.dart';
 import '../../domain/models/municipio.dart';
 import '../../domain/models/oferta.dart';
@@ -54,6 +55,31 @@ class ApiMappers {
     );
   }
 
+  /// Demanda reciente por zonas. `celdas` puede llegar vacía: es un dato
+  /// legítimo ("no hay suficientes pedidos"), no un fallo de mapeo.
+  static DemandaZonas demandaZonas(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    final celdas = (m['celdas'] as List? ?? const [])
+        .map((e) => e as Map<String, dynamic>)
+        .map((c) {
+          final centro = _latLng(c['centroLat'], c['centroLng']);
+          if (centro == null) return null;
+          return CeldaDemanda(
+            centro: centro,
+            pedidos: _int(c['pedidos']) ?? 0,
+            nivel: NivelDemanda.fromWire(c['nivel'] as String?),
+          );
+        })
+        .whereType<CeldaDemanda>()
+        .toList();
+    return DemandaZonas(
+      periodoHoras: _int(m['periodoHoras']) ?? 2,
+      totalPedidos: _int(m['totalPedidos']) ?? 0,
+      actualizadoEn: _date(m['actualizadoEn']) ?? DateTime.now(),
+      celdas: celdas,
+    );
+  }
+
   static Conductor conductor(dynamic json) {
     final m = json as Map<String, dynamic>;
     return Conductor(
@@ -66,6 +92,8 @@ class ApiMappers {
       fotoUrl: m['fotoUrl'] as String?,
       cedulaUrl: m['cedulaUrl'] as String?,
       papelesMotoUrl: m['papelesMotoUrl'] as String?,
+      selfieUrl: m['selfieUrl'] as String?,
+      fotoMotoUrl: m['fotoMotoUrl'] as String?,
       enLinea: (m['enLinea'] as bool?) ?? false,
       ubicacion: _latLng(m['ubicacionLat'], m['ubicacionLng']),
       ultimaConexion: _date(m['ultimaConexion']),
@@ -114,6 +142,27 @@ class ApiMappers {
     );
   }
 
+  static PagoRealizado pago(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return PagoRealizado(
+      id: _int(m['id']) ?? 0,
+      valor: _double(m['valor']) ?? 0,
+      medioPago: (m['medioPago'] as String?) == MedioPago.breB.wire
+          ? MedioPago.breB
+          : MedioPago.nequi,
+      estado: (m['estado'] as String?) ?? 'PENDIENTE',
+      referenciaExterna: m['referenciaExterna'] as String?,
+      cuentaOrigen: m['cuentaOrigen'] as String?,
+      titularOrigen: m['titularOrigen'] as String?,
+      entidadOrigen: m['entidadOrigen'] as String?,
+      creadoEn: _date(m['creadoEn']),
+      confirmadoEn: _date(m['confirmadoEn']),
+    );
+  }
+
+  static List<PagoRealizado> pagos(dynamic json) =>
+      (json as List).map(pago).toList();
+
   static Pedido pedido(dynamic json) {
     final m = json as Map<String, dynamic>;
     return Pedido(
@@ -126,19 +175,25 @@ class ApiMappers {
       destino: _latLng(m['destinoLat'], m['destinoLng']),
       direccionRecogida: m['direccionRecogida'] as String?,
       direccionDestino: m['direccionDestino'] as String?,
+      referenciaRecogida: m['referenciaRecogida'] as String?,
       referencia: m['referencia'] as String?,
       fotoUrl: m['fotoUrl'] as String?,
       tarifaSugerida: _double(m['tarifaSugerida']),
       tarifaEstimada: (m['tarifaEstimada'] as bool?) ?? false,
       tarifaFinal: _double(m['tarifaFinal']),
+      recargoAdelanto: _double(m['recargoAdelanto']),
+      recargoEspera: _double(m['recargoEspera']),
       requiereCompra: (m['requiereCompra'] as bool?) ?? false,
       montoCompraEstimado: _double(m['montoCompraEstimado']),
+      requiereEspera: (m['requiereEspera'] as bool?) ?? false,
+      minutosEsperaEstimados: _int(m['minutosEsperaEstimados']),
       estado: EstadoPedido.fromWire(m['estado'] as String?),
       motivoCancelacion: m['motivoCancelacion'] as String?,
       creadoEn: _date(m['creadoEn']),
       entregadoEn: _date(m['entregadoEn']),
       clienteNombre: m['clienteNombre'] as String?,
       clienteTelefono: m['clienteTelefono'] as String?,
+      clienteFotoUrl: m['clienteFotoUrl'] as String?,
       distanciaEstimadaMetros: _double(m['distanciaEstimadaMetros']),
       duracionEstimadaSegundos: _double(m['duracionEstimadaSegundos']),
       rutaPolyline: m['rutaPolyline'] as String?,

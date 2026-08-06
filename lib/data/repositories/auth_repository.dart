@@ -69,6 +69,11 @@ class AuthRepository extends ChangeNotifier {
     return _auth.solicitarOtp(telefono);
   }
 
+  /// Pide el enlace de recuperación de contraseña (respuesta siempre neutra).
+  Future<Result<void>> solicitarRecuperacionPassword(String email) {
+    return _auth.solicitarRecuperacionPassword(email);
+  }
+
   Future<Result<Sesion>> verificarOtp({
     required String telefono,
     required String codigo,

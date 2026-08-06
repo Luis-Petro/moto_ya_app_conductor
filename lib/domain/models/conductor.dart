@@ -40,6 +40,8 @@ class Conductor {
     this.fotoUrl,
     this.cedulaUrl,
     this.papelesMotoUrl,
+    this.selfieUrl,
+    this.fotoMotoUrl,
     this.enLinea = false,
     this.ubicacion,
     this.ultimaConexion,
@@ -60,7 +62,16 @@ class Conductor {
   final String? documentoUrl;
   final String? fotoUrl;
   final String? cedulaUrl;
+
+  /// Tarjeta de propiedad de la moto (el campo del backend conserva el nombre
+  /// `papelesMotoUrl`).
   final String? papelesMotoUrl;
+
+  /// Selfie de verificación (la cara del conductor).
+  final String? selfieUrl;
+
+  /// Foto de la moto con la placa visible.
+  final String? fotoMotoUrl;
   final bool enLinea;
   final LatLng? ubicacion;
   final DateTime? ultimaConexion;
@@ -86,6 +97,22 @@ class Conductor {
   bool get rechazado => estado.rechazadoPorAdmin;
   bool get habilitado => estado.habilitado;
   bool get tieneCedula => cedulaUrl?.trim().isNotEmpty ?? false;
+  bool get tieneTarjetaPropiedad => papelesMotoUrl?.trim().isNotEmpty ?? false;
+  bool get tieneSelfie => selfieUrl?.trim().isNotEmpty ?? false;
+  bool get tieneFotoMoto => fotoMotoUrl?.trim().isNotEmpty ?? false;
+
+  /// Documentos que el admin exige para habilitar la cuenta y aún faltan.
+  /// Mismos nombres que usa el backend al rechazar la habilitación, para que
+  /// el conductor lea lo mismo aquí y en el mensaje de error.
+  List<String> get documentosFaltantes => [
+        if (!tieneCedula) 'cédula',
+        if (!tieneTarjetaPropiedad) 'tarjeta de propiedad',
+        if (!tieneSelfie) 'selfie',
+        if (!tieneFotoMoto) 'foto de la moto',
+      ];
+
+  /// Cuántos de los cuatro documentos ya están subidos.
+  int get documentosSubidos => 4 - documentosFaltantes.length;
 
   bool get tieneDocumentos => documentoUrl?.trim().isNotEmpty ?? false;
 
@@ -105,6 +132,8 @@ class Conductor {
       fotoUrl: fotoUrl,
       cedulaUrl: cedulaUrl,
       papelesMotoUrl: papelesMotoUrl,
+      selfieUrl: selfieUrl,
+      fotoMotoUrl: fotoMotoUrl,
       enLinea: enLinea ?? this.enLinea,
       ubicacion: ubicacion ?? this.ubicacion,
       ultimaConexion: ultimaConexion,

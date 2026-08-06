@@ -19,6 +19,15 @@ class BilleteraService {
     return _api.get<DatosPago>('/billetera/datos-pago', parse: ApiMappers.datosPago);
   }
 
+  /// Pagos del conductor, del más reciente al más antiguo.
+  Future<Result<List<PagoRealizado>>> pagos({int page = 0, int size = 20}) {
+    return _api.get<List<PagoRealizado>>(
+      '/billetera/pagos',
+      query: {'page': page, 'size': size},
+      parse: ApiMappers.pagos,
+    );
+  }
+
   /// Inicia el pago de la deuda con Nequi o Bre-B, declarando la cuenta de
   /// origen. La confirmación llega por webhook del proveedor (design D8).
   Future<Result<IntencionPago>> pagar({

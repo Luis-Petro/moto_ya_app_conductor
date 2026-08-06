@@ -22,11 +22,10 @@ class UsuarioRepository {
 
   Future<Result<Usuario>> actualizar({
     String? nombre,
-    String? telefono,
     int? municipioId,
   }) async {
     final res = await _service.actualizarPerfil(
-        nombre: nombre, telefono: telefono, municipioId: municipioId);
+        nombre: nombre, municipioId: municipioId);
     if (res case Ok<Usuario>(value: final u)) {
       _cache = u;
     }
@@ -40,6 +39,20 @@ class UsuarioRepository {
   /// Paso 2: confirma el código; al aceptar, refresca la caché con el correo nuevo.
   Future<Result<Usuario>> verificarCambioEmail(String codigo) async {
     final res = await _service.verificarCambioEmail(codigo);
+    if (res case Ok<Usuario>(value: final u)) {
+      _cache = u;
+    }
+    return res;
+  }
+
+  /// Paso 1 del cambio de celular: envía un OTP al número nuevo.
+  Future<Result<void>> solicitarCambioTelefono(String telefono) =>
+      _service.solicitarCambioTelefono(telefono);
+
+  /// Paso 2: confirma el código; al aceptar, refresca la caché con el número
+  /// nuevo ya verificado.
+  Future<Result<Usuario>> verificarCambioTelefono(String codigo) async {
+    final res = await _service.verificarCambioTelefono(codigo);
     if (res case Ok<Usuario>(value: final u)) {
       _cache = u;
     }

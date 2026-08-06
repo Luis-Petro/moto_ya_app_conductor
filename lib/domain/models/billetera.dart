@@ -86,6 +86,47 @@ enum MedioPago {
   final String label;
 }
 
+/// Un pago registrado del conductor (`GET /billetera/pagos`). Es la fuente de
+/// verdad del pago en proceso: al vivir en el servidor sobrevive al cambio de
+/// pestaña y al reinicio de la app.
+class PagoRealizado {
+  const PagoRealizado({
+    required this.id,
+    required this.valor,
+    required this.medioPago,
+    required this.estado,
+    this.referenciaExterna,
+    this.cuentaOrigen,
+    this.titularOrigen,
+    this.entidadOrigen,
+    this.creadoEn,
+    this.confirmadoEn,
+  });
+
+  final int id;
+  final double valor;
+  final MedioPago medioPago;
+
+  /// PENDIENTE | CONFIRMADO | FALLIDO.
+  final String estado;
+  final String? referenciaExterna;
+  final String? cuentaOrigen;
+  final String? titularOrigen;
+  final String? entidadOrigen;
+  final DateTime? creadoEn;
+  final DateTime? confirmadoEn;
+
+  bool get pendiente => estado == 'PENDIENTE';
+  bool get confirmado => estado == 'CONFIRMADO';
+  bool get fallido => estado == 'FALLIDO';
+
+  String get estadoLabel => switch (estado) {
+        'CONFIRMADO' => 'Confirmado',
+        'FALLIDO' => 'Fallido',
+        _ => 'En revisión',
+      };
+}
+
 /// Intención de pago devuelta por el backend al iniciar un pago. La confirmación
 /// real llega por webhook del proveedor (design D8: confirmación asíncrona).
 class IntencionPago {

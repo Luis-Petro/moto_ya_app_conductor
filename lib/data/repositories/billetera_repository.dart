@@ -39,5 +39,10 @@ class BilleteraRepository {
   /// Datos de destino (Nequi/Bre-B) configurados por la plataforma.
   Future<Result<DatosPago>> datosPago() => _service.datosPago();
 
+  /// Pagos del conductor (recientes primero). Sin caché: el pago pendiente se
+  /// deriva de aquí y debe reflejar lo que el servidor sabe ahora mismo.
+  Future<Result<List<PagoRealizado>>> pagos({int page = 0, int size = 20}) =>
+      _service.pagos(page: page, size: size);
+
   void limpiar() => _cache = null;
 }

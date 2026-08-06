@@ -109,6 +109,51 @@ class Pedido {
   /// Polilínea codificada (Google, precisión 5) del trayecto recogida→entrega.
   final String? rutaPolyline;
 
+  /// Copia con campos sustituidos. Reconstruir el pedido a mano campo por campo
+  /// hacía que cualquier campo nuevo se perdiera en silencio (así desaparecía el
+  /// contacto del cliente al avanzar de estado).
+  Pedido copyWith({
+    EstadoPedido? estado,
+    String? clienteNombre,
+    String? clienteTelefono,
+    String? clienteFotoUrl,
+    double? tarifaFinal,
+  }) {
+    return Pedido(
+      id: id,
+      clienteId: clienteId,
+      conductorId: conductorId,
+      categoria: categoria,
+      descripcion: descripcion,
+      origen: origen,
+      destino: destino,
+      direccionRecogida: direccionRecogida,
+      direccionDestino: direccionDestino,
+      referenciaRecogida: referenciaRecogida,
+      referencia: referencia,
+      fotoUrl: fotoUrl,
+      tarifaSugerida: tarifaSugerida,
+      tarifaEstimada: tarifaEstimada,
+      tarifaFinal: tarifaFinal ?? this.tarifaFinal,
+      recargoAdelanto: recargoAdelanto,
+      recargoEspera: recargoEspera,
+      requiereCompra: requiereCompra,
+      montoCompraEstimado: montoCompraEstimado,
+      requiereEspera: requiereEspera,
+      minutosEsperaEstimados: minutosEsperaEstimados,
+      estado: estado ?? this.estado,
+      motivoCancelacion: motivoCancelacion,
+      creadoEn: creadoEn,
+      entregadoEn: entregadoEn,
+      clienteNombre: clienteNombre ?? this.clienteNombre,
+      clienteTelefono: clienteTelefono ?? this.clienteTelefono,
+      clienteFotoUrl: clienteFotoUrl ?? this.clienteFotoUrl,
+      distanciaEstimadaMetros: distanciaEstimadaMetros,
+      duracionEstimadaSegundos: duracionEstimadaSegundos,
+      rutaPolyline: rutaPolyline,
+    );
+  }
+
   bool get tieneConductor => conductorId != null;
 
   /// Componente por distancia de la tarifa: el total menos los recargos.

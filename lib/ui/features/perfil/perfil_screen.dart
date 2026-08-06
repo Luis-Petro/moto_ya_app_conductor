@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +16,7 @@ import '../../core/widgets/brand.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
+import '../../router.dart';
 import 'perfil_view_model.dart';
 
 class PerfilScreen extends StatelessWidget {
@@ -543,6 +545,34 @@ class _PerfilViewState extends State<_PerfilView> {
                             onSubir: (doc) => _subirDocumento(vm, doc),
                           ),
                         ],
+                        const SizedBox(height: AppSpacing.md),
+                        // Canal directo de queja/sugerencia hacia el operador.
+                        MotoCard(
+                          onTap: () => context.push(Rutas.feedback),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.chat_bubble_outline,
+                                  color: AppColors.primary),
+                              SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Ayúdanos a mejorar',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                    Text('Envíanos una queja o una sugerencia',
+                                        style: TextStyle(
+                                            color: AppColors.inkMuted,
+                                            fontSize: 12.5)),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded,
+                                  color: AppColors.inkMuted),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: AppSpacing.xl),
                         OutlinedButton.icon(
                           onPressed: () => _confirmarSalir(vm),

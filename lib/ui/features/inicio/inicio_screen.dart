@@ -18,6 +18,7 @@ import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/banner_version.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
@@ -55,33 +56,48 @@ class _InicioView extends StatelessWidget {
       body: SafeArea(
         child: vm.cargando
             ? const SkeletonInicio()
-            : RefreshIndicator(
-                onRefresh: vm.refrescar,
-                child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  _Header(vm: vm),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (vm.enRevision || vm.rechazado) ...[
-                    _RevisionBanner(vm: vm),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                  if (vm.pedidoActivo != null) ...[
-                    _ActivoBanner(vm: vm),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                  if (vm.ofertaActual != null && vm.pedidoActivo == null) ...[
-                    _OfertaBanner(vm: vm),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                  _ToggleEnLinea(vm: vm),
-                  const SizedBox(height: AppSpacing.lg),
-                  _Ganancias(vm: vm),
-                  const SizedBox(height: AppSpacing.lg),
-                  _ZonasDemanda(vm: vm),
-                ],
+            // El mapa de zonas se dimensiona contra el alto real disponible (no
+            // un valor fijo): es la pantalla donde el conductor decide dónde
+            // pararse. Sigue dentro del ListView para no perder el gesto de
+            // refrescar ni desbordar cuando hay banners de revisión/oferta.
+            : LayoutBuilder(
+                builder: (context, constraints) => RefreshIndicator(
+                  onRefresh: vm.refrescar,
+                  child: ListView(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    children: [
+                      _Header(vm: vm),
+                      const SizedBox(height: AppSpacing.md),
+                      // Aviso de versión nueva (descartable, nunca bloquea).
+                      const BannerVersion(),
+                      if (vm.enRevision || vm.rechazado) ...[
+                        _RevisionBanner(vm: vm),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                      if (vm.pedidoActivo != null) ...[
+                        _ActivoBanner(vm: vm),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                      if (vm.ofertaActual != null &&
+                          vm.pedidoActivo == null) ...[
+                        _OfertaBanner(vm: vm),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                      _ToggleEnLinea(vm: vm),
+                      const SizedBox(height: AppSpacing.lg),
+                      _Ganancias(vm: vm),
+                      const SizedBox(height: AppSpacing.lg),
+                      _ZonasDemanda(
+                        vm: vm,
+                        alturaMapa: (constraints.maxHeight * 0.55).clamp(
+                          220,
+                          520,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
       ),
     );
   }
@@ -96,28 +112,48 @@ class _Header extends StatelessWidget {
     final rating = vm.calificacion;
     return Row(
       children: [
-        InitialsAvatar(initials: vm.iniciales, imageUrl: vm.fotoUrl, radius: 22),
+        InitialsAvatar(
+          initials: vm.iniciales,
+          imageUrl: vm.fotoUrl,
+          radius: 22,
+        ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(vm.nombre ?? 'Conductor',
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w800)),
+              Text(
+                vm.nombre ?? 'Conductor',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               Row(
                 children: [
-                  const Icon(Icons.star_rounded, size: 15, color: AppColors.star),
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 15,
+                    color: AppColors.star,
+                  ),
                   const SizedBox(width: 2),
-                  Text(rating != null ? rating.toStringAsFixed(1) : '—',
-                      style: const TextStyle(
-                          color: AppColors.inkMuted, fontSize: 13)),
+                  Text(
+                    rating != null ? rating.toStringAsFixed(1) : '—',
+                    style: const TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 13,
+                    ),
+                  ),
                   if (vm.municipioNombre != null)
                     Flexible(
-                      child: Text(' · ${vm.municipioNombre}',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: AppColors.inkMuted, fontSize: 13)),
+                      child: Text(
+                        ' · ${vm.municipioNombre}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.inkMuted,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -156,9 +192,13 @@ class _ActivoBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Pedido en curso',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w800)),
+                const Text(
+                  'Pedido en curso',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 Text(
                   '${p.categoria.label} · ${p.estado.label}',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
@@ -166,8 +206,10 @@ class _ActivoBanner extends StatelessWidget {
               ],
             ),
           ),
-          const Text('Continuar',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          const Text(
+            'Continuar',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
           const Icon(Icons.chevron_right_rounded, color: Colors.white),
         ],
       ),
@@ -188,8 +230,9 @@ class _OfertaBanner extends StatelessWidget {
       borderColor: AppColors.primary,
       onTap: () async {
         // Pasa la ventana del servidor para el countdown real de la tarjeta.
-        await context
-            .push(Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes));
+        await context.push(
+          Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes),
+        );
         vm.descartarOferta();
         // Responder (o rechazar) mueve la tasa de aceptación en el backend: sin
         // este refresco el Inicio seguiría mostrando el valor cacheado.
@@ -197,17 +240,25 @@ class _OfertaBanner extends StatelessWidget {
       },
       child: Row(
         children: [
-          const Icon(Icons.notifications_active_rounded, color: AppColors.primary),
+          const Icon(
+            Icons.notifications_active_rounded,
+            color: AppColors.primary,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('¡Nuevo pedido cerca!',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text(
+                  '¡Nuevo pedido cerca!',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 Text(
                   '${pedido.categoria.label} · sugerido ${Formato.moneda(pedido.tarifaSugerida)}',
-                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -230,7 +281,8 @@ class _ToggleEnLinea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bloqueado = vm.bloqueadoPorDeuda;
-    final noHabilitado = !vm.habilitado && !bloqueado; // en revisión / rechazado
+    final noHabilitado =
+        !vm.habilitado && !bloqueado; // en revisión / rechazado
     final deshabilitado = bloqueado || noHabilitado;
     final enLinea = vm.enLinea;
     final activo = enLinea && !deshabilitado;
@@ -247,8 +299,10 @@ class _ToggleEnLinea extends StatelessWidget {
           : () => _alternar(context, vm, !enLinea),
       child: Row(
         children: [
-          Icon(deshabilitado ? Icons.lock_outline : Icons.bolt_rounded,
-              color: activo ? Colors.white : color),
+          Icon(
+            deshabilitado ? Icons.lock_outline : Icons.bolt_rounded,
+            color: activo ? Colors.white : color,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -258,8 +312,8 @@ class _ToggleEnLinea extends StatelessWidget {
                   bloqueado
                       ? 'Bloqueado por deuda'
                       : noHabilitado
-                          ? 'Cuenta no habilitada'
-                          : (enLinea ? 'En línea' : 'Fuera de línea'),
+                      ? 'Cuenta no habilitada'
+                      : (enLinea ? 'En línea' : 'Fuera de línea'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -270,10 +324,10 @@ class _ToggleEnLinea extends StatelessWidget {
                   bloqueado
                       ? 'Paga tu deuda para recibir pedidos'
                       : noHabilitado
-                          ? 'En revisión: aún no puedes recibir pedidos'
-                          : (enLinea
-                              ? 'Recibiendo pedidos de tu zona'
-                              : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
+                      ? 'En revisión: aún no puedes recibir pedidos'
+                      : (enLinea
+                            ? 'Recibiendo pedidos de tu zona'
+                            : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
                   style: TextStyle(
                     fontSize: 12.5,
                     color: activo ? Colors.white70 : AppColors.inkMuted,
@@ -285,7 +339,10 @@ class _ToggleEnLinea extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           if (vm.cambiandoEstado)
             const SizedBox(
-                width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
           else
             // Se mantiene por legibilidad del estado; el toque real lo captura
             // la tarjeta entera.
@@ -305,7 +362,10 @@ class _ToggleEnLinea extends StatelessWidget {
   /// Aplica el cambio de estado y traduce el desenlace a un aviso. Ponerse en
   /// línea exige ubicación y notificaciones: si faltan, ofrece abrir Ajustes.
   Future<void> _alternar(
-      BuildContext context, InicioViewModel vm, bool valor) async {
+    BuildContext context,
+    InicioViewModel vm,
+    bool valor,
+  ) async {
     final r = await vm.alternarEnLinea(valor);
     if (!context.mounted) return;
     switch (r) {
@@ -352,8 +412,9 @@ class _ToggleEnLinea extends StatelessWidget {
   }
 
   void _snack(BuildContext context, String mensaje) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(mensaje)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   void _dialogoPermiso(
@@ -401,23 +462,30 @@ class _RevisionBanner extends StatelessWidget {
       borderColor: rechazado ? AppColors.danger : AppColors.primary,
       child: Row(
         children: [
-          Icon(rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
-              color: rechazado ? AppColors.danger : AppColors.primary),
+          Icon(
+            rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
+            color: rechazado ? AppColors.danger : AppColors.primary,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(
+                  rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   rechazado
                       ? (vm.motivoRechazo?.trim().isNotEmpty ?? false
-                          ? vm.motivoRechazo!
-                          : 'Tus documentos fueron rechazados. Contáctanos para corregirlos.')
+                            ? vm.motivoRechazo!
+                            : 'Tus documentos fueron rechazados. Contáctanos para corregirlos.')
                       : 'Estamos revisando tus documentos. Te habilitaremos para recibir pedidos muy pronto.',
-                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -442,14 +510,19 @@ class _Ganancias extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Ganancias de hoy',
-              style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+          const Text(
+            'Ganancias de hoy',
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+          ),
           const SizedBox(height: 2),
-          Text(Formato.moneda(vm.gananciasHoy),
-              style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.ink)),
+          Text(
+            Formato.moneda(vm.gananciasHoy),
+            style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           const Divider(),
           const SizedBox(height: AppSpacing.sm),
@@ -459,8 +532,9 @@ class _Ganancias extends StatelessWidget {
               _Metrica(valor: '${vm.pedidosHoy}', etiqueta: 'pedidos'),
               _Metrica(valor: tiempo, etiqueta: 'en línea'),
               _Metrica(
-                  valor: acept != null ? '${acept.round()}%' : '—',
-                  etiqueta: 'aceptación'),
+                valor: acept != null ? '${acept.round()}%' : '—',
+                etiqueta: 'aceptación',
+              ),
             ],
           ),
         ],
@@ -478,10 +552,14 @@ class _Metrica extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(valor,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-        Text(etiqueta,
-            style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+        Text(
+          valor,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+        Text(
+          etiqueta,
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12),
+        ),
       ],
     );
   }
@@ -494,8 +572,11 @@ class _Metrica extends StatelessWidget {
 /// ahora se dice; no se pinta un mapa inventado sobre el que alguien podría
 /// decidir dónde pararse a esperar.
 class _ZonasDemanda extends StatelessWidget {
-  const _ZonasDemanda({required this.vm});
+  const _ZonasDemanda({required this.vm, required this.alturaMapa});
   final InicioViewModel vm;
+
+  /// Alto del mapa, calculado por la pantalla contra el espacio disponible.
+  final double alturaMapa;
 
   @override
   Widget build(BuildContext context) {
@@ -506,21 +587,24 @@ class _ZonasDemanda extends StatelessWidget {
         Row(
           children: [
             const Expanded(
-              child: Text('Dónde están pidiendo',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Dónde están pidiendo',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ),
             if (vm.cargandoDemanda)
               const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
           ],
         ),
         const SizedBox(height: 2),
         Text(
           d != null && d.tieneDatos
               ? '${d.totalPedidos} pedidos en las últimas ${d.periodoHoras} h · '
-                  'actualizado ${Formato.hora(d.actualizadoEn)}'
+                    'actualizado ${Formato.hora(d.actualizadoEn)}'
               : 'Zonas de recogida de los pedidos recientes de tu municipio.',
           style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
         ),
@@ -534,16 +618,15 @@ class _ZonasDemanda extends StatelessWidget {
         else if (d != null && !d.tieneDatos)
           const _AvisoDemanda(
             icono: Icons.query_stats_outlined,
-            texto: 'Aún no hay suficientes pedidos recientes por aquí para '
+            texto:
+                'Aún no hay suficientes pedidos recientes por aquí para '
                 'señalar zonas. Cuando los haya, aparecen en el mapa.',
           )
         else if (d != null) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
             child: SizedBox(
-              // Acotado: el mapa es una referencia, no la pantalla. Más alto
-              // empujaba las ganancias y el toggle fuera de la vista.
-              height: 180,
+              height: alturaMapa,
               child: FlutterMap(
                 options: MapOptions(
                   initialCameraFit: CameraFit.bounds(
@@ -554,7 +637,8 @@ class _ZonasDemanda extends StatelessWidget {
                     padding: const EdgeInsets.all(28),
                   ),
                   interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag),
+                    flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                  ),
                 ),
                 children: [
                   osmTileLayer(),
@@ -594,10 +678,10 @@ class _ZonasDemanda extends StatelessWidget {
   }
 
   static Color _color(NivelDemanda n) => switch (n) {
-        NivelDemanda.alta => AppColors.danger,
-        NivelDemanda.media => AppColors.warning,
-        NivelDemanda.baja => AppColors.success,
-      };
+    NivelDemanda.alta => AppColors.danger,
+    NivelDemanda.media => AppColors.warning,
+    NivelDemanda.baja => AppColors.success,
+  };
 }
 
 class _PuntoLeyenda extends StatelessWidget {
@@ -620,8 +704,10 @@ class _PuntoLeyenda extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Text(label,
-            style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
+        ),
       ],
     );
   }
@@ -642,8 +728,10 @@ class _AvisoDemanda extends StatelessWidget {
           Icon(icono, size: 20, color: AppColors.inkMuted),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(texto,
-                style: const TextStyle(fontSize: 13, height: 1.3)),
+            child: Text(
+              texto,
+              style: const TextStyle(fontSize: 13, height: 1.3),
+            ),
           ),
           if (accion != null)
             TextButton(onPressed: accion, child: const Text('Reintentar')),

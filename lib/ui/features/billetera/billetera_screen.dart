@@ -47,71 +47,27 @@ class _BilleteraView extends StatefulWidget {
 }
 
 class _BilleteraViewState extends State<_BilleteraView> {
-  final _monto = TextEditingController();
-
-  /// Único dato que se le pide al conductor para conciliar: a nombre de quién
-  /// salió la transferencia. El número de cuenta lo aportaba a mano y llegaba
-  /// mal tecleado la mitad de las veces; para cruzar el movimiento basta el
-  /// nombre del titular, el monto y la hora.
-  final _titularOrigen = TextEditingController();
-  bool _montoInicializado = false;
-
-  final _scroll = ScrollController();
-
-  @override
-  void dispose() {
-    _monto.dispose();
-    _titularOrigen.dispose();
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  /// Prefija el monto con la deuda actual la primera vez que hay datos.
-  void _prefijarMonto(BilleteraViewModel vm) {
-    if (_montoInicializado || vm.billetera == null) return;
-    _montoInicializado = true;
-    final deuda = vm.billetera!.deudaActual;
-    _monto.text = deuda > 0 ? deuda.round().toString() : '';
-  }
-
-  double get _montoIngresado =>
-      double.tryParse(_monto.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
-
-  Future<void> _pagar(BuildContext context, BilleteraViewModel vm) async {
-    if (_titularOrigen.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Escribe a nombre de quién enviaste la transferencia')));
-      return;
-    }
-    final ok = await vm.pagar(
-      _montoIngresado,
-      titularOrigen: _titularOrigen.text.trim(),
+  /// El formulario de transferencia vive en una hoja aparte: en la pantalla
+  /// principal empujaba el saldo y el estado de la cuenta fuera de vista, y el
+  /// conductor entra aquí sobre todo a mirar cuánto debe.
+  Future<void> _abrirPago(
+    BuildContext context,
+    BilleteraViewModel vm,
+    Billetera billetera,
+  ) async {
+    final registrado = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      // La billetera vive en una tab: la hoja se abre sobre su navigator (que es
+      // el default de showModalBottomSheet) y necesita el vm pasado a mano.
+      builder: (_) => ChangeNotifierProvider<BilleteraViewModel>.value(
+        value: vm,
+        child: _PagoSheet(billetera: billetera),
+      ),
     );
-    if (!context.mounted) return;
-    if (ok && vm.intencion != null) {
-      // El pago ya quedó registrado: el formulario se vacía para que nadie
-      // reenvíe el mismo abono de un segundo toque.
-      _monto.clear();
-      _titularOrigen.clear();
-      FocusScope.of(context).unfocus();
-      if (mounted) setState(() {});
-      if (!context.mounted) return;
+    if (registrado == true && vm.intencion != null && context.mounted) {
       await _mostrarTransaccion(context, vm.intencion!);
-      _irAlEstado();
-    } else if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos iniciar el pago')),
-      );
     }
-  }
-
-  /// Sube al principio tras pagar. El formulario queda al final de la pantalla
-  /// y, sin esto, el conductor se quedaba mirando el botón vacío sin ver que su
-  /// pago quedó registrado y en revisión.
-  void _irAlEstado() {
-    if (!_scroll.hasClients) return;
-    _scroll.animateTo(0,
-        duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
   }
 
   /// Historial completo en una hoja: se consulta de vez en cuando (una duda,
@@ -126,7 +82,9 @@ class _BilleteraViewState extends State<_BilleteraView> {
 
   /// Ficha de la transacción iniciada: monto, destino, referencia y siguiente paso.
   Future<void> _mostrarTransaccion(
-      BuildContext context, IntencionPago intencion) {
+    BuildContext context,
+    IntencionPago intencion,
+  ) {
     final datos = context.read<BilleteraViewModel>().datosPago;
     return showModalBottomSheet<void>(
       context: context,
@@ -137,7 +95,6 @@ class _BilleteraViewState extends State<_BilleteraView> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<BilleteraViewModel>();
-    _prefijarMonto(vm);
     final b = vm.billetera;
     return Scaffold(
       appBar: AppBar(title: const Text('Billetera')),
@@ -145,124 +102,218 @@ class _BilleteraViewState extends State<_BilleteraView> {
         child: vm.cargando && b == null
             ? const Center(child: CircularProgressIndicator())
             : b == null
-                ? ErrorRetry(
-                    message: vm.error ?? 'No pudimos cargar tu billetera',
-                    onRetry: vm.cargar)
-                : RefreshIndicator(
-                    onRefresh: vm.cargar,
-                    child: ListView(
-                      controller: _scroll,
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      children: [
-                        if (vm.bloqueado) const _BannerBloqueo(),
-                        _TarjetaSaldo(billetera: b),
-                        const SizedBox(height: AppSpacing.lg),
-                        _EstadoCuenta(billetera: b),
-                        // El pago en proceso viene del servidor: sobrevive al
-                        // cambio de pestaña y al reinicio de la app.
-                        if (vm.pagoPendiente != null) ...[
-                          const SizedBox(height: AppSpacing.lg),
-                          _PagoEnProceso(
-                            pago: vm.pagoPendiente!,
-                            onVer: vm.intencion == null
-                                ? null
-                                : () =>
-                                    _mostrarTransaccion(context, vm.intencion!),
-                          ),
-                        ] else if (vm.aviso != null) ...[
-                          const SizedBox(height: AppSpacing.lg),
-                          _PagoConfirmado(
-                            mensaje: vm.aviso!,
-                            onCerrar: vm.descartarIntencion,
-                          ),
-                        ],
-                        const SizedBox(height: AppSpacing.xl),
-                        const Text('PAGAR CON',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.inkMuted,
-                                letterSpacing: 0.4)),
-                        const SizedBox(height: AppSpacing.sm),
-                        _Medios(vm: vm),
-                        if (vm.datosPago != null) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          _DestinoPago(
-                              datos: vm.datosPago!, medio: vm.medioSeleccionado),
-                        ],
-                        const SizedBox(height: AppSpacing.lg),
-                        const Text('MONTO A PAGAR',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.inkMuted,
-                                letterSpacing: 0.4)),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextField(
-                          controller: _monto,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly
-                          ],
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            prefixText: r'$ ',
-                            hintText: b.enDeuda
-                                ? b.deudaActual.round().toString()
-                                : 'Monto a abonar',
-                            helperText: b.enDeuda
-                                ? 'Puedes pagar más que la deuda: el resto queda como saldo a favor.'
-                                : 'Lo que abones queda como saldo a favor para tus próximas comisiones.',
-                            helperMaxLines: 2,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        const Text('¿QUIÉN ENVÍA LA TRANSFERENCIA?',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.inkMuted,
-                                letterSpacing: 0.4)),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextField(
-                          controller: _titularOrigen,
-                          textCapitalization: TextCapitalization.words,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.person_outline),
-                            hintText: 'Nombre de quien envía',
-                            helperText:
-                                'Con el nombre, el monto y la hora cruzamos tu pago.',
-                            helperMaxLines: 2,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xl),
-                        PrimaryButton(
-                          label: vm.bloqueado
-                              ? 'Pagar ${Formato.moneda(_montoIngresado)} y reactivar'
-                              : (b.enDeuda
-                                  ? 'Pagar ${Formato.moneda(_montoIngresado)}'
-                                  : 'Abonar ${Formato.moneda(_montoIngresado)}'),
-                          icon: b.enDeuda
-                              ? Icons.lock_open_rounded
-                              : Icons.savings_outlined,
-                          loading: vm.pagando,
-                          onPressed: (_montoIngresado <= 0 ||
-                                  _titularOrigen.text.trim().isEmpty)
-                              ? null
-                              : () => _pagar(context, vm),
-                        ),
-                        const SizedBox(height: AppSpacing.xl),
-                        // El historial no vive en la pantalla principal: es
-                        // consulta ocasional y empujaba el formulario de pago
-                        // (lo que el conductor viene a hacer) fuera de vista.
-                        _AccesoHistorial(
-                          pagos: vm.pagos,
-                          onVer: () => _verHistorial(context, vm.pagos),
-                        ),
-                      ],
+            ? ErrorRetry(
+                message: vm.error ?? 'No pudimos cargar tu billetera',
+                onRetry: vm.cargar,
+              )
+            : RefreshIndicator(
+                onRefresh: vm.cargar,
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    if (vm.bloqueado) const _BannerBloqueo(),
+                    _TarjetaSaldo(billetera: b),
+                    const SizedBox(height: AppSpacing.lg),
+                    _EstadoCuenta(billetera: b),
+                    // El pago en proceso viene del servidor: sobrevive al
+                    // cambio de pestaña y al reinicio de la app.
+                    if (vm.pagoPendiente != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _PagoEnProceso(
+                        pago: vm.pagoPendiente!,
+                        onVer: vm.intencion == null
+                            ? null
+                            : () => _mostrarTransaccion(context, vm.intencion!),
+                      ),
+                    ] else if (vm.aviso != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _PagoConfirmado(
+                        mensaje: vm.aviso!,
+                        onCerrar: vm.descartarIntencion,
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.xl),
+                    PrimaryButton(
+                      label: vm.bloqueado
+                          ? 'Pagar y reactivar mi cuenta'
+                          : (b.enDeuda
+                                ? 'Registrar un pago'
+                                : 'Abonar a mi saldo'),
+                      icon: b.enDeuda
+                          ? Icons.lock_open_rounded
+                          : Icons.savings_outlined,
+                      onPressed: () => _abrirPago(context, vm, b),
                     ),
-                  ),
+                    const SizedBox(height: AppSpacing.xl),
+                    // El historial no vive en la pantalla principal: es
+                    // consulta ocasional y empujaba el formulario de pago
+                    // (lo que el conductor viene a hacer) fuera de vista.
+                    _AccesoHistorial(
+                      pagos: vm.pagos,
+                      onVer: () => _verHistorial(context, vm.pagos),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// Formulario de transferencia en hoja inferior: medio, cuenta de destino, monto
+/// y quién envía. Devuelve `true` por el `pop` cuando el pago quedó registrado.
+class _PagoSheet extends StatefulWidget {
+  const _PagoSheet({required this.billetera});
+  final Billetera billetera;
+
+  @override
+  State<_PagoSheet> createState() => _PagoSheetState();
+}
+
+class _PagoSheetState extends State<_PagoSheet> {
+  late final TextEditingController _monto = TextEditingController(
+    // Prefijado con la deuda: es lo que el conductor va a pagar 9 de cada 10 veces.
+    text: widget.billetera.deudaActual > 0
+        ? widget.billetera.deudaActual.round().toString()
+        : '',
+  );
+
+  /// Único dato que se le pide al conductor para conciliar: a nombre de quién
+  /// salió la transferencia. El número de cuenta lo aportaba a mano y llegaba
+  /// mal tecleado la mitad de las veces; para cruzar el movimiento basta el
+  /// nombre del titular, el monto y la hora.
+  final _titularOrigen = TextEditingController();
+
+  @override
+  void dispose() {
+    _monto.dispose();
+    _titularOrigen.dispose();
+    super.dispose();
+  }
+
+  double get _montoIngresado =>
+      double.tryParse(_monto.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+
+  Future<void> _pagar(BilleteraViewModel vm) async {
+    final ok = await vm.pagar(
+      _montoIngresado,
+      titularOrigen: _titularOrigen.text.trim(),
+    );
+    if (!mounted) return;
+    if (ok && vm.intencion != null) {
+      Navigator.of(context).pop(true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(vm.error ?? 'No pudimos iniciar el pago')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<BilleteraViewModel>();
+    final b = widget.billetera;
+    return Padding(
+      // Sin esto el teclado tapa el campo del monto.
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                b.enDeuda ? 'Pagar comisiones' : 'Abonar a mi saldo',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                'PAGAR CON',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkMuted,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _Medios(vm: vm),
+              if (vm.datosPago != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                _DestinoPago(datos: vm.datosPago!, medio: vm.medioSeleccionado),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                'MONTO A PAGAR',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkMuted,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _monto,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixText: r'$ ',
+                  hintText: b.enDeuda
+                      ? b.deudaActual.round().toString()
+                      : 'Monto a abonar',
+                  helperText: b.enDeuda
+                      ? 'Puedes pagar más que la deuda: el resto queda como saldo a favor.'
+                      : 'Lo que abones queda como saldo a favor para tus próximas comisiones.',
+                  helperMaxLines: 2,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                '¿QUIÉN ENVÍA LA TRANSFERENCIA?',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkMuted,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _titularOrigen,
+                textCapitalization: TextCapitalization.words,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.person_outline),
+                  hintText: 'Nombre de quien envía',
+                  helperText:
+                      'Con el nombre, el monto y la hora cruzamos tu pago.',
+                  helperMaxLines: 2,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              PrimaryButton(
+                label: vm.bloqueado
+                    ? 'Pagar ${Formato.moneda(_montoIngresado)} y reactivar'
+                    : (b.enDeuda
+                          ? 'Pagar ${Formato.moneda(_montoIngresado)}'
+                          : 'Abonar ${Formato.moneda(_montoIngresado)}'),
+                icon: b.enDeuda
+                    ? Icons.lock_open_rounded
+                    : Icons.savings_outlined,
+                loading: vm.pagando,
+                onPressed:
+                    (_montoIngresado <= 0 || _titularOrigen.text.trim().isEmpty)
+                    ? null
+                    : () => _pagar(vm),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -285,9 +336,13 @@ class _BannerBloqueo extends StatelessWidget {
           Icon(Icons.lock_outline, color: AppColors.danger, size: 20),
           SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text('Cuenta bloqueada por deuda',
-                style: TextStyle(
-                    color: AppColors.danger, fontWeight: FontWeight.w700)),
+            child: Text(
+              'Cuenta bloqueada por deuda',
+              style: TextStyle(
+                color: AppColors.danger,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -315,34 +370,51 @@ class _TarjetaSaldo extends StatelessWidget {
           Row(
             children: [
               Icon(
-                  aFavor
-                      ? Icons.savings_outlined
-                      : Icons.account_balance_wallet_outlined,
-                  size: 18,
-                  color: AppColors.inkMuted),
+                aFavor
+                    ? Icons.savings_outlined
+                    : Icons.account_balance_wallet_outlined,
+                size: 18,
+                color: AppColors.inkMuted,
+              ),
               const SizedBox(width: 6),
-              Text(aFavor ? 'Saldo a favor' : 'Comisiones pendientes',
-                  style: const TextStyle(
-                      color: AppColors.inkMuted, fontSize: 13)),
+              Text(
+                aFavor ? 'Saldo a favor' : 'Comisiones pendientes',
+                style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-              Formato.moneda(
-                  aFavor ? billetera.saldoAFavor : billetera.deudaActual),
-              style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: billetera.bloqueado
-                      ? AppColors.danger
-                      : (aFavor ? AppColors.success : AppColors.ink))),
+            Formato.moneda(
+              aFavor ? billetera.saldoAFavor : billetera.deudaActual,
+            ),
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: billetera.bloqueado
+                  ? AppColors.danger
+                  : (aFavor ? AppColors.success : AppColors.ink),
+            ),
+          ),
           if (aFavor) ...[
             const SizedBox(height: AppSpacing.sm),
             const Text(
-              'Tus próximas comisiones se descuentan de este saldo antes de generar deuda.',
+              'Pagaste de más, así que este dinero está a tu favor: tus próximas '
+              'comisiones se descuentan de aquí antes de generar deuda.',
               style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
             ),
           ] else ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              billetera.deudaActual <= 0
+                  ? 'No debes nada. De cada servicio entregado, la plataforma se '
+                        'queda con el 15%: eso es lo que se acumula aquí.'
+                  : 'Es lo que le debes a la plataforma por el 15% de los '
+                        'servicios que ya entregaste. Al pasar el límite de '
+                        '${Formato.moneda(billetera.limite)} dejas de recibir pedidos '
+                        'hasta ponerte al día.',
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+            ),
             const SizedBox(height: AppSpacing.md),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -357,12 +429,20 @@ class _TarjetaSaldo extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${billetera.porcentajeUso}% del límite',
-                    style: const TextStyle(
-                        color: AppColors.inkMuted, fontSize: 12)),
-                Text('Límite ${Formato.moneda(billetera.limite)}',
-                    style: const TextStyle(
-                        color: AppColors.inkMuted, fontSize: 12)),
+                Text(
+                  '${billetera.porcentajeUso}% del límite',
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  'Límite ${Formato.moneda(billetera.limite)}',
+                  style: const TextStyle(
+                    color: AppColors.inkMuted,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ],
@@ -380,7 +460,9 @@ class _EstadoCuenta extends StatelessWidget {
   Widget build(BuildContext context) {
     final bloqueado = billetera.bloqueado;
     final color = bloqueado ? AppColors.danger : AppColors.success;
-    final surface = bloqueado ? AppColors.dangerSurface : AppColors.successSurface;
+    final surface = bloqueado
+        ? AppColors.dangerSurface
+        : AppColors.successSurface;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -389,8 +471,11 @@ class _EstadoCuenta extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(bloqueado ? Icons.block : Icons.check_circle,
-              color: color, size: 20),
+          Icon(
+            bloqueado ? Icons.block : Icons.check_circle,
+            color: color,
+            size: 20,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -430,7 +515,9 @@ class _PagoEnProceso extends StatelessWidget {
                 Text(
                   'Pago de ${Formato.moneda(pago.valor)} por ${pago.medioPago.label} en revisión',
                   style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const Text(
                   'Lo confirmamos al verificar la transferencia.',
@@ -440,9 +527,13 @@ class _PagoEnProceso extends StatelessWidget {
             ),
           ),
           if (onVer != null)
-            const Text('Ver',
-                style: TextStyle(
-                    color: AppColors.accent, fontWeight: FontWeight.w700)),
+            const Text(
+              'Ver',
+              style: TextStyle(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
         ],
       ),
     );
@@ -463,8 +554,10 @@ class _AccesoHistorial extends StatelessWidget {
     if (pagos.isEmpty) {
       return const MotoCard(
         padding: EdgeInsets.all(AppSpacing.md),
-        child: Text('Aún no has registrado pagos de comisión.',
-            style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+        child: Text(
+          'Aún no has registrado pagos de comisión.',
+          style: TextStyle(fontSize: 13, color: AppColors.inkMuted),
+        ),
       );
     }
     final ultimo = pagos.first;
@@ -473,19 +566,26 @@ class _AccesoHistorial extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
-          const Icon(Icons.receipt_long_outlined,
-              size: 20, color: AppColors.inkMuted),
+          const Icon(
+            Icons.receipt_long_outlined,
+            size: 20,
+            color: AppColors.inkMuted,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Mis pagos',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Mis pagos',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Text(
                   'Último: ${Formato.moneda(ultimo.valor)} · ${ultimo.estadoLabel.toLowerCase()}',
                   style: const TextStyle(
-                      fontSize: 12.5, color: AppColors.inkMuted),
+                    fontSize: 12.5,
+                    color: AppColors.inkMuted,
+                  ),
                 ),
               ],
             ),
@@ -512,14 +612,20 @@ class _HistorialSheet extends StatelessWidget {
       builder: (_, scroll) => Column(
         children: [
           const SizedBox(height: AppSpacing.md),
-          const Text('Mis pagos',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const Text(
+            'Mis pagos',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(
             child: ListView.separated(
               controller: scroll,
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                AppSpacing.xl,
+              ),
               itemCount: pagos.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) => _FilaPago(pago: pagos[i]),
@@ -540,11 +646,13 @@ class _FilaPago extends StatelessWidget {
     final (color, icono) = pago.confirmado
         ? (AppColors.success, Icons.check_circle_outline)
         : pago.fallido
-            ? (AppColors.danger, Icons.error_outline)
-            : (AppColors.accent, Icons.schedule_rounded);
+        ? (AppColors.danger, Icons.error_outline)
+        : (AppColors.accent, Icons.schedule_rounded);
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
         children: [
           Icon(icono, size: 20, color: color),
@@ -553,19 +661,28 @@ class _FilaPago extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(Formato.moneda(pago.valor),
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  Formato.moneda(pago.valor),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
                 Text(
                   '${pago.medioPago.label} · ${Formato.fechaHora(pago.confirmadoEn ?? pago.creadoEn)}',
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.inkMuted),
+                    fontSize: 12,
+                    color: AppColors.inkMuted,
+                  ),
                 ),
               ],
             ),
           ),
-          Text(pago.estadoLabel,
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+          Text(
+            pago.estadoLabel,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -592,16 +709,22 @@ class _PagoConfirmado extends StatelessWidget {
           const Icon(Icons.check_circle, color: AppColors.success, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(mensaje,
-                style: const TextStyle(
-                    color: AppColors.success,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
+            child: Text(
+              mensaje,
+              style: const TextStyle(
+                color: AppColors.success,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           InkWell(
             onTap: onCerrar,
-            child: const Icon(Icons.close_rounded,
-                color: AppColors.success, size: 18),
+            child: const Icon(
+              Icons.close_rounded,
+              color: AppColors.success,
+              size: 18,
+            ),
           ),
         ],
       ),
@@ -624,9 +747,9 @@ class _DestinoPago extends StatelessWidget {
     await Clipboard.setData(ClipboardData(text: valor));
     await HapticFeedback.selectionClick();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Número copiado')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Número copiado')));
   }
 
   @override
@@ -635,8 +758,9 @@ class _DestinoPago extends StatelessWidget {
     final tiene = datos.tieneDatos(medio);
     final destino = esNequi ? datos.nequiNumero : datos.brebLlave;
     final titularRaw = esNequi ? datos.nequiTitular : datos.brebTitular;
-    final titular =
-        (titularRaw?.trim().isNotEmpty ?? false) ? titularRaw!.trim() : null;
+    final titular = (titularRaw?.trim().isNotEmpty ?? false)
+        ? titularRaw!.trim()
+        : null;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -646,22 +770,31 @@ class _DestinoPago extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.south_east_rounded,
-              size: 18, color: AppColors.primary),
+          const Icon(
+            Icons.south_east_rounded,
+            size: 18,
+            color: AppColors.primary,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: tiene
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Transfiere a ${esNequi ? 'Nequi' : 'Bre-B'}:',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.inkMuted)),
+                      Text(
+                        'Transfiere a ${esNequi ? 'Nequi' : 'Bre-B'}:',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.inkMuted,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         destino!,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 17),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
                       ),
                       // El titular va con el mismo peso que el número: es lo
                       // que el conductor coteja en la app del banco antes de
@@ -681,19 +814,27 @@ class _DestinoPago extends StatelessWidget {
                           'El administrador aún no registró a nombre de quién '
                           'está la cuenta. Confírmalo antes de transferir.',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.danger),
+                            fontSize: 12,
+                            color: AppColors.danger,
+                          ),
                         ),
                       if (!esNequi &&
                           (datos.brebEntidad?.trim().isNotEmpty ?? false))
-                        Text(datos.brebEntidad!,
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.inkMuted)),
+                        Text(
+                          datos.brebEntidad!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
                     ],
                   )
                 : Text(
                     'Aún no hay una cuenta ${esNequi ? 'Nequi' : 'Bre-B'} configurada. Contacta al administrador.',
                     style: const TextStyle(
-                        fontSize: 13, color: AppColors.inkMuted),
+                      fontSize: 13,
+                      color: AppColors.inkMuted,
+                    ),
                   ),
           ),
           if (tiene)
@@ -719,9 +860,13 @@ class _Medios extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _MedioChip(vm: vm, medio: MedioPago.nequi)),
+        Expanded(
+          child: _MedioChip(vm: vm, medio: MedioPago.nequi),
+        ),
         const SizedBox(width: AppSpacing.md),
-        Expanded(child: _MedioChip(vm: vm, medio: MedioPago.breB)),
+        Expanded(
+          child: _MedioChip(vm: vm, medio: MedioPago.breB),
+        ),
       ],
     );
   }
@@ -757,13 +902,18 @@ class _MedioChip extends StatelessWidget {
               child: Image.asset(_logoMedio(medio), fit: BoxFit.contain),
             ),
             const SizedBox(height: 6),
-            Text(medio.label,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+              medio.label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             if (sel)
               const Padding(
                 padding: EdgeInsets.only(top: 2),
-                child: Icon(Icons.check_circle,
-                    size: 16, color: AppColors.primary),
+                child: Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
               ),
           ],
         ),
@@ -805,7 +955,11 @@ class _TransaccionSheet extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.xl),
+          AppSpacing.xl,
+          AppSpacing.lg,
+          AppSpacing.xl,
+          AppSpacing.xl,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -815,33 +969,44 @@ class _TransaccionSheet extends StatelessWidget {
                 SizedBox(
                   height: 36,
                   width: 36,
-                  child: Image.asset(_logoMedio(intencion.medioPago),
-                      fit: BoxFit.contain),
+                  child: Image.asset(
+                    _logoMedio(intencion.medioPago),
+                    fit: BoxFit.contain,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Text('Pago por ${intencion.medioPago.label}',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800)),
+                  child: Text(
+                    'Pago por ${intencion.medioPago.label}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
             _DatoFila(label: 'Monto', valor: Formato.moneda(intencion.monto)),
             _DatoFila(
-                label: 'Transfiere a',
-                valor: _destino ?? 'Sin configurar'),
+              label: 'Transfiere a',
+              valor: _destino ?? 'Sin configurar',
+            ),
             _DatoFila(
-                label: 'A nombre de',
-                valor: _titular ?? 'Sin configurar (confírmalo antes de enviar)'),
+              label: 'A nombre de',
+              valor: _titular ?? 'Sin configurar (confírmalo antes de enviar)',
+            ),
             _DatoFila(
-                label: 'Estado',
-                valor: intencion.pendiente
-                    ? 'Pendiente de confirmación'
-                    : intencion.estado),
+              label: 'Estado',
+              valor: intencion.pendiente
+                  ? 'Pendiente de confirmación'
+                  : intencion.estado,
+            ),
             if (intencion.referenciaExterna != null)
               _DatoFila(
-                  label: 'Referencia', valor: intencion.referenciaExterna!),
+                label: 'Referencia',
+                valor: intencion.referenciaExterna!,
+              ),
             if (intencion.instrucciones != null &&
                 intencion.instrucciones!.trim().isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -851,8 +1016,10 @@ class _TransaccionSheet extends StatelessWidget {
                   color: AppColors.primarySurface,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                 ),
-                child: Text(intencion.instrucciones!,
-                    style: const TextStyle(fontSize: 13, height: 1.35)),
+                child: Text(
+                  intencion.instrucciones!,
+                  style: const TextStyle(fontSize: 13, height: 1.35),
+                ),
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
@@ -894,9 +1061,11 @@ class _DatoFila extends StatelessWidget {
           Text(label, style: const TextStyle(color: AppColors.inkMuted)),
           const Spacer(),
           Flexible(
-            child: Text(valor,
-                textAlign: TextAlign.end,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              valor,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),

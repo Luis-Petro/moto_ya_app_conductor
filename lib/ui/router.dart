@@ -9,6 +9,7 @@ import 'features/auth/otp_screen.dart';
 import 'features/auth/perfil_acceso_screen.dart';
 import 'features/auth/registro_screen.dart';
 import 'features/billetera/billetera_screen.dart';
+import 'features/feedback/feedback_screen.dart';
 import 'features/historial/historial_screen.dart';
 import 'features/inicio/inicio_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -32,6 +33,7 @@ abstract class Rutas {
   static const billetera = '/billetera';
   static const historial = '/historial';
   static const perfil = '/perfil';
+  static const feedback = '/feedback';
 
   static String pedidoEntrante(int pedidoId, {int? segundos}) =>
       '/pedido/$pedidoId/entrante${segundos != null ? '?seg=$segundos' : ''}';
@@ -121,6 +123,11 @@ GoRouter crearRouter(AuthRepository auth) {
       ),
 
       // Flujos a pantalla completa (sobre el navigator raíz).
+      GoRoute(
+        path: Rutas.feedback,
+        parentNavigatorKey: rootKey,
+        builder: (_, state) => FeedbackScreen(pedidoId: state.extra as int?),
+      ),
       GoRoute(
         path: '/pedido/:id/entrante',
         parentNavigatorKey: rootKey,

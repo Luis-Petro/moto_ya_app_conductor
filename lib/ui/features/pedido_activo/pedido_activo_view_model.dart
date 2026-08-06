@@ -91,7 +91,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
     _sub = _tracking.connect(pedidoId).listen((evento) {
       if (evento is EventoEstado) {
         final nuevo = EstadoPedido.fromWire(evento.estadoWire);
-        pedido = _conEstado(nuevo);
+        pedido = pedido?.copyWith(estado: nuevo);
         notifyListeners();
         if (nuevo.esFinal) _detenerTracking();
       }
@@ -118,7 +118,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
     procesando = false;
     final ok = res.isSuccess;
     if (ok) {
-      pedido = res.valueOrNull ?? _conEstado(destino);
+      pedido = res.valueOrNull ?? pedido?.copyWith(estado: destino);
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
     }
@@ -140,42 +140,13 @@ class PedidoActivoViewModel extends ChangeNotifier {
     procesando = false;
     final ok = res.isSuccess;
     if (ok) {
-      pedido = res.valueOrNull ?? _conEstado(EstadoPedido.entregado);
+      pedido = res.valueOrNull ?? pedido?.copyWith(estado: EstadoPedido.entregado);
       _detenerTracking();
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
     }
     notifyListeners();
     return ok;
-  }
-
-  Pedido? _conEstado(EstadoPedido nuevo) {
-    final p = pedido;
-    if (p == null) return null;
-    return Pedido(
-      id: p.id,
-      clienteId: p.clienteId,
-      conductorId: p.conductorId,
-      categoria: p.categoria,
-      descripcion: p.descripcion,
-      origen: p.origen,
-      destino: p.destino,
-      direccionRecogida: p.direccionRecogida,
-      direccionDestino: p.direccionDestino,
-      referencia: p.referencia,
-      fotoUrl: p.fotoUrl,
-      tarifaSugerida: p.tarifaSugerida,
-      tarifaEstimada: p.tarifaEstimada,
-      tarifaFinal: p.tarifaFinal,
-      requiereCompra: p.requiereCompra,
-      montoCompraEstimado: p.montoCompraEstimado,
-      estado: nuevo,
-      motivoCancelacion: p.motivoCancelacion,
-      creadoEn: p.creadoEn,
-      entregadoEn: p.entregadoEn,
-      clienteNombre: p.clienteNombre,
-      clienteTelefono: p.clienteTelefono,
-    );
   }
 
   void _detenerTracking() {

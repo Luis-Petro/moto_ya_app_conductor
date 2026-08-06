@@ -51,6 +51,9 @@ dependencies:
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^7.0.1
   url_launcher: ^6.3.2
+  # Versión instalada real (para el banner de versión nueva): leerla del paquete
+  # y no de un --dart-define evita reportar una versión falsa en builds manuales.
+  package_info_plus: ^8.1.1
   intl: ^0.20.2
   shared_preferences: ^2.5.3
   go_router: ^17.0.0

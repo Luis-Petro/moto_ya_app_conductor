@@ -155,6 +155,7 @@ class ApiMappers {
       cuentaOrigen: m['cuentaOrigen'] as String?,
       titularOrigen: m['titularOrigen'] as String?,
       entidadOrigen: m['entidadOrigen'] as String?,
+      comprobanteUrl: m['comprobanteUrl'] as String?,
       creadoEn: _date(m['creadoEn']),
       confirmadoEn: _date(m['confirmadoEn']),
     );

@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../data/repositories/billetera_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
@@ -153,7 +155,8 @@ class BilleteraViewModel extends ChangeNotifier {
   /// Inicia un pago/abono por [monto] (puede superar la deuda: el excedente
   /// queda como saldo a favor). La confirmación real llega por webhook; aquí
   /// solo se refleja el estado "pendiente" y se reconcilia.
-  Future<bool> pagar(double monto, {String? titularOrigen}) async {
+  Future<bool> pagar(double monto,
+      {String? titularOrigen, String? entidadOrigen}) async {
     if (monto <= 0) {
       error = 'Ingresa un monto válido';
       notifyListeners();
@@ -167,6 +170,7 @@ class BilleteraViewModel extends ChangeNotifier {
       medioPago: medioSeleccionado,
       monto: monto,
       titularOrigen: titularOrigen,
+      entidadOrigen: entidadOrigen,
     );
     final ok = res.isSuccess;
     if (ok) {
@@ -196,6 +200,37 @@ class BilleteraViewModel extends ChangeNotifier {
     notifyListeners();
     return ok;
   }
+
+  /// Adjunta la foto del comprobante al pago [pagoId]. Devuelve el mensaje de
+  /// error, o null si se subió (o si el conductor canceló la selección).
+  ///
+  /// El comprobante no bloquea registrar el pago —el conductor puede haber
+  /// transferido desde otro celular— pero sin él la conciliación depende de
+  /// cruzar nombre, monto y hora a ojo, y eso es lo que hace que un pago se
+  /// quede días "en revisión".
+  Future<String?> adjuntarComprobante(int pagoId, ImageSource source) async {
+    final XFile? img = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (img == null) return null;
+    subiendoComprobante = true;
+    notifyListeners();
+    final mp = await MultipartFile.fromFile(img.path, filename: img.name);
+    final res = await _billetera.subirComprobante(pagoId, mp);
+    subiendoComprobante = false;
+    final err = res.when(ok: (_) => null, err: (f) => f.message);
+    if (err == null) {
+      final resPagos = await _billetera.pagos();
+      pagos = resPagos.valueOrNull ?? pagos;
+    }
+    if (!_disposed) notifyListeners();
+    return err;
+  }
+
+  /// Subiendo el comprobante ahora mismo (para el spinner de su tarjeta).
+  bool subiendoComprobante = false;
 
   Future<void> _reconciliar() async {
     final res = await _billetera.saldo(forzar: true);

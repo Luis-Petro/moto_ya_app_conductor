@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../data/repositories/conductor_repository.dart';
@@ -27,6 +29,10 @@ enum ResultadoEnLinea {
   faltaUbicacionServicio,
   faltaUbicacionPermiso,
   faltaNotificaciones,
+
+  /// Sin foto de perfil. El cliente elige a quién le abre la puerta viendo la
+  /// cara del conductor; una silueta gris no es una identidad.
+  faltaFotoPerfil,
   error,
 }
 
@@ -100,6 +106,13 @@ class InicioViewModel extends ChangeNotifier {
 
   Conductor? get conductor => _conductores.conductor;
   String? get fotoUrl => conductor?.fotoUrl;
+
+  /// Tiene foto de perfil. Es requisito para ponerse en línea: el cliente ve la
+  /// cara del conductor en la tarjeta de propuesta antes de aceptarla.
+  bool get tieneFotoPerfil => (fotoUrl ?? '').trim().isNotEmpty;
+
+  /// Subiendo la foto de perfil desde el aviso del Inicio.
+  bool subiendoFoto = false;
   bool get enLinea => _conductores.enLinea;
   bool get bloqueadoPorDeuda => _conductores.bloqueadoPorDeuda;
 
@@ -225,6 +238,7 @@ class InicioViewModel extends ChangeNotifier {
     }
     if (bloqueadoPorDeuda) return ResultadoEnLinea.bloqueadoDeuda;
     if (!habilitado) return ResultadoEnLinea.noHabilitado;
+    if (!tieneFotoPerfil) return ResultadoEnLinea.faltaFotoPerfil;
 
     // Permisos obligatorios para recibir pedidos.
     final permisos = await _permisos.asegurarParaOperar();
@@ -269,6 +283,28 @@ class InicioViewModel extends ChangeNotifier {
     }
     notifyListeners();
     return ok;
+  }
+
+  /// Toma o elige la foto de perfil y la sube, sin salir del Inicio: mandar al
+  /// conductor a otra pestaña a buscarla era la forma segura de que no la
+  /// pusiera nunca. Devuelve el mensaje de error, o null si salió bien o si
+  /// canceló la selección.
+  Future<String?> subirFotoPerfil(ImageSource source) async {
+    final XFile? img = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1024,
+      preferredCameraDevice: CameraDevice.front,
+    );
+    if (img == null) return null;
+    subiendoFoto = true;
+    _notificar();
+    final mp = await MultipartFile.fromFile(img.path, filename: img.name);
+    final res = await _conductores.subirFoto(mp);
+    subiendoFoto = false;
+    final err = res.when(ok: (_) => null, err: (f) => f.message);
+    _notificar();
+    return err;
   }
 
   /// Abre los Ajustes de la app (permiso de ubicación/notificaciones denegado).

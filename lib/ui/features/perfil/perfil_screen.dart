@@ -472,6 +472,38 @@ class _PerfilViewState extends State<_PerfilView> {
                             ),
                           ),
                         ],
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Canal directo de queja/sugerencia hacia el operador.
+                        // Va arriba, sin scroll: estaba al final, después de los
+                        // documentos, y quien tiene un problema no baja tres
+                        // pantallas para contarlo — simplemente no lo cuenta.
+                        MotoCard(
+                          onTap: () => context.push(Rutas.feedback),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.chat_bubble_outline,
+                                  color: AppColors.primary),
+                              SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Ayúdanos a mejorar',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                    Text('Envíanos una queja o una sugerencia',
+                                        style: TextStyle(
+                                            color: AppColors.inkMuted,
+                                            fontSize: 12.5)),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded,
+                                  color: AppColors.inkMuted),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: AppSpacing.xl),
 
                         // El nombre es identidad verificada: no se edita aquí.
@@ -545,34 +577,6 @@ class _PerfilViewState extends State<_PerfilView> {
                             onSubir: (doc) => _subirDocumento(vm, doc),
                           ),
                         ],
-                        const SizedBox(height: AppSpacing.md),
-                        // Canal directo de queja/sugerencia hacia el operador.
-                        MotoCard(
-                          onTap: () => context.push(Rutas.feedback),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.chat_bubble_outline,
-                                  color: AppColors.primary),
-                              SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Ayúdanos a mejorar',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w700)),
-                                    Text('Envíanos una queja o una sugerencia',
-                                        style: TextStyle(
-                                            color: AppColors.inkMuted,
-                                            fontSize: 12.5)),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.chevron_right_rounded,
-                                  color: AppColors.inkMuted),
-                            ],
-                          ),
-                        ),
                         const SizedBox(height: AppSpacing.xl),
                         OutlinedButton.icon(
                           onPressed: () => _confirmarSalir(vm),

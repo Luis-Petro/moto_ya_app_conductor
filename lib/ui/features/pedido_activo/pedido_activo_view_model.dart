@@ -63,7 +63,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
   String get etiquetaAvance {
     switch (proximoEstado) {
       case EstadoPedido.enCompra:
-        return 'Marcar: En compra';
+        return 'Marcar: Recogiendo';
       case EstadoPedido.enCamino:
         return 'Marcar: En camino';
       case EstadoPedido.entregado:

@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../domain/models/billetera.dart';
 import '../services/api_result.dart';
 import '../services/billetera_service.dart';
@@ -35,6 +37,10 @@ class BilleteraRepository {
       entidadOrigen: entidadOrigen,
     );
   }
+
+  /// Adjunta la foto del comprobante a un pago pendiente.
+  Future<Result<void>> subirComprobante(int pagoId, MultipartFile archivo) =>
+      _service.subirComprobante(pagoId, archivo);
 
   /// Datos de destino (Nequi/Bre-B) configurados por la plataforma.
   Future<Result<DatosPago>> datosPago() => _service.datosPago();

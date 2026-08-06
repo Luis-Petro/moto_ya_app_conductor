@@ -99,6 +99,7 @@ class PagoRealizado {
     this.cuentaOrigen,
     this.titularOrigen,
     this.entidadOrigen,
+    this.comprobanteUrl,
     this.creadoEn,
     this.confirmadoEn,
   });
@@ -113,8 +114,13 @@ class PagoRealizado {
   final String? cuentaOrigen;
   final String? titularOrigen;
   final String? entidadOrigen;
+
+  /// Foto del comprobante adjuntada por el conductor, si ya la subió.
+  final String? comprobanteUrl;
   final DateTime? creadoEn;
   final DateTime? confirmadoEn;
+
+  bool get tieneComprobante => (comprobanteUrl ?? '').trim().isNotEmpty;
 
   bool get pendiente => estado == 'PENDIENTE';
   bool get confirmado => estado == 'CONFIRMADO';

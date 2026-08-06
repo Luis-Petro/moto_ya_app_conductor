@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../../domain/models/billetera.dart';
 import '../models/api_mappers.dart';
 import 'api_client.dart';
@@ -47,6 +49,15 @@ class BilleteraService {
         if (entidadOrigen != null && entidadOrigen.isNotEmpty) 'entidadOrigen': entidadOrigen,
       },
       parse: ApiMappers.intencionPago,
+    );
+  }
+
+  /// Adjunta la foto del comprobante a un pago pendiente (campo multipart
+  /// `file`). Es la prueba con la que el admin concilia la transferencia.
+  Future<Result<void>> subirComprobante(int pagoId, MultipartFile archivo) {
+    return _api.postMultipart<void>(
+      '/billetera/pagos/$pagoId/comprobante',
+      fields: {'file': archivo},
     );
   }
 }

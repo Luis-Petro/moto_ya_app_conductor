@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -178,26 +179,41 @@ class _PagoSheetState extends State<_PagoSheet> {
         : '',
   );
 
-  /// Único dato que se le pide al conductor para conciliar: a nombre de quién
-  /// salió la transferencia. El número de cuenta lo aportaba a mano y llegaba
-  /// mal tecleado la mitad de las veces; para cruzar el movimiento basta el
-  /// nombre del titular, el monto y la hora.
+  /// A nombre de quién salió la transferencia. El número de cuenta lo aportaba
+  /// a mano y llegaba mal tecleado la mitad de las veces; para cruzar el
+  /// movimiento basta el nombre del titular, el monto y la hora.
   final _titularOrigen = TextEditingController();
+
+  /// Nombre del corresponsal o punto físico donde consignó (solo si no envió
+  /// desde su propia cuenta). Va como `entidadOrigen`.
+  final _corresponsal = TextEditingController();
+
+  /// El pago salió de un corresponsal/punto físico, no de una cuenta propia.
+  /// Cambia por completo qué nombre aparece en el movimiento del banco, y sin
+  /// distinguirlo el admin buscaba un titular que nunca iba a encontrar.
+  bool _porCorresponsal = false;
 
   @override
   void dispose() {
     _monto.dispose();
     _titularOrigen.dispose();
+    _corresponsal.dispose();
     super.dispose();
   }
 
   double get _montoIngresado =>
       double.tryParse(_monto.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
 
+  bool get _datosCompletos =>
+      _montoIngresado > 0 &&
+      _titularOrigen.text.trim().isNotEmpty &&
+      (!_porCorresponsal || _corresponsal.text.trim().isNotEmpty);
+
   Future<void> _pagar(BilleteraViewModel vm) async {
     final ok = await vm.pagar(
       _montoIngresado,
       titularOrigen: _titularOrigen.text.trim(),
+      entidadOrigen: _porCorresponsal ? _corresponsal.text.trim() : null,
     );
     if (!mounted) return;
     if (ok && vm.intencion != null) {
@@ -274,7 +290,7 @@ class _PagoSheetState extends State<_PagoSheet> {
               ),
               const SizedBox(height: AppSpacing.lg),
               const Text(
-                '¿QUIÉN ENVÍA LA TRANSFERENCIA?',
+                '¿DESDE DÓNDE ENVÍAS?',
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
@@ -283,18 +299,69 @@ class _PagoSheetState extends State<_PagoSheet> {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
+              // El nombre que llega al extracto no es el mismo si el conductor
+              // transfiere desde su cuenta que si consigna en un corresponsal:
+              // en el segundo caso el movimiento sale a nombre del punto y el
+              // admin buscaba un titular que nunca iba a aparecer.
+              Row(
+                children: [
+                  Expanded(
+                    child: _OrigenChip(
+                      icono: Icons.account_balance_wallet_outlined,
+                      titulo: 'Mi cuenta',
+                      seleccionado: !_porCorresponsal,
+                      onTap: () => setState(() => _porCorresponsal = false),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _OrigenChip(
+                      icono: Icons.storefront_outlined,
+                      titulo: 'Corresponsal',
+                      seleccionado: _porCorresponsal,
+                      onTap: () => setState(() => _porCorresponsal = true),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _titularOrigen,
                 textCapitalization: TextCapitalization.words,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.person_outline),
-                  hintText: 'Nombre de quien envía',
-                  helperText:
-                      'Con el nombre, el monto y la hora cruzamos tu pago.',
-                  helperMaxLines: 2,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.person_outline),
+                  labelText: _porCorresponsal
+                      ? 'Nombre de quien consignó'
+                      : 'Nombre del dueño de la cuenta',
+                  hintText: 'Nombre y apellido',
+                  helperText: _porCorresponsal
+                      ? 'El nombre con el que quedó registrada la consignación '
+                            'en el punto.'
+                      : 'Debe ser el titular de la cuenta desde la que sale el '
+                            'dinero, aunque no seas tú.',
+                  helperMaxLines: 3,
                 ),
               ),
+              if (_porCorresponsal) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _corresponsal,
+                  textCapitalization: TextCapitalization.words,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.storefront_outlined),
+                    labelText: 'Corresponsal o punto donde consignaste',
+                    hintText: 'Ej: Baloto de la esquina, Efecty del parque',
+                    helperText:
+                        'Sin el punto no podemos ubicar el movimiento: en el '
+                        'extracto no aparece tu nombre.',
+                    helperMaxLines: 3,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              const _AvisoComprobante(),
               const SizedBox(height: AppSpacing.xl),
               PrimaryButton(
                 label: vm.bloqueado
@@ -306,14 +373,94 @@ class _PagoSheetState extends State<_PagoSheet> {
                     ? Icons.lock_open_rounded
                     : Icons.savings_outlined,
                 loading: vm.pagando,
-                onPressed:
-                    (_montoIngresado <= 0 || _titularOrigen.text.trim().isEmpty)
-                    ? null
-                    : () => _pagar(vm),
+                onPressed: _datosCompletos ? () => _pagar(vm) : null,
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Opción de origen del pago (cuenta propia vs. corresponsal).
+class _OrigenChip extends StatelessWidget {
+  const _OrigenChip({
+    required this.icono,
+    required this.titulo,
+    required this.seleccionado,
+    required this.onTap,
+  });
+
+  final IconData icono;
+  final String titulo;
+  final bool seleccionado;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        decoration: BoxDecoration(
+          color: seleccionado ? AppColors.primarySurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(
+            color: seleccionado ? AppColors.primary : AppColors.line,
+            width: seleccionado ? 1.6 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icono,
+              color: seleccionado ? AppColors.primary : AppColors.inkMuted,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              titulo,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: seleccionado ? AppColors.primary : AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Anticipa que después de registrar el pago se pide la foto del comprobante.
+/// Decirlo antes evita que el conductor cierre la app pensando que terminó.
+class _AvisoComprobante extends StatelessWidget {
+  const _AvisoComprobante();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.accentSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.accent),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Después de registrar el pago te pediremos la foto del '
+              'comprobante. Con ella lo confirmamos el mismo día; sin ella hay '
+              'que rastrear la transferencia a mano.',
+              style: TextStyle(fontSize: 12.5, height: 1.35),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -498,42 +645,143 @@ class _PagoEnProceso extends StatelessWidget {
   final PagoRealizado pago;
   final VoidCallback? onVer;
 
-  @override
-  Widget build(BuildContext context) {
-    return MotoCard(
-      onTap: onVer,
-      color: AppColors.accentSurface,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          const Icon(Icons.schedule_rounded, color: AppColors.accent, size: 20),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pago de ${Formato.moneda(pago.valor)} por ${pago.medioPago.label} en revisión',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+  /// Pide la foto del comprobante y la adjunta al pago.
+  Future<void> _adjuntar(BuildContext context, BilleteraViewModel vm) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.lg,
+                AppSpacing.xl,
+                AppSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Comprobante de la transferencia',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
-                ),
-                const Text(
-                  'Lo confirmamos al verificar la transferencia.',
-                  style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
-                ),
-              ],
-            ),
-          ),
-          if (onVer != null)
-            const Text(
-              'Ver',
-              style: TextStyle(
-                color: AppColors.accent,
-                fontWeight: FontWeight.w700,
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'La captura de la app del banco o la foto del recibo del '
+                    'corresponsal. Que se vean el monto y la fecha.',
+                    style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                  ),
+                ],
               ),
             ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final err = await vm.adjuntarComprobante(pago.id, source);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(err ?? 'Comprobante enviado. Gracias.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<BilleteraViewModel>();
+    return MotoCard(
+      color: AppColors.accentSurface,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                color: AppColors.accent,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pago de ${Formato.moneda(pago.valor)} por ${pago.medioPago.label} en revisión',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Text(
+                      'Lo confirmamos al verificar la transferencia.',
+                      style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+              if (onVer != null)
+                TextButton(onPressed: onVer, child: const Text('Ver')),
+            ],
+          ),
+          const Divider(height: AppSpacing.lg),
+          // El comprobante es lo que decide si el pago se confirma hoy o en
+          // tres días: por eso va aquí, y no escondido en el detalle.
+          Row(
+            children: [
+              Icon(
+                pago.tieneComprobante
+                    ? Icons.check_circle_outline
+                    : Icons.receipt_long_outlined,
+                size: 18,
+                color: pago.tieneComprobante
+                    ? AppColors.success
+                    : AppColors.warning,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  pago.tieneComprobante
+                      ? 'Comprobante recibido'
+                      : 'Falta el comprobante: adjúntalo para que lo validemos '
+                            'más rápido.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: pago.tieneComprobante
+                        ? AppColors.success
+                        : AppColors.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              if (vm.subiendoComprobante)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                TextButton(
+                  onPressed: () => _adjuntar(context, vm),
+                  child: Text(pago.tieneComprobante ? 'Cambiar' : 'Adjuntar'),
+                ),
+            ],
+          ),
         ],
       ),
     );

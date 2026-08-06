@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../router.dart';
@@ -72,6 +73,10 @@ class _InicioView extends StatelessWidget {
                       const BannerVersion(),
                       if (vm.enRevision || vm.rechazado) ...[
                         _RevisionBanner(vm: vm),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                      if (!vm.tieneFotoPerfil) ...[
+                        const _FotoPerfilBanner(),
                         const SizedBox(height: AppSpacing.lg),
                       ],
                       if (vm.pedidoActivo != null) ...[
@@ -375,6 +380,13 @@ class _ToggleEnLinea extends StatelessWidget {
       case ResultadoEnLinea.bloqueadoDeuda:
         _snack(context, 'Cuenta bloqueada por deuda. Ve a Billetera.');
         break;
+      case ResultadoEnLinea.faltaFotoPerfil:
+        _snack(
+          context,
+          'Ponte una foto de perfil para recibir pedidos: toca el aviso de '
+          'arriba.',
+        );
+        break;
       case ResultadoEnLinea.faltaUbicacionServicio:
         _dialogoPermiso(
           context,
@@ -443,6 +455,111 @@ class _ToggleEnLinea extends StatelessWidget {
             },
             child: const Text('Abrir ajustes'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso en Inicio mientras el conductor no tenga foto de perfil.
+///
+/// Es requisito para ponerse en línea: el cliente decide a quién le acepta la
+/// propuesta viendo quién es, y una silueta gris al lado de una cara real
+/// pierde siempre. Va aquí, con la cámara a un toque, porque el Perfil es una
+/// pestaña a la que nadie entra si nada le obliga.
+class _FotoPerfilBanner extends StatelessWidget {
+  const _FotoPerfilBanner();
+
+  Future<void> _elegir(BuildContext context, InicioViewModel vm) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.lg,
+                AppSpacing.xl,
+                AppSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tu foto de perfil',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Que se te vea la cara, de frente y con buena luz. Es la '
+                    'que ve el cliente al elegir conductor.',
+                    style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final err = await vm.subirFotoPerfil(source);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(err ?? 'Listo, ya tienes foto de perfil')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<InicioViewModel>();
+    return MotoCard(
+      color: AppColors.primarySurface,
+      borderColor: AppColors.primary,
+      onTap: vm.subiendoFoto ? null : () => _elegir(context, vm),
+      child: Row(
+        children: [
+          const Icon(Icons.account_circle_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ponte una foto de perfil',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Es obligatoria para ponerte en línea: el cliente ve tu cara '
+                  'antes de aceptar tu tarifa, y con foto te aceptan más.',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          if (vm.subiendoFoto)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            const Icon(Icons.photo_camera_rounded, color: AppColors.primary),
         ],
       ),
     );

@@ -4,7 +4,10 @@ enum EstadoPedido {
   buscandoConductor('BUSCANDO_CONDUCTOR', 'Buscando'),
   propuestaEnviada('PROPUESTA_ENVIADA', 'Propuesta'),
   aceptado('ACEPTADO', 'Aceptado'),
-  enCompra('EN_COMPRA', 'En compra'),
+  // El estado del backend se llama EN_COMPRA por historia, pero cubre también
+  // los mandados sin compra (recoger un paquete, un documento). "Recogiendo"
+  // describe lo que el conductor está haciendo en todos los casos.
+  enCompra('EN_COMPRA', 'Recogiendo'),
   enCamino('EN_CAMINO', 'En camino'),
   entregado('ENTREGADO', 'Entregado'),
   sinConductor('SIN_CONDUCTOR', 'Sin conductor'),

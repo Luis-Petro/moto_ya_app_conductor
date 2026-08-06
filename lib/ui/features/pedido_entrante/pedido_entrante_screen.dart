@@ -198,6 +198,79 @@ class _CabeceraNuevo extends StatelessWidget {
   }
 }
 
+/// Cuánto tiempo se le va en el pedido, en grande y separado de la distancia.
+///
+/// Es el dato con el que el conductor decide si contraofertar: dos pedidos de
+/// la misma tarifa no valen lo mismo si uno son 8 minutos y el otro 25 más una
+/// cola de 15. Antes iba como un icono de 15dp al lado de los kilómetros, que
+/// es donde va lo que no se lee.
+class _TiempoEstimado extends StatelessWidget {
+  const _TiempoEstimado({required this.pedido});
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    final espera =
+        pedido.requiereEspera ? (pedido.minutosEsperaEstimados ?? 0) : 0;
+    final viajeMin = pedido.duracionEstimadaSegundos == null
+        ? null
+        : (pedido.duracionEstimadaSegundos! / 60).round();
+    // Total = recorrido + cola declarada: el tiempo real que le cuesta el
+    // pedido, que es contra lo que compara la tarifa.
+    final total = viajeMin == null ? null : viajeMin + espera;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.accentSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule_rounded, size: 20, color: AppColors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  total == null
+                      ? 'Tiempo estimado no disponible'
+                      : '~$total min en total',
+                  style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.accent),
+                ),
+                Text(
+                  espera > 0 && viajeMin != null
+                      ? 'Recorrido ~$viajeMin min + espera ~$espera min'
+                      : 'Recorrido recogida → entrega',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          if (espera > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.warningSurface,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              ),
+              child: const Text('Hay cola',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.warning)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PuntoRuta extends StatelessWidget {
   const _PuntoRuta({
     required this.icon,
@@ -300,15 +373,10 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
               Text(Formato.distancia(pedido.distanciaEstimadaMetros),
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 13)),
-              const SizedBox(width: AppSpacing.md),
-              const Icon(Icons.schedule_rounded,
-                  size: 15, color: AppColors.inkMuted),
-              const SizedBox(width: 3),
-              Text(Formato.duracion(pedido.duracionEstimadaSegundos),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13)),
             ],
           ),
+          const SizedBox(height: AppSpacing.sm),
+          _TiempoEstimado(pedido: pedido),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 6),
             child: Divider(height: 1),

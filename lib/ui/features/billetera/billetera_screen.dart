@@ -49,9 +49,10 @@ class _BilleteraView extends StatefulWidget {
 
 class _BilleteraViewState extends State<_BilleteraView> {
   // Cuenta desde la que el conductor pagó la última vez. Es siempre la misma
-  // (la suya), así que volver a teclearla en cada pago es fricción pura.
+  // (la suya), así que volver a teclearla en cada pago es fricción pura. El
+  // titular NO se guarda: se limpia tras pagar para que nadie mande dos veces
+  // los mismos datos sin querer.
   static const _kCuentaOrigen = 'billetera.cuenta_origen';
-  static const _kTitularOrigen = 'billetera.titular_origen';
   static const _kEntidadOrigen = 'billetera.entidad_origen';
 
   final _monto = TextEditingController();
@@ -59,6 +60,13 @@ class _BilleteraViewState extends State<_BilleteraView> {
   final _titularOrigen = TextEditingController();
   final _entidadOrigen = TextEditingController();
   bool _montoInicializado = false;
+
+  final _scroll = ScrollController();
+
+  /// Ancla de la tarjeta de pago en proceso: tras pagar, la vista sube hasta
+  /// ella. El formulario está al final de una lista larga y, sin esto, el
+  /// conductor se quedaba mirando el botón sin ver que su pago quedó registrado.
+  final _anclaPendiente = GlobalKey();
 
   @override
   void initState() {
@@ -73,9 +81,6 @@ class _BilleteraViewState extends State<_BilleteraView> {
       if (_cuentaOrigen.text.isEmpty) {
         _cuentaOrigen.text = prefs.getString(_kCuentaOrigen) ?? '';
       }
-      if (_titularOrigen.text.isEmpty) {
-        _titularOrigen.text = prefs.getString(_kTitularOrigen) ?? '';
-      }
       if (_entidadOrigen.text.isEmpty) {
         _entidadOrigen.text = prefs.getString(_kEntidadOrigen) ?? '';
       }
@@ -85,7 +90,6 @@ class _BilleteraViewState extends State<_BilleteraView> {
   Future<void> _recordarCuentaOrigen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kCuentaOrigen, _cuentaOrigen.text.trim());
-    await prefs.setString(_kTitularOrigen, _titularOrigen.text.trim());
     await prefs.setString(_kEntidadOrigen, _entidadOrigen.text.trim());
   }
 
@@ -95,6 +99,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
     _cuentaOrigen.dispose();
     _titularOrigen.dispose();
     _entidadOrigen.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -127,8 +132,14 @@ class _BilleteraViewState extends State<_BilleteraView> {
     if (!context.mounted) return;
     if (ok && vm.intencion != null) {
       await _recordarCuentaOrigen();
+      // El pago ya quedó registrado: se limpia lo que no debe reenviarse tal
+      // cual (monto y titular); la cuenta origen se conserva.
+      _monto.clear();
+      _titularOrigen.clear();
+      if (mounted) setState(() {});
       if (!context.mounted) return;
       await _mostrarTransaccion(context, vm.intencion!);
+      _irAPagoPendiente();
     } else if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.error ?? 'No pudimos iniciar el pago')),
@@ -136,12 +147,26 @@ class _BilleteraViewState extends State<_BilleteraView> {
     }
   }
 
-  /// Ficha de la transacción iniciada: monto, medio, referencia y siguiente paso.
+  /// Lleva la vista hasta la tarjeta del pago en proceso (tras cerrar la ficha
+  /// de la transacción), para que el conductor vea dónde quedó su pago.
+  void _irAPagoPendiente() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _anclaPendiente.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 350),
+          alignment: 0.1,
+          curve: Curves.easeOut);
+    });
+  }
+
+  /// Ficha de la transacción iniciada: monto, destino, referencia y siguiente paso.
   Future<void> _mostrarTransaccion(
       BuildContext context, IntencionPago intencion) {
+    final datos = context.read<BilleteraViewModel>().datosPago;
     return showModalBottomSheet<void>(
       context: context,
-      builder: (_) => _TransaccionSheet(intencion: intencion),
+      builder: (_) => _TransaccionSheet(intencion: intencion, datos: datos),
     );
   }
 
@@ -162,26 +187,29 @@ class _BilleteraViewState extends State<_BilleteraView> {
                 : RefreshIndicator(
                     onRefresh: vm.cargar,
                     child: ListView(
+                      controller: _scroll,
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       children: [
                         if (vm.bloqueado) const _BannerBloqueo(),
                         _TarjetaSaldo(billetera: b),
                         const SizedBox(height: AppSpacing.lg),
                         _EstadoCuenta(billetera: b),
-                        if (vm.intencion != null &&
-                            vm.intencion!.pendiente) ...[
+                        // El pago en proceso viene del servidor: sobrevive al
+                        // cambio de pestaña y al reinicio de la app.
+                        if (vm.pagoPendiente != null) ...[
                           const SizedBox(height: AppSpacing.lg),
                           _PagoEnProceso(
-                            intencion: vm.intencion!,
-                            onVer: () =>
-                                _mostrarTransaccion(context, vm.intencion!),
+                            key: _anclaPendiente,
+                            pago: vm.pagoPendiente!,
+                            onVer: vm.intencion == null
+                                ? null
+                                : () =>
+                                    _mostrarTransaccion(context, vm.intencion!),
                           ),
-                        ] else if (vm.intencion != null &&
-                            vm.intencion!.confirmado) ...[
+                        ] else if (vm.aviso != null) ...[
                           const SizedBox(height: AppSpacing.lg),
                           _PagoConfirmado(
-                            mensaje: vm.aviso ??
-                                'Pago confirmado. Tu saldo se actualizó.',
+                            mensaje: vm.aviso!,
                             onCerrar: vm.descartarIntencion,
                           ),
                         ],
@@ -281,6 +309,8 @@ class _BilleteraViewState extends State<_BilleteraView> {
                               ? null
                               : () => _pagar(context, vm),
                         ),
+                        const SizedBox(height: AppSpacing.xl),
+                        _HistorialPagos(pagos: vm.pagos),
                       ],
                     ),
                   ),
@@ -427,11 +457,12 @@ class _EstadoCuenta extends StatelessWidget {
   }
 }
 
-/// Aviso de pago iniciado pendiente de confirmación, con acceso a su detalle.
+/// Pago registrado y pendiente de confirmación, con acceso a su detalle si
+/// todavía tenemos las instrucciones del proveedor en esta sesión.
 class _PagoEnProceso extends StatelessWidget {
-  const _PagoEnProceso({required this.intencion, required this.onVer});
-  final IntencionPago intencion;
-  final VoidCallback onVer;
+  const _PagoEnProceso({super.key, required this.pago, this.onVer});
+  final PagoRealizado pago;
+  final VoidCallback? onVer;
 
   @override
   Widget build(BuildContext context) {
@@ -444,14 +475,109 @@ class _PagoEnProceso extends StatelessWidget {
           const Icon(Icons.schedule_rounded, color: AppColors.accent, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              'Pago de ${Formato.moneda(intencion.monto)} por ${intencion.medioPago.label} en proceso',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pago de ${Formato.moneda(pago.valor)} por ${pago.medioPago.label} en revisión',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const Text(
+                  'Lo confirmamos al verificar la transferencia.',
+                  style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                ),
+              ],
             ),
           ),
-          const Text('Ver',
+          if (onVer != null)
+            const Text('Ver',
+                style: TextStyle(
+                    color: AppColors.accent, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pagos recientes del conductor: monto, medio, fecha y estado.
+///
+/// Sin esta lista, un pago confirmado ayer no dejaba rastro en la app y la
+/// única prueba de haber pagado era el comprobante del banco.
+class _HistorialPagos extends StatelessWidget {
+  const _HistorialPagos({required this.pagos});
+  final List<PagoRealizado> pagos;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('PAGOS RECIENTES',
+            style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkMuted,
+                letterSpacing: 0.4)),
+        const SizedBox(height: AppSpacing.sm),
+        if (pagos.isEmpty)
+          const MotoCard(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: Text('Aún no has registrado pagos de comisión.',
+                style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+          )
+        else
+          MotoCard(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Column(
+              children: [
+                for (var i = 0; i < pagos.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  _FilaPago(pago: pagos[i]),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FilaPago extends StatelessWidget {
+  const _FilaPago({required this.pago});
+  final PagoRealizado pago;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, icono) = pago.confirmado
+        ? (AppColors.success, Icons.check_circle_outline)
+        : pago.fallido
+            ? (AppColors.danger, Icons.error_outline)
+            : (AppColors.accent, Icons.schedule_rounded);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icono, size: 20, color: color),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(Formato.moneda(pago.valor),
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  '${pago.medioPago.label} · ${Formato.fechaHora(pago.confirmadoEn ?? pago.creadoEn)}',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          Text(pago.estadoLabel,
               style: TextStyle(
-                  color: AppColors.accent, fontWeight: FontWeight.w700)),
+                  fontSize: 12, fontWeight: FontWeight.w700, color: color)),
         ],
       ),
     );
@@ -520,6 +646,9 @@ class _DestinoPago extends StatelessWidget {
     final esNequi = medio == MedioPago.nequi;
     final tiene = datos.tieneDatos(medio);
     final destino = esNequi ? datos.nequiNumero : datos.brebLlave;
+    final titularRaw = esNequi ? datos.nequiTitular : datos.brebTitular;
+    final titular =
+        (titularRaw?.trim().isNotEmpty ?? false) ? titularRaw!.trim() : null;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -546,14 +675,31 @@ class _DestinoPago extends StatelessWidget {
                         style: const TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 17),
                       ),
+                      // El titular va con el mismo peso que el número: es lo
+                      // que el conductor coteja en la app del banco antes de
+                      // aceptar, y en letra chica se lo salta.
                       Text(
-                        [
-                          esNequi ? datos.nequiTitular : datos.brebTitular,
-                          if (!esNequi) datos.brebEntidad,
-                        ].whereType<String>().join(' · '),
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.ink),
+                        titular ?? 'Titular sin configurar',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          color: titular == null
+                              ? AppColors.danger
+                              : AppColors.ink,
+                        ),
                       ),
+                      if (titular == null)
+                        const Text(
+                          'El administrador aún no registró a nombre de quién '
+                          'está la cuenta. Confírmalo antes de transferir.',
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.danger),
+                        ),
+                      if (!esNequi &&
+                          (datos.brebEntidad?.trim().isNotEmpty ?? false))
+                        Text(datos.brebEntidad!,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.inkMuted)),
                     ],
                   )
                 : Text(
@@ -641,8 +787,24 @@ class _MedioChip extends StatelessWidget {
 /// Detalle de la transacción iniciada: monto, medio, referencia, estado y
 /// siguiente paso (enlace del proveedor si existe).
 class _TransaccionSheet extends StatelessWidget {
-  const _TransaccionSheet({required this.intencion});
+  const _TransaccionSheet({required this.intencion, this.datos});
   final IntencionPago intencion;
+
+  /// Datos de destino, para repetir aquí a nombre de quién está la cuenta: es
+  /// el dato que el conductor coteja en la app del banco al transferir.
+  final DatosPago? datos;
+
+  bool get _esNequi => intencion.medioPago == MedioPago.nequi;
+
+  String? get _destino {
+    final v = _esNequi ? datos?.nequiNumero : datos?.brebLlave;
+    return (v?.trim().isNotEmpty ?? false) ? v!.trim() : null;
+  }
+
+  String? get _titular {
+    final v = _esNequi ? datos?.nequiTitular : datos?.brebTitular;
+    return (v?.trim().isNotEmpty ?? false) ? v!.trim() : null;
+  }
 
   Future<void> _abrirEnlace(BuildContext context) async {
     final url = intencion.urlPago;
@@ -678,6 +840,12 @@ class _TransaccionSheet extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             _DatoFila(label: 'Monto', valor: Formato.moneda(intencion.monto)),
+            _DatoFila(
+                label: 'Transfiere a',
+                valor: _destino ?? 'Sin configurar'),
+            _DatoFila(
+                label: 'A nombre de',
+                valor: _titular ?? 'Sin configurar (confírmalo antes de enviar)'),
             _DatoFila(
                 label: 'Estado',
                 valor: intencion.pendiente

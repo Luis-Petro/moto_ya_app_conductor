@@ -71,11 +71,14 @@ class _AltaViewState extends State<_AltaView> {
   bool get _motoLista =>
       _vehiculo.text.trim().isNotEmpty && _placa.text.trim().length >= 5;
 
-  /// Hitos del alta. El primero ya está cumplido al llegar aquí (la cuenta
-  /// existe), así que el conductor nunca ve una barra en cero: arrancar con
-  /// avance visible es lo que hace que la gente termine formularios largos.
+  /// Hitos del alta: cuenta creada, datos de la moto y los cuatro documentos.
+  /// El primero ya está cumplido al llegar aquí, así que el conductor nunca ve
+  /// una barra en cero: arrancar con avance visible es lo que hace que la gente
+  /// termine formularios largos.
+  static const int _totalHitos = 2 + AltaConductorViewModel.documentosRequeridos;
+
   int _completados(AltaConductorViewModel vm) =>
-      [true, _motoLista, vm.tieneCedula].where((hecho) => hecho).length;
+      1 + (_motoLista ? 1 : 0) + vm.documentosListos;
 
   Future<void> _guardar(AltaConductorViewModel vm) async {
     if (!_valido(vm)) return;
@@ -125,12 +128,45 @@ class _AltaViewState extends State<_AltaView> {
     await _capturar(source, vm.elegirPapelesMoto);
   }
 
-  Future<void> _capturar(ImageSource source, void Function(File) onElegido) async {
+  /// Selfie de verificación: se abre la cámara frontal directamente, que es lo
+  /// que la gente espera al oír "selfie".
+  Future<void> _tomarSelfie(AltaConductorViewModel vm) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => const _OrigenFotoSheet(
+        titulo: 'Selfie tuya',
+        mensaje: 'De frente, con buena luz y sin gafas oscuras ni casco. Debe '
+            'parecerse a la foto de tu cédula.',
+      ),
+    );
+    if (source == null) return;
+    await _capturar(source, vm.elegirSelfie,
+        camara: CameraDevice.front);
+  }
+
+  /// Foto de la moto con la placa visible: es como el admin comprueba que la
+  /// placa registrada es la de la moto real.
+  Future<void> _tomarFotoMoto(AltaConductorViewModel vm) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => const _OrigenFotoSheet(
+        titulo: 'Foto de tu moto',
+        mensaje: 'Tómala de lado o desde atrás, a un par de pasos, de modo que '
+            'la placa se lea sin esfuerzo.',
+      ),
+    );
+    if (source == null) return;
+    await _capturar(source, vm.elegirFotoMoto);
+  }
+
+  Future<void> _capturar(ImageSource source, void Function(File) onElegido,
+      {CameraDevice camara = CameraDevice.rear}) async {
     // Calidad/tamaño altos para que los datos del documento se lean bien.
     final XFile? foto = await _picker.pickImage(
       source: source,
       imageQuality: 85,
       maxWidth: 1920,
+      preferredCameraDevice: camara,
     );
     if (foto == null) return;
     onElegido(File(foto.path));
@@ -158,7 +194,7 @@ class _AltaViewState extends State<_AltaView> {
             : ListView(
                 padding: const EdgeInsets.all(AppSpacing.xl),
                 children: [
-                  _ProgresoAlta(hechos: _completados(vm), total: 3),
+                  _ProgresoAlta(hechos: _completados(vm), total: _totalHitos),
                   const SizedBox(height: AppSpacing.lg),
                   const Text('Cuéntanos de tu moto',
                       style: TextStyle(
@@ -221,14 +257,16 @@ class _AltaViewState extends State<_AltaView> {
                           fontSize: 18, fontWeight: FontWeight.w800)),
                   const SizedBox(height: AppSpacing.xs),
                   const Text(
-                      'Solo necesitamos una foto de tu cédula. Los demás papeles pueden esperar.',
+                      'Son cuatro fotos. Con la cédula ya puedes enviar tu '
+                      'solicitud, pero el administrador necesita las cuatro '
+                      'para habilitarte.',
                       style: TextStyle(color: AppColors.inkMuted)),
                   const SizedBox(height: AppSpacing.md),
                   _DocCard(
                     icon: Icons.badge_outlined,
                     titulo: 'Foto de tu cédula',
                     subtitulo: 'Solo el lado de adelante (donde está tu foto)',
-                    etiqueta: 'Necesaria',
+                    etiqueta: 'Necesaria para enviar',
                     etiquetaColor: AppColors.primary,
                     archivo: vm.cedula,
                     accion: 'Tomar foto',
@@ -237,22 +275,45 @@ class _AltaViewState extends State<_AltaView> {
                   const SizedBox(height: AppSpacing.md),
                   _DocCard(
                     icon: Icons.description_outlined,
-                    titulo: 'SOAT y tarjeta de propiedad',
+                    titulo: 'Tarjeta de propiedad de la moto',
                     subtitulo:
-                        'Por ahora no son obligatorios. Súbelos cuando los tengas a la mano.',
-                    etiqueta: 'Opcional por ahora',
-                    etiquetaColor: AppColors.inkMuted,
+                        'La tarjeta donde aparece la placa y tu nombre. Puedes '
+                        'incluir el SOAT en la misma foto.',
+                    etiqueta: 'Para habilitarte',
+                    etiquetaColor: AppColors.accent,
                     archivo: vm.papelesMoto,
                     accion: 'Subir',
                     onElegir: () => _tomarPapeles(vm),
                   ),
                   const SizedBox(height: AppSpacing.md),
+                  _DocCard(
+                    icon: Icons.face_outlined,
+                    titulo: 'Selfie tuya',
+                    subtitulo:
+                        'Tu cara, de frente y con buena luz. Sirve para '
+                        'confirmar que la cédula es tuya.',
+                    etiqueta: 'Para habilitarte',
+                    etiquetaColor: AppColors.accent,
+                    archivo: vm.selfie,
+                    accion: 'Tomar selfie',
+                    onElegir: () => _tomarSelfie(vm),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _DocCard(
+                    icon: Icons.two_wheeler_outlined,
+                    titulo: 'Foto de tu moto',
+                    subtitulo:
+                        'De lado o desde atrás, con la placa que se pueda leer.',
+                    etiqueta: 'Para habilitarte',
+                    etiquetaColor: AppColors.accent,
+                    archivo: vm.fotoMoto,
+                    accion: 'Tomar foto',
+                    onElegir: () => _tomarFotoMoto(vm),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   const _AvisoRevision(),
                   const SizedBox(height: AppSpacing.lg),
-                  _Checklist(
-                    motoLista: _motoLista,
-                    cedulaLista: vm.tieneCedula,
-                  ),
+                  _Checklist(vm: vm, motoLista: _motoLista),
                   const SizedBox(height: AppSpacing.lg),
                   PrimaryButton(
                     label: vm.guardando
@@ -265,6 +326,19 @@ class _AltaViewState extends State<_AltaView> {
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Te falta: ${faltantes.join(', ')}.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: AppColors.inkMuted, fontSize: 13),
+                    ),
+                  ] else if (vm.documentosFaltantes.isNotEmpty) ...[
+                    // Puede enviar, pero conviene que sepa desde ya que sin
+                    // estas fotos el admin no lo habilitará: enterarse al
+                    // segundo día de espera es la peor forma de saberlo.
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Puedes enviar ya. Para habilitarte falta: '
+                      '${vm.documentosFaltantes.join(', ')}. Súbelo desde tu '
+                      'perfil cuando lo tengas.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                           color: AppColors.inkMuted, fontSize: 13),
@@ -334,18 +408,30 @@ class _ProgresoAlta extends StatelessWidget {
 
 /// Qué falta y qué ya está, en positivo y junto al botón de envío.
 class _Checklist extends StatelessWidget {
-  const _Checklist({required this.motoLista, required this.cedulaLista});
+  const _Checklist({required this.vm, required this.motoLista});
 
+  final AltaConductorViewModel vm;
   final bool motoLista;
-  final bool cedulaLista;
 
   @override
   Widget build(BuildContext context) {
+    final c = vm.conductor;
     return Column(
       children: [
         const _ItemChecklist(hecho: true, texto: 'Cuenta creada'),
         _ItemChecklist(hecho: motoLista, texto: 'Datos de tu moto y placa'),
-        _ItemChecklist(hecho: cedulaLista, texto: 'Foto de tu cédula'),
+        _ItemChecklist(
+            hecho: vm.cedula != null || (c?.tieneCedula ?? false),
+            texto: 'Foto de tu cédula'),
+        _ItemChecklist(
+            hecho: vm.papelesMoto != null || (c?.tieneTarjetaPropiedad ?? false),
+            texto: 'Tarjeta de propiedad'),
+        _ItemChecklist(
+            hecho: vm.selfie != null || (c?.tieneSelfie ?? false),
+            texto: 'Selfie tuya'),
+        _ItemChecklist(
+            hecho: vm.fotoMoto != null || (c?.tieneFotoMoto ?? false),
+            texto: 'Foto de tu moto con la placa'),
       ],
     );
   }

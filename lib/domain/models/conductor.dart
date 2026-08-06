@@ -28,6 +28,21 @@ enum EstadoConductor {
   bool get habilitado => this == EstadoConductor.activo;
 }
 
+/// Los cuatro documentos que el admin exige para habilitar la cuenta.
+enum DocumentoConductor {
+  cedula('Cédula', 'Solo el lado de adelante, donde está tu foto.'),
+  tarjetaPropiedad('Tarjeta de propiedad',
+      'La tarjeta de la moto, donde aparece la placa y tu nombre.'),
+  selfie('Selfie tuya',
+      'De frente, con buena luz y sin casco ni gafas oscuras.'),
+  fotoMoto('Foto de tu moto', 'De lado o desde atrás, con la placa legible.');
+
+  const DocumentoConductor(this.titulo, this.guia);
+
+  final String titulo;
+  final String guia;
+}
+
 /// Perfil de conductor (espejo de la entidad backend `Conductor`).
 class Conductor {
   const Conductor({
@@ -113,6 +128,17 @@ class Conductor {
 
   /// Cuántos de los cuatro documentos ya están subidos.
   int get documentosSubidos => 4 - documentosFaltantes.length;
+
+  /// URL del documento [doc], o null si aún no se ha subido.
+  String? urlDocumento(DocumentoConductor doc) {
+    final v = switch (doc) {
+      DocumentoConductor.cedula => cedulaUrl,
+      DocumentoConductor.tarjetaPropiedad => papelesMotoUrl,
+      DocumentoConductor.selfie => selfieUrl,
+      DocumentoConductor.fotoMoto => fotoMotoUrl,
+    };
+    return (v?.trim().isNotEmpty ?? false) ? v : null;
+  }
 
   bool get tieneDocumentos => documentoUrl?.trim().isNotEmpty ?? false;
 

@@ -37,6 +37,13 @@ class PerfilViewModel extends ChangeNotifier {
   bool enviandoCodigo = false;
   bool verificandoCodigo = false;
 
+  /// Estado del flujo de cambio de celular (verificado por OTP).
+  bool enviandoCodigoTelefono = false;
+  bool verificandoCodigoTelefono = false;
+
+  /// Documento que se está subiendo ahora mismo (para el spinner de su fila).
+  DocumentoConductor? subiendoDocumento;
+
   Conductor? get conductor => _conductores.conductor;
 
   /// Elige una foto de la galería y la sube como foto de perfil del conductor.
@@ -95,6 +102,63 @@ class PerfilViewModel extends ChangeNotifier {
       usuario = u;
       return null;
     }, err: (f) => f.message);
+    notifyListeners();
+    return err;
+  }
+
+  // ── Cambio de celular verificado por OTP (mismo patrón que el correo) ──
+
+  /// Paso 1: envía un código al número nuevo. Devuelve el error o null si salió.
+  Future<String?> solicitarCambioCelular(String telefono) async {
+    enviandoCodigoTelefono = true;
+    notifyListeners();
+    final res = await _usuarios.solicitarCambioTelefono(telefono);
+    enviandoCodigoTelefono = false;
+    notifyListeners();
+    return res.when(ok: (_) => null, err: (f) => f.message);
+  }
+
+  /// Paso 2: confirma el código; al aceptar, el número queda verificado.
+  Future<String?> confirmarCambioCelular(String codigo) async {
+    verificandoCodigoTelefono = true;
+    notifyListeners();
+    final res = await _usuarios.verificarCambioTelefono(codigo);
+    verificandoCodigoTelefono = false;
+    final err = res.when(ok: (u) {
+      usuario = u;
+      return null;
+    }, err: (f) => f.message);
+    notifyListeners();
+    return err;
+  }
+
+  // ─────────────────────────── Documentos ───────────────────────────
+
+  /// Sube (o reemplaza) uno de los cuatro documentos de habilitación. Devuelve
+  /// el mensaje de error, o null si salió bien o si el conductor canceló.
+  Future<String?> subirDocumento(
+      DocumentoConductor doc, ImageSource source) async {
+    final XFile? img = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1920,
+      preferredCameraDevice: doc == DocumentoConductor.selfie
+          ? CameraDevice.front
+          : CameraDevice.rear,
+    );
+    if (img == null) return null;
+    subiendoDocumento = doc;
+    notifyListeners();
+    final mp = await MultipartFile.fromFile(img.path, filename: img.name);
+    final res = switch (doc) {
+      DocumentoConductor.cedula => await _conductores.subirCedula(mp),
+      DocumentoConductor.tarjetaPropiedad =>
+        await _conductores.subirPapelesMoto(mp),
+      DocumentoConductor.selfie => await _conductores.subirSelfie(mp),
+      DocumentoConductor.fotoMoto => await _conductores.subirFotoMoto(mp),
+    };
+    subiendoDocumento = null;
+    final err = res.when(ok: (_) => null, err: (f) => f.message);
     notifyListeners();
     return err;
   }

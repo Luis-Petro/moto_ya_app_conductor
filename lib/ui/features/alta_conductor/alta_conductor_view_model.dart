@@ -34,6 +34,8 @@ class AltaConductorViewModel extends ChangeNotifier {
   /// de documentos exigen que el conductor ya exista).
   File? cedula;
   File? papelesMoto;
+  File? selfie;
+  File? fotoMoto;
 
   bool get tieneCedula => cedula != null;
   void elegirCedula(File f) {
@@ -45,6 +47,39 @@ class AltaConductorViewModel extends ChangeNotifier {
     papelesMoto = f;
     notifyListeners();
   }
+
+  void elegirSelfie(File f) {
+    selfie = f;
+    notifyListeners();
+  }
+
+  void elegirFotoMoto(File f) {
+    fotoMoto = f;
+    notifyListeners();
+  }
+
+  /// Los cuatro documentos que el admin exige para habilitar, y cuáles faltan.
+  /// Cuenta lo ya subido en el servidor además de lo elegido en esta pantalla:
+  /// quien vuelve al alta tras subir la cédula no debe volver a tomarla.
+  static const int documentosRequeridos = 4;
+
+  bool get _cedulaLista => cedula != null || (conductor?.tieneCedula ?? false);
+  bool get _tarjetaLista =>
+      papelesMoto != null || (conductor?.tieneTarjetaPropiedad ?? false);
+  bool get _selfieLista => selfie != null || (conductor?.tieneSelfie ?? false);
+  bool get _motoLista => fotoMoto != null || (conductor?.tieneFotoMoto ?? false);
+
+  List<String> get documentosFaltantes => [
+        if (!_cedulaLista) 'cédula',
+        if (!_tarjetaLista) 'tarjeta de propiedad',
+        if (!_selfieLista) 'selfie',
+        if (!_motoLista) 'foto de la moto',
+      ];
+
+  int get documentosListos =>
+      documentosRequeridos - documentosFaltantes.length;
+
+  double get progresoDocumentos => documentosListos / documentosRequeridos;
 
   /// Ubicación inicial del conductor (requerida por el backend en el alta).
   /// Null mientras el GPS no responda; al guardar cae al centro del municipio.
@@ -155,9 +190,20 @@ class AltaConductorViewModel extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // El resto no bloquea el alta: sin ellos el perfil se envía igual y el
+    // admin no habilitará hasta tenerlos (la pantalla ya lo advierte). Cortar
+    // aquí dejaría al conductor sin poder ni empezar.
     if (papelesMoto != null) {
-      final papelesMp = await MultipartFile.fromFile(papelesMoto!.path);
-      await _conductores.subirPapelesMoto(papelesMp); // opcional: no bloquea
+      final mp = await MultipartFile.fromFile(papelesMoto!.path);
+      await _conductores.subirPapelesMoto(mp);
+    }
+    if (selfie != null) {
+      final mp = await MultipartFile.fromFile(selfie!.path);
+      await _conductores.subirSelfie(mp);
+    }
+    if (fotoMoto != null) {
+      final mp = await MultipartFile.fromFile(fotoMoto!.path);
+      await _conductores.subirFotoMoto(mp);
     }
 
     // Persistir el municipio del conductor (best-effort: no bloquea el alta).

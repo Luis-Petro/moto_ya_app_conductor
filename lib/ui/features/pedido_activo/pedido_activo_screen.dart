@@ -60,9 +60,38 @@ class _ActivoViewState extends State<_ActivoView> {
     setState(() => _evidencia = File(foto.path));
   }
 
+  /// Si el dispositivo puede abrir `wa.me`. Se resuelve una vez al entrar: sin
+  /// WhatsApp instalado el botón no se pinta, en vez de abrir un navegador con
+  /// una página que no lleva a ninguna conversación.
+  bool _whatsappDisponible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolverWhatsapp();
+  }
+
+  Future<void> _resolverWhatsapp() async {
+    final puede = await canLaunchUrl(Uri.parse('https://wa.me/573000000000'));
+    if (mounted) setState(() => _whatsappDisponible = puede);
+  }
+
+  bool _tieneTelefono(Pedido p) =>
+      p.clienteTelefono != null && p.clienteTelefono!.trim().isNotEmpty;
+
   Future<void> _llamar(String telefono) async {
     final uri = Uri(scheme: 'tel', path: telefono);
     if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  /// Abre el chat de WhatsApp con el cliente. `wa.me` exige el número sin `+`
+  /// ni separadores; si viene local (10 dígitos) se le antepone el indicativo
+  /// de Colombia, que es donde opera la plataforma.
+  Future<void> _escribirWhatsapp(String telefono) async {
+    var num = telefono.replaceAll(RegExp(r'[^0-9]'), '');
+    if (num.length == 10) num = '57$num';
+    final uri = Uri.parse('https://wa.me/$num');
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   /// Abre la navegación guiada en Google Maps hacia el punto indicado (nuestro
@@ -200,7 +229,10 @@ class _ActivoViewState extends State<_ActivoView> {
                   child: Row(
                     children: [
                       InitialsAvatar(
-                          initials: _iniciales(pedido.clienteNombre), radius: 20),
+                        initials: _iniciales(pedido.clienteNombre),
+                        imageUrl: pedido.clienteFotoUrl,
+                        radius: 20,
+                      ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
@@ -215,11 +247,23 @@ class _ActivoViewState extends State<_ActivoView> {
                           ],
                         ),
                       ),
-                      if (pedido.clienteTelefono != null)
+                      // Sin teléfono en el detalle no hay a quién llamar: se
+                      // ocultan las acciones en vez de dejar botones muertos.
+                      if (_tieneTelefono(pedido)) ...[
+                        if (_whatsappDisponible)
+                          IconButton.filledTonal(
+                            tooltip: 'Escribir por WhatsApp',
+                            onPressed: () =>
+                                _escribirWhatsapp(pedido.clienteTelefono!),
+                            icon: const Icon(Icons.chat_outlined),
+                          ),
+                        const SizedBox(width: AppSpacing.sm),
                         IconButton.filledTonal(
+                          tooltip: 'Llamar',
                           onPressed: () => _llamar(pedido.clienteTelefono!),
                           icon: const Icon(Icons.phone),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -321,6 +365,7 @@ class _DetallePedido extends StatelessWidget {
             color: AppColors.accent,
             titulo: 'Recogida / compra',
             direccion: pedido.direccionRecogida,
+            referencia: pedido.referenciaRecogida,
           ),
           const SizedBox(height: AppSpacing.md),
           _PuntoFila(

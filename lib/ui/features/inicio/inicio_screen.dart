@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../router.dart';
@@ -14,6 +13,7 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/demanda_zonas.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
@@ -78,7 +78,7 @@ class _InicioView extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                   _Ganancias(vm: vm),
                   const SizedBox(height: AppSpacing.lg),
-                  _Heatmap(vm: vm),
+                  _ZonasDemanda(vm: vm),
                 ],
               ),
             ),
@@ -487,62 +487,168 @@ class _Metrica extends StatelessWidget {
   }
 }
 
-class _Heatmap extends StatelessWidget {
-  const _Heatmap({required this.vm});
+/// Dónde han salido pedidos en las últimas horas, con datos del backend.
+///
+/// Antes esto dibujaba tres círculos alrededor del conductor con offsets fijos:
+/// parecía información y no lo era. Si el servidor no tiene datos suficientes,
+/// ahora se dice; no se pinta un mapa inventado sobre el que alguien podría
+/// decidir dónde pararse a esperar.
+class _ZonasDemanda extends StatelessWidget {
+  const _ZonasDemanda({required this.vm});
   final InicioViewModel vm;
 
   @override
   Widget build(BuildContext context) {
-    final centro = vm.ubicacion ?? LocationService.fallbackCenter;
+    final d = vm.demanda;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Zonas con más demanda',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        Row(
+          children: [
+            const Expanded(
+              child: Text('Dónde están pidiendo',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+            if (vm.cargandoDemanda)
+              const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          d != null && d.tieneDatos
+              ? '${d.totalPedidos} pedidos en las últimas ${d.periodoHoras} h · '
+                  'actualizado ${Formato.hora(d.actualizadoEn)}'
+              : 'Zonas de recogida de los pedidos recientes de tu municipio.',
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+        ),
         const SizedBox(height: AppSpacing.sm),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          child: SizedBox(
-            height: 260,
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: centro,
-                initialZoom: 14,
-                interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag),
-              ),
-              children: [
-                osmTileLayer(),
-                // Aproximación de demanda alrededor del conductor (design Q5:
-                // sin endpoint de demanda, se muestra una referencia visual).
-                CircleLayer(
-                  circles: [
-                    _zona(centro.latitude + 0.004, centro.longitude + 0.003,
-                        AppColors.danger, 320),
-                    _zona(centro.latitude - 0.003, centro.longitude - 0.004,
-                        AppColors.warning, 260),
-                    _zona(centro.latitude + 0.001, centro.longitude - 0.006,
-                        AppColors.success, 220),
-                  ],
+        if (d == null && !vm.cargandoDemanda)
+          _AvisoDemanda(
+            icono: Icons.cloud_off_outlined,
+            texto: 'No pudimos cargar las zonas de demanda.',
+            accion: vm.cargarDemanda,
+          )
+        else if (d != null && !d.tieneDatos)
+          const _AvisoDemanda(
+            icono: Icons.query_stats_outlined,
+            texto: 'Aún no hay suficientes pedidos recientes por aquí para '
+                'señalar zonas. Cuando los haya, aparecen en el mapa.',
+          )
+        else if (d != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            child: SizedBox(
+              // Acotado: el mapa es una referencia, no la pantalla. Más alto
+              // empujaba las ganancias y el toggle fuera de la vista.
+              height: 180,
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCameraFit: CameraFit.bounds(
+                    bounds: LatLngBounds.fromPoints([
+                      for (final c in d.celdas) c.centro,
+                      if (vm.ubicacion != null) vm.ubicacion!,
+                    ]),
+                    padding: const EdgeInsets.all(28),
+                  ),
+                  interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag),
                 ),
-                MarkerLayer(markers: [usuarioMarker(centro)]),
-                osmAttribution(),
-              ],
+                children: [
+                  osmTileLayer(),
+                  CircleLayer(
+                    circles: [
+                      for (final c in d.celdas)
+                        CircleMarker(
+                          point: c.centro,
+                          // ~media celda de la rejilla del backend (0.005°).
+                          radius: 280,
+                          useRadiusInMeter: true,
+                          color: _color(c.nivel).withValues(alpha: 0.18),
+                          borderColor: _color(c.nivel).withValues(alpha: 0.35),
+                          borderStrokeWidth: 1,
+                        ),
+                    ],
+                  ),
+                  if (vm.ubicacion != null)
+                    MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
+                  osmAttribution(),
+                ],
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (final n in NivelDemanda.values) ...[
+                _PuntoLeyenda(color: _color(n), label: n.label),
+                const SizedBox(width: AppSpacing.md),
+              ],
+            ],
+          ),
+        ],
       ],
     );
   }
 
-  CircleMarker _zona(double lat, double lng, Color color, double radio) {
-    return CircleMarker(
-      point: LatLng(lat, lng),
-      radius: radio,
-      useRadiusInMeter: true,
-      color: color.withValues(alpha: 0.18),
-      borderColor: color.withValues(alpha: 0.35),
-      borderStrokeWidth: 1,
+  static Color _color(NivelDemanda n) => switch (n) {
+        NivelDemanda.alta => AppColors.danger,
+        NivelDemanda.media => AppColors.warning,
+        NivelDemanda.baja => AppColors.success,
+      };
+}
+
+class _PuntoLeyenda extends StatelessWidget {
+  const _PuntoLeyenda({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.35),
+            border: Border.all(color: color),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+      ],
+    );
+  }
+}
+
+class _AvisoDemanda extends StatelessWidget {
+  const _AvisoDemanda({required this.icono, required this.texto, this.accion});
+  final IconData icono;
+  final String texto;
+  final VoidCallback? accion;
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icono, size: 20, color: AppColors.inkMuted),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(texto,
+                style: const TextStyle(fontSize: 13, height: 1.3)),
+          ),
+          if (accion != null)
+            TextButton(onPressed: accion, child: const Text('Reintentar')),
+        ],
+      ),
     );
   }
 }

@@ -125,6 +125,7 @@ class _EntranteView extends StatelessWidget {
                           titulo: 'Recoger',
                           detalle: pedido.direccionRecogida ??
                               pedido.descripcion,
+                          referencia: pedido.referenciaRecogida,
                         ),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
@@ -134,6 +135,7 @@ class _EntranteView extends StatelessWidget {
                           icon: Icons.location_on_outlined,
                           titulo: 'Entregar',
                           detalle: pedido.direccionDestino ?? '—',
+                          referencia: pedido.referencia,
                           color: AppColors.primary,
                         ),
                       ],
@@ -234,11 +236,16 @@ class _PuntoRuta extends StatelessWidget {
     required this.icon,
     required this.titulo,
     required this.detalle,
+    this.referencia,
     this.color = AppColors.inkMuted,
   });
   final IconData icon;
   final String titulo;
   final String detalle;
+
+  /// Referencia del punto (esquina, color de la fachada, piso…): en pueblo,
+  /// suele valer más que la dirección para no dar vueltas.
+  final String? referencia;
   final Color color;
 
   @override
@@ -258,6 +265,25 @@ class _PuntoRuta extends StatelessWidget {
               Text(detalle,
                   style:
                       const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+              if (referencia != null && referencia!.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline,
+                          size: 13, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(referencia!.trim(),
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontStyle: FontStyle.italic,
+                                color: AppColors.ink)),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -337,17 +363,55 @@ class _RecorridoYDetalle extends StatelessWidget {
   }
 }
 
+/// Cómo se arma el dinero del pedido: primero de dónde sale la tarifa sugerida
+/// (recorrido + recargos), luego qué queda tras la comisión. Sin el desglose,
+/// una sugerida "alta" por 20 minutos de cola parece un regalo y el conductor
+/// la contraoferta a la baja sin saber qué está descontando.
 class _Desglose extends StatelessWidget {
   const _Desglose({required this.vm});
   final PedidoEntranteViewModel vm;
 
   @override
   Widget build(BuildContext context) {
+    final p = vm.pedido!;
+    final hayRecargos = p.tieneRecargos;
     return MotoCard(
       color: AppColors.primarySurface,
       child: Column(
         children: [
-          _Fila(label: 'Tarifa sugerida', valor: Formato.moneda(vm.montoPropuesto)),
+          if (hayRecargos) ...[
+            _Fila(
+              label: 'Recorrido',
+              valor: Formato.moneda(p.tarifaDistancia ?? 0),
+              tenue: true,
+            ),
+            if ((p.recargoAdelanto ?? 0) > 0) ...[
+              const SizedBox(height: 6),
+              _Fila(
+                label: 'Por adelantar la compra',
+                valor: Formato.moneda(p.recargoAdelanto),
+                tenue: true,
+              ),
+            ],
+            if ((p.recargoEspera ?? 0) > 0) ...[
+              const SizedBox(height: 6),
+              _Fila(
+                label: p.minutosEsperaEstimados != null
+                    ? 'Por esperar (~${p.minutosEsperaEstimados} min)'
+                    : 'Por esperar',
+                valor: Formato.moneda(p.recargoEspera),
+                tenue: true,
+              ),
+            ],
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Divider(height: 1),
+            ),
+          ],
+          _Fila(
+            label: vm.esContraoferta ? 'Tu propuesta' : 'Tarifa sugerida',
+            valor: Formato.moneda(vm.montoPropuesto),
+          ),
           const SizedBox(height: 6),
           _Fila(
             label: 'Comisión plataforma (15%)',
@@ -364,6 +428,14 @@ class _Desglose extends StatelessWidget {
             bold: true,
             valorColor: AppColors.success,
           ),
+          if (p.requiereCompra && (p.montoCompraEstimado ?? 0) > 0) ...[
+            const SizedBox(height: 6),
+            _Fila(
+              label: 'Compra (te la reembolsa el cliente)',
+              valor: Formato.moneda(p.montoCompraEstimado),
+              tenue: true,
+            ),
+          ],
         ],
       ),
     );
@@ -375,25 +447,38 @@ class _Fila extends StatelessWidget {
     required this.label,
     required this.valor,
     this.bold = false,
+    this.tenue = false,
     this.valorColor,
   });
   final String label;
   final String valor;
   final bool bold;
+
+  /// Fila de detalle (componente de la tarifa): más pequeña y apagada, para que
+  /// el total y la ganancia sigan siendo lo primero que se lee.
+  final bool tenue;
   final Color? valorColor;
 
   @override
   Widget build(BuildContext context) {
     final peso = bold ? FontWeight.w800 : FontWeight.w500;
+    final tam = tenue ? 13.0 : 14.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontWeight: peso, fontSize: 14)),
+        Expanded(
+          child: Text(label,
+              style: TextStyle(
+                  fontWeight: peso,
+                  fontSize: tam,
+                  color: tenue ? AppColors.inkMuted : AppColors.ink)),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Text(valor,
             style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: bold ? 18 : 14,
-                color: valorColor ?? AppColors.ink)),
+                fontWeight: tenue ? FontWeight.w600 : FontWeight.w800,
+                fontSize: bold ? 18 : tam,
+                color: valorColor ?? (tenue ? AppColors.inkMuted : AppColors.ink))),
       ],
     );
   }

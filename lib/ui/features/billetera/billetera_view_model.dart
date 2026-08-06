@@ -30,14 +30,29 @@ class BilleteraViewModel extends ChangeNotifier {
 
   MedioPago medioSeleccionado = MedioPago.nequi;
 
-  /// Última intención de pago iniciada (info de la transacción: referencia,
-  /// estado, instrucciones). Pasa a CONFIRMADO cuando el sondeo detecta que el
-  /// pago ya se aplicó; se limpia al descartar el aviso.
+  /// Instrucciones de la última intención iniciada en esta sesión (referencia,
+  /// enlace, texto del proveedor). Solo vive en memoria: es lo único que el
+  /// servidor no vuelve a dar al releer los pagos.
   IntencionPago? intencion;
 
-  /// Deuda y estado de bloqueo al iniciar el último pago: referencia para
-  /// detectar que el pago se aplicó (deuda bajó / cuenta reactivada).
-  double? _deudaAlPagar;
+  /// Pagos del conductor tal como los conoce el backend. De aquí sale el pago
+  /// pendiente y el historial: antes el "pago en proceso" era estado en memoria
+  /// de la pantalla y se perdía al cambiar de pestaña o reabrir la app.
+  List<PagoRealizado> pagos = const [];
+
+  /// El pago que aún está en revisión (el más reciente pendiente), si lo hay.
+  PagoRealizado? get pagoPendiente {
+    for (final p in pagos) {
+      if (p.pendiente) return p;
+    }
+    return null;
+  }
+
+  /// Id del pago que estamos vigilando para avisar cuando se confirme.
+  int? _vigilandoPagoId;
+
+  /// Estado de bloqueo al iniciar el último pago: para redactar el aviso de
+  /// confirmación ("tu cuenta se reactivó" vs. "tu saldo se actualizó").
   bool _bloqueadoAlPagar = false;
 
   /// Sondeo del saldo mientras hay un pago pendiente y el tab está visible: el
@@ -63,7 +78,7 @@ class BilleteraViewModel extends ChangeNotifier {
   /// Activa el sondeo solo cuando hace falta: tab visible y pago pendiente.
   void _sincronizarPoll() {
     final debeSondear =
-        _tab.indice == TabActiva.billetera && (intencion?.pendiente ?? false);
+        _tab.indice == TabActiva.billetera && pagoPendiente != null;
     if (debeSondear) {
       _poll ??= Timer.periodic(_intervaloPoll, (_) => _cargar(silencioso: true));
     } else {
@@ -82,7 +97,9 @@ class BilleteraViewModel extends ChangeNotifier {
     }
     final res = await _billetera.saldo(forzar: true);
     res.when(ok: (b) => billetera = b, err: (f) => error = f.message);
-    _resolverPagoPendiente();
+    final resPagos = await _billetera.pagos();
+    pagos = resPagos.valueOrNull ?? pagos;
+    _resolverPagoVigilado();
     cargando = false;
     if (!_disposed) notifyListeners();
     // Datos de destino: se cargan una vez (no bloquean el render del saldo).
@@ -93,28 +110,34 @@ class BilleteraViewModel extends ChangeNotifier {
     }
   }
 
-  /// Marca la intención como confirmada cuando el saldo refleja que el pago se
-  /// aplicó: la deuda bajó al menos el monto pagado, o la cuenta se reactivó
-  /// (bloqueada → al día). Detiene el sondeo al confirmar.
-  void _resolverPagoPendiente() {
-    final i = intencion;
-    final b = billetera;
-    if (i == null || !i.pendiente || b == null || _deudaAlPagar == null) return;
-    final deudaBajo = b.deudaActual <= _deudaAlPagar! - i.monto + 1;
-    final reactivado = _bloqueadoAlPagar && !b.bloqueado;
-    if (deudaBajo || reactivado) {
-      intencion = i.copyWith(estado: 'CONFIRMADO');
+  /// Avisa cuando el pago que estábamos vigilando deja de estar pendiente en el
+  /// servidor. La confirmación la decide el backend (webhook o conciliación del
+  /// admin); la app ya no la infiere restando la deuda.
+  void _resolverPagoVigilado() {
+    final id = _vigilandoPagoId;
+    if (id == null) return;
+    PagoRealizado? p;
+    for (final x in pagos) {
+      if (x.id == id) p = x;
+    }
+    if (p == null || p.pendiente) return;
+    _vigilandoPagoId = null;
+    if (p.confirmado) {
+      final reactivado = _bloqueadoAlPagar && !(billetera?.bloqueado ?? false);
       aviso = reactivado
           ? 'Pago confirmado. Tu cuenta se reactivó: ya puedes recibir pedidos.'
           : 'Pago confirmado. Tu saldo se actualizó.';
       // Al reactivarse, refresca el perfil del conductor para que el gating de
       // "En línea" (Inicio) se desbloquee de inmediato, sin esperar al tab.
       if (reactivado) _conductores.cargar(forzar: true);
-      _sincronizarPoll();
+    } else {
+      aviso = 'El pago no se pudo confirmar. Revisa los datos e inténtalo de nuevo.';
     }
+    _sincronizarPoll();
   }
 
-  /// Descarta el aviso de pago (pendiente o confirmado) del panel.
+  /// Descarta el aviso y las instrucciones del último pago iniciado. No borra
+  /// el pago: si sigue pendiente, se sigue viendo (viene del servidor).
   void descartarIntencion() {
     intencion = null;
     aviso = null;
@@ -154,12 +177,11 @@ class BilleteraViewModel extends ChangeNotifier {
     );
     final ok = res.isSuccess;
     if (ok) {
-      // Referencia de saldo previa al pago, para detectar luego que se aplicó.
-      _deudaAlPagar = billetera?.deudaActual;
       _bloqueadoAlPagar = bloqueado;
       // Completar la intención con lo que la app ya sabe (el backend devuelve
       // referencia/instrucciones, no monto ni medio).
       final i = res.valueOrNull;
+      _vigilandoPagoId = i?.pagoId;
       intencion = IntencionPago(
         pagoId: i?.pagoId ?? 0,
         medioPago: medioSeleccionado,
@@ -171,9 +193,8 @@ class BilleteraViewModel extends ChangeNotifier {
       );
       aviso =
           'Pago iniciado con ${medioSeleccionado.label}. Confirmaremos y actualizaremos tu saldo al recibirlo.';
-      // Reconciliar: releer saldo y refrescar el estado del conductor (gating).
+      // Reconciliar: releer saldo y pagos, y refrescar el estado del conductor.
       await _reconciliar();
-      _resolverPagoPendiente();
       _sincronizarPoll();
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
@@ -186,6 +207,9 @@ class BilleteraViewModel extends ChangeNotifier {
   Future<void> _reconciliar() async {
     final res = await _billetera.saldo(forzar: true);
     billetera = res.valueOrNull ?? billetera;
+    final resPagos = await _billetera.pagos();
+    pagos = resPagos.valueOrNull ?? pagos;
+    _resolverPagoVigilado();
     await _conductores.cargar(forzar: true);
   }
 

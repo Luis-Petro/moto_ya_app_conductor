@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/conductor.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import 'perfil_view_model.dart';
 
@@ -193,6 +196,173 @@ class _PerfilViewState extends State<_PerfilView> {
     if (exito && mounted) _aviso('Correo actualizado');
   }
 
+  /// Flujo de cambio de celular en dos pasos (OTP al número nuevo). Mismo
+  /// patrón que el correo: el número no se aplica hasta comprobar que es tuyo.
+  Future<void> _cambiarCelular(PerfilViewModel vm) async {
+    final telCtrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    var paso = 1;
+    String? errorLocal;
+    var ocupado = false;
+    var exito = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> enviar() async {
+            final tel = telCtrl.text.trim();
+            if (tel.isEmpty) {
+              setSheet(() => errorLocal = 'Escribe tu celular nuevo');
+              return;
+            }
+            setSheet(() {
+              ocupado = true;
+              errorLocal = null;
+            });
+            final err = await vm.solicitarCambioCelular(tel);
+            setSheet(() {
+              ocupado = false;
+              errorLocal = err;
+              if (err == null) paso = 2;
+            });
+          }
+
+          Future<void> confirmar() async {
+            setSheet(() {
+              ocupado = true;
+              errorLocal = null;
+            });
+            final err = await vm.confirmarCambioCelular(codeCtrl.text.trim());
+            if (err == null) {
+              exito = true;
+              if (ctx.mounted) Navigator.pop(ctx);
+              return;
+            }
+            setSheet(() {
+              ocupado = false;
+              errorLocal = err;
+            });
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: AppSpacing.xl,
+              right: AppSpacing.xl,
+              top: AppSpacing.xl,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  paso == 1 ? 'Cambiar celular' : 'Verifica tu celular',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  paso == 1
+                      ? 'Te enviaremos un código al número nuevo para confirmar que es tuyo.'
+                      : 'Escribe el código que enviamos a ${telCtrl.text.trim()}.',
+                  style:
+                      const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                if (paso == 1)
+                  PhoneField(controller: telCtrl)
+                else
+                  TextField(
+                    controller: codeCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Código',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                  ),
+                if (errorLocal != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(errorLocal!,
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 13)),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: paso == 1 ? 'Enviar código' : 'Confirmar',
+                  loading: ocupado,
+                  onPressed: paso == 1 ? enviar : confirmar,
+                ),
+                if (paso == 2)
+                  TextButton(
+                    onPressed: ocupado ? null : enviar,
+                    child: const Text('Reenviar código'),
+                  ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+
+    telCtrl.dispose();
+    codeCtrl.dispose();
+    if (exito && mounted) _aviso('Celular actualizado');
+  }
+
+  /// Sube o reemplaza uno de los documentos de habilitación.
+  Future<void> _subirDocumento(
+      PerfilViewModel vm, DocumentoConductor doc) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.lg,
+                  AppSpacing.xl, AppSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(doc.titulo,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(doc.guia,
+                      style: const TextStyle(
+                          color: AppColors.inkMuted, fontSize: 13)),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final err = await vm.subirDocumento(doc, source);
+    if (!mounted) return;
+    _aviso(err ?? '${doc.titulo}: foto actualizada');
+  }
+
   Future<void> _confirmarSalir(PerfilViewModel vm) async {
     // useRootNavigator: false — dentro de un tab del StatefulShellRoute el
     // navigator raíz pinta un velo negro sobre el shell (pantalla en negro).
@@ -302,31 +472,42 @@ class _PerfilViewState extends State<_PerfilView> {
                         ],
                         const SizedBox(height: AppSpacing.xl),
 
-                        // Nombre y celular: identidad verificada, no editables.
+                        // El nombre es identidad verificada: no se edita aquí.
                         _Campo(
                             label: 'Nombre',
                             controller: _nombre,
                             editable: false,
                             icon: Icons.person_outline),
                         const SizedBox(height: AppSpacing.md),
-                        _Campo(
-                            label: 'Celular',
-                            controller: _telefono,
-                            editable: false,
-                            icon: Icons.phone_outlined,
-                            keyboard: TextInputType.phone),
-                        const SizedBox(height: AppSpacing.md),
 
-                        // Correo: cambio verificado (nunca edición directa).
+                        // Correo y celular: credenciales de acceso. Ninguna se
+                        // edita en línea; cada una tiene su flujo verificado.
                         MotoCard(
-                          child: _CorreoTile(
-                            email: vm.usuario!.email,
-                            onCambiar: () => _cambiarCorreo(vm),
+                          child: Column(
+                            children: [
+                              _CredencialTile(
+                                etiqueta: 'Correo',
+                                icono: Icons.mail_outline,
+                                valor: vm.usuario!.email,
+                                vacio: 'Sin correo registrado',
+                                verificado: null,
+                                onCambiar: () => _cambiarCorreo(vm),
+                              ),
+                              const Divider(height: AppSpacing.lg),
+                              _CredencialTile(
+                                etiqueta: 'Celular',
+                                icono: Icons.phone_outlined,
+                                valor: vm.usuario!.telefono,
+                                vacio: 'Sin celular registrado',
+                                verificado: vm.usuario!.telefonoVerificado,
+                                onCambiar: () => _cambiarCelular(vm),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         const Text(
-                          'El nombre y el celular no se pueden cambiar: son tu identidad verificada. Si necesitas corregirlos, contáctanos.',
+                          'El nombre no se puede cambiar desde la app: es tu identidad verificada. Si necesitas corregirlo, contáctanos.',
                           style: TextStyle(
                               color: AppColors.inkMuted, fontSize: 12),
                         ),
@@ -352,19 +533,14 @@ class _PerfilViewState extends State<_PerfilView> {
                                     icon: Icons.pin_outlined,
                                     label: 'Placa',
                                     valor: conductor.placa ?? '—'),
-                                const Divider(height: AppSpacing.lg),
-                                _InfoFila(
-                                  icon: Icons.description_outlined,
-                                  label: 'Documentos',
-                                  valor: conductor.tieneDocumentos
-                                      ? 'Cargados'
-                                      : 'Pendientes',
-                                  valorColor: conductor.tieneDocumentos
-                                      ? AppColors.success
-                                      : AppColors.warning,
-                                ),
                               ],
                             ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _Documentos(
+                            conductor: conductor,
+                            vm: vm,
+                            onSubir: (doc) => _subirDocumento(vm, doc),
                           ),
                         ],
                         const SizedBox(height: AppSpacing.xl),
@@ -442,35 +618,72 @@ class _FotoPerfil extends StatelessWidget {
   }
 }
 
-/// Fila de correo: muestra el actual y ofrece cambiarlo por el flujo verificado.
-class _CorreoTile extends StatelessWidget {
-  const _CorreoTile({required this.onCambiar, this.email});
+/// Fila de una credencial de acceso (correo o celular): valor actual, si está
+/// verificada y el acceso a su flujo de cambio. Nunca se edita en línea.
+class _CredencialTile extends StatelessWidget {
+  const _CredencialTile({
+    required this.etiqueta,
+    required this.icono,
+    required this.vacio,
+    required this.onCambiar,
+    this.valor,
+    this.verificado,
+  });
 
-  final String? email;
+  final String etiqueta;
+  final IconData icono;
+  final String vacio;
+  final String? valor;
+
+  /// null cuando no aplica mostrar el estado (el correo no lo expone el backend).
+  final bool? verificado;
   final VoidCallback onCambiar;
 
   @override
   Widget build(BuildContext context) {
-    final tiene = (email ?? '').isNotEmpty;
+    final tiene = (valor ?? '').trim().isNotEmpty;
     return Row(
       children: [
-        const Icon(Icons.mail_outline, color: AppColors.inkMuted, size: 20),
+        Icon(icono, color: AppColors.inkMuted, size: 20),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('CORREO',
-                  style: TextStyle(
+              Text(etiqueta.toUpperCase(),
+                  style: const TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                       color: AppColors.inkMuted,
                       letterSpacing: 0.4)),
               const SizedBox(height: 2),
-              Text(tiene ? email! : 'Sin correo',
+              Text(tiene ? valor! : vacio,
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: tiene ? AppColors.ink : AppColors.inkMuted)),
+              if (tiene && verificado != null) ...[
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                        verificado!
+                            ? Icons.verified_rounded
+                            : Icons.error_outline,
+                        size: 13,
+                        color: verificado!
+                            ? AppColors.success
+                            : AppColors.warning),
+                    const SizedBox(width: 3),
+                    Text(verificado! ? 'Verificado' : 'Sin verificar',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: verificado!
+                                ? AppColors.success
+                                : AppColors.warning)),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -483,17 +696,134 @@ class _CorreoTile extends StatelessWidget {
   }
 }
 
+/// Los cuatro documentos de habilitación con su estado y la opción de subir o
+/// reemplazar cada uno. Mientras falte alguno, el admin no puede habilitar la
+/// cuenta: decirlo aquí evita esperas sin saber a qué.
+class _Documentos extends StatelessWidget {
+  const _Documentos({
+    required this.conductor,
+    required this.vm,
+    required this.onSubir,
+  });
+
+  final Conductor conductor;
+  final PerfilViewModel vm;
+  final void Function(DocumentoConductor) onSubir;
+
+  @override
+  Widget build(BuildContext context) {
+    final faltantes = conductor.documentosFaltantes;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MotoCard(
+          child: Column(
+            children: [
+              for (var i = 0; i < DocumentoConductor.values.length; i++) ...[
+                if (i > 0) const Divider(height: AppSpacing.lg),
+                _FilaDocumento(
+                  doc: DocumentoConductor.values[i],
+                  url: conductor.urlDocumento(DocumentoConductor.values[i]),
+                  subiendo:
+                      vm.subiendoDocumento == DocumentoConductor.values[i],
+                  onSubir: () => onSubir(DocumentoConductor.values[i]),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (faltantes.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            conductor.habilitado
+                ? 'Te falta subir: ${faltantes.join(', ')}.'
+                : 'Para que te habiliten falta: ${faltantes.join(', ')}.',
+            style: const TextStyle(color: AppColors.warning, fontSize: 12.5),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FilaDocumento extends StatelessWidget {
+  const _FilaDocumento({
+    required this.doc,
+    required this.url,
+    required this.subiendo,
+    required this.onSubir,
+  });
+
+  final DocumentoConductor doc;
+  final String? url;
+  final bool subiendo;
+  final VoidCallback onSubir;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiene = url != null;
+    return Row(
+      children: [
+        SizedBox(
+          width: 44,
+          height: 44,
+          child: tiene
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  child: Image.network(url!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: AppColors.inkMuted)),
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.warningSurface,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: const Icon(Icons.photo_camera_outlined,
+                      size: 20, color: AppColors.warning),
+                ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(doc.titulo,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(tiene ? 'Subida' : 'Pendiente',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: tiene ? AppColors.success : AppColors.warning)),
+            ],
+          ),
+        ),
+        if (subiendo)
+          const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2))
+        else
+          TextButton(
+            onPressed: onSubir,
+            child: Text(tiene ? 'Reemplazar' : 'Subir'),
+          ),
+      ],
+    );
+  }
+}
+
 class _InfoFila extends StatelessWidget {
   const _InfoFila({
     required this.icon,
     required this.label,
     required this.valor,
-    this.valorColor,
   });
   final IconData icon;
   final String label;
   final String valor;
-  final Color? valorColor;
 
   @override
   Widget build(BuildContext context) {
@@ -504,9 +834,8 @@ class _InfoFila extends StatelessWidget {
         Text(label, style: const TextStyle(color: AppColors.inkMuted)),
         const Spacer(),
         Text(valor,
-            style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: valorColor ?? AppColors.ink)),
+            style: const TextStyle(
+                fontWeight: FontWeight.w700, color: AppColors.ink)),
       ],
     );
   }
@@ -518,14 +847,12 @@ class _Campo extends StatelessWidget {
     required this.controller,
     required this.editable,
     required this.icon,
-    this.keyboard,
   });
 
   final String label;
   final TextEditingController controller;
   final bool editable;
   final IconData icon;
-  final TextInputType? keyboard;
 
   @override
   Widget build(BuildContext context) {
@@ -542,7 +869,6 @@ class _Campo extends StatelessWidget {
         TextField(
           controller: controller,
           enabled: editable,
-          keyboardType: keyboard,
           decoration: InputDecoration(prefixIcon: Icon(icon)),
         ),
       ],

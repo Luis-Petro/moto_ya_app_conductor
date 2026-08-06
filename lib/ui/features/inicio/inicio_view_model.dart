@@ -12,6 +12,7 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../domain/models/conductor.dart';
+import '../../../domain/models/demanda_zonas.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/oferta.dart';
 import '../../../domain/models/pedido.dart';
@@ -78,6 +79,12 @@ class InicioViewModel extends ChangeNotifier {
   /// muestra siempre para que pueda continuar el flujo aunque no llegue push.
   Pedido? pedidoActivo;
 
+  /// Demanda reciente por zonas (la calcula el backend). Null mientras carga o
+  /// si la consulta falló; con `celdas` vacía significa "no hay datos", que es
+  /// un resultado legítimo y se muestra como tal.
+  DemandaZonas? demanda;
+  bool cargandoDemanda = false;
+
   Timer? _poll;
   StreamSubscription<EventoOferta>? _ofertaSub;
   bool _pollLento = false;
@@ -129,6 +136,7 @@ class InicioViewModel extends ChangeNotifier {
       pedidoActivo = p;
       _notificar();
     }));
+    unawaited(cargarDemanda());
     if (enLinea) _reporter.start(_onPosicion, background: true, inicial: ubicacion);
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
@@ -309,6 +317,17 @@ class InicioViewModel extends ChangeNotifier {
     if (_pollLento != _ofertas.conectado) _iniciarPoll();
   }
 
+  /// Trae la demanda por zonas del backend. Un fallo deja `demanda` en null y
+  /// la UI lo trata como "no disponible": nunca se rellena con datos propios.
+  Future<void> cargarDemanda() async {
+    cargandoDemanda = true;
+    _notificar();
+    final res = await _conductores.demanda();
+    demanda = res.valueOrNull;
+    cargandoDemanda = false;
+    _notificar();
+  }
+
   /// Fuerza un refresco (al volver de la pantalla del pedido activo, con el
   /// gesto de arrastrar hacia abajo o al reactivarse el tab). Silencioso: no
   /// enciende el spinner de pantalla completa.
@@ -316,6 +335,7 @@ class InicioViewModel extends ChangeNotifier {
     await _conductores.cargar(forzar: true);
     await _cargarMetricas();
     await _tick();
+    await cargarDemanda();
     _notificar();
   }
 

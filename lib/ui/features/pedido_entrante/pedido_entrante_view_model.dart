@@ -15,9 +15,7 @@ enum EstadoEntrante { cargando, disponible, expirado, error }
 /// otro, expira o se cancela.
 class PedidoEntranteViewModel extends ChangeNotifier {
   PedidoEntranteViewModel(this._pedidos, this.pedidoId, this._ofertas,
-      {int? segundosIniciales})
-      : segundosRestantes = segundosIniciales ?? ventanaSegundos,
-        ventanaTotal = segundosIniciales ?? ventanaSegundos {
+      {this.segundosIniciales}) {
     _suscribirEventos();
   }
 
@@ -25,9 +23,12 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   final OfertasService _ofertas;
   final int pedidoId;
 
-  /// Ventana de respaldo si el servidor no proveyó `segundosRestantes` (p. ej.
-  /// al abrir por deep link). El backend usa el mismo default.
-  static const int ventanaSegundos = 30;
+  /// Ventana que trajo el evento STOMP, si la tarjeta se abrió desde él. Si es
+  /// null (deep link, push, reapertura) se resuelve contra `/pedidos/ofertas`:
+  /// no existe un default de 30 s en la app, porque la ventana la fija el
+  /// backend (`MATCHING_TIMEOUT_SEGUNDOS`, editable en runtime) y un número
+  /// inventado aquí haría correr un reloj que no es el que decide.
+  final int? segundosIniciales;
 
   EstadoEntrante estado = EstadoEntrante.cargando;
   String? error;
@@ -37,12 +38,12 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   String? avisoCierre;
   Pedido? pedido;
 
-  int segundosRestantes;
+  int segundosRestantes = 0;
 
   /// Ventana completa concedida por el servidor, para dibujar cuánto queda del
   /// tiempo (no solo el número): una barra que se vacía comunica la urgencia
   /// sin que el conductor tenga que leer y restar.
-  final int ventanaTotal;
+  int ventanaTotal = 0;
 
   /// Proporción de la ventana que aún queda (1 → recién llegada, 0 → vencida).
   double get fraccionTiempo => ventanaTotal <= 0
@@ -70,13 +71,28 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   Future<void> cargar() async {
     estado = EstadoEntrante.cargando;
     notifyListeners();
+
+    final segundos = segundosIniciales ?? await _ventanaDelServidor();
+
     final res = await _pedidos.detalle(pedidoId);
     res.when(
       ok: (p) {
         pedido = p;
         montoPropuesto = p.tarifaSugerida ?? 0;
-        estado = EstadoEntrante.disponible;
-        _iniciarTemporizador();
+        if (segundos == null || segundos <= 0) {
+          // No hay oferta vigente para este conductor: el pedido puede verse,
+          // pero proponer devolvería 409. Mejor decirlo de entrada que dejarlo
+          // intentar contra un reloj que no existe.
+          ventanaTotal = 0;
+          segundosRestantes = 0;
+          estado = EstadoEntrante.expirado;
+          avisoCierre ??= 'La oferta ya no está vigente';
+        } else {
+          ventanaTotal = segundos;
+          segundosRestantes = segundos;
+          estado = EstadoEntrante.disponible;
+          _iniciarTemporizador();
+        }
       },
       err: (f) {
         error = f.message;
@@ -84,6 +100,18 @@ class PedidoEntranteViewModel extends ChangeNotifier {
       },
     );
     notifyListeners();
+  }
+
+  /// Segundos que le quedan a la oferta de este pedido según el servidor, o
+  /// null si ya no figura entre las ofertas vigentes del conductor.
+  Future<int?> _ventanaDelServidor() async {
+    final res = await _pedidos.ofertas();
+    final lista = res.valueOrNull;
+    if (lista == null) return null;
+    for (final o in lista) {
+      if (o.pedidoId == pedidoId) return o.segundosRestantes;
+    }
+    return null;
   }
 
   void _iniciarTemporizador() {

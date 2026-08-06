@@ -46,6 +46,21 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
+  bool _recuperandoPassword = false;
+  bool get recuperandoPassword => _recuperandoPassword;
+
+  /// Pide el enlace de recuperación. Devuelve el mensaje de error o null si
+  /// salió. Ojo: un null **no** significa que la cuenta exista — el backend
+  /// responde igual en ambos casos y el aviso al usuario debe ser neutro.
+  Future<String?> recuperarPassword(String email) async {
+    _recuperandoPassword = true;
+    notifyListeners();
+    final res = await _auth.solicitarRecuperacionPassword(email.trim());
+    _recuperandoPassword = false;
+    notifyListeners();
+    return res.when(ok: (_) => null, err: (f) => f.message);
+  }
+
   Future<bool> solicitarOtp(String telefonoE164) async {
     final res = await _auth.solicitarOtp(telefonoE164);
     if (!res.isSuccess) {

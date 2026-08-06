@@ -59,6 +59,28 @@ class _LoginViewState extends State<_LoginView> {
     }
   }
 
+  /// Recuperación de contraseña. El aviso final es **neutro** a propósito: el
+  /// backend responde igual exista o no la cuenta, y decirle a un desconocido
+  /// si un correo está registrado sería filtrar quién usa la app.
+  Future<void> _olvideMiPassword() async {
+    final email = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _RecuperarSheet(inicial: _email.text.trim()),
+    );
+    if (email == null || !mounted) return;
+    final vm = context.read<LoginViewModel>();
+    final err = await vm.recuperarPassword(email);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(err ??
+            'Si ese correo tiene una cuenta, te enviamos un enlace para '
+                'crear una contraseña nueva. Revisa tu bandeja.'),
+      ),
+    );
+  }
+
   Future<void> _ingresarConCelular() async {
     final telefono = await showModalBottomSheet<String>(
       context: context,
@@ -146,7 +168,15 @@ class _LoginViewState extends State<_LoginView> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.lg),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed:
+                              vm.recuperandoPassword ? null : _olvideMiPassword,
+                          child: const Text('¿Olvidaste tu contraseña?'),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
                       PrimaryButton(
                           label: 'Ingresar',
                           loading: vm.cargando,
@@ -167,6 +197,81 @@ class _LoginViewState extends State<_LoginView> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Hoja inferior para capturar el correo de recuperación.
+class _RecuperarSheet extends StatefulWidget {
+  const _RecuperarSheet({required this.inicial});
+  final String inicial;
+  @override
+  State<_RecuperarSheet> createState() => _RecuperarSheetState();
+}
+
+class _RecuperarSheetState extends State<_RecuperarSheet> {
+  late final _email = TextEditingController(text: widget.inicial);
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  void _enviar() {
+    final email = _email.text.trim();
+    // Validación mínima local: solo para evitar el viaje con un campo vacío o
+    // sin arroba; la validación real es del backend.
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() => _error = 'Escribe un correo válido');
+      return;
+    }
+    Navigator.of(context).pop(email);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppSpacing.xl,
+        right: AppSpacing.xl,
+        top: AppSpacing.xl,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Recuperar contraseña',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'Te enviamos un enlace al correo de tu cuenta para crear una '
+            'contraseña nueva.',
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          TextField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'tucorreo@ejemplo.com',
+              prefixIcon: Icon(Icons.mail_outline),
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(color: AppColors.danger, fontSize: 12)),
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          PrimaryButton(label: 'Enviar enlace', onPressed: _enviar),
+        ],
       ),
     );
   }

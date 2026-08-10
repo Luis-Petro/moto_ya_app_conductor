@@ -6,14 +6,12 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/brand.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
 import 'otp_screen.dart';
 import 'login_view_model.dart';
-
-/// Logo de marca sin fondo (recortado) para la cabecera del login.
-const String _kLogoLogin = 'assets/images/logo-removebg.png';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -118,10 +116,7 @@ class _LoginViewState extends State<_LoginView> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const SizedBox(height: AppSpacing.lg),
-                      Center(
-                        child: Image.asset(_kLogoLogin,
-                            width: 120, fit: BoxFit.contain),
-                      ),
+                      const Center(child: BrandMascota(height: 130)),
                       const SizedBox(height: AppSpacing.md),
                       const Text('Hola de nuevo 👋',
                           style: TextStyle(

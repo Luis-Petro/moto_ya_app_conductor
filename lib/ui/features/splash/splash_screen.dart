@@ -70,8 +70,10 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            BrandLockup(width: 240),
-            SizedBox(height: 12),
+            BrandMascota(height: 220),
+            SizedBox(height: 16),
+            BrandWordmark(fontSize: 34),
+            SizedBox(height: 2),
             Text('Conductor',
                 style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2)),
             SizedBox(height: 28),

@@ -5,6 +5,30 @@ import '../theme/app_colors.dart';
 /// Ruta del logo de marca (lockup: moto + "MotoYa · Tu domicilio, ya.").
 const String kLogoAsset = 'assets/images/logo.png';
 
+/// Ruta de la mascota de marca, cuerpo completo y fondo transparente.
+const String kMascotaAsset = 'assets/images/mascota.png';
+
+/// Mascota motoYa. Es la cara de la marca en splash, login y pantallas vacías.
+///
+/// Va sin el nombre horneado dentro: el wordmark se compone al lado con
+/// [BrandWordmark], que usa la fuente de la app y se lee igual en cualquier
+/// tamaño (el texto dentro de un PNG se deshace al reducirlo).
+class BrandMascota extends StatelessWidget {
+  const BrandMascota({super.key, this.height = 160});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      kMascotaAsset,
+      height: height,
+      fit: BoxFit.contain,
+      semanticLabel: 'motoYa',
+    );
+  }
+}
+
 /// Logo de marca completo (imagen). Usar donde se necesite el lockup oficial.
 class BrandLockup extends StatelessWidget {
   const BrandLockup({super.key, this.width = 180});

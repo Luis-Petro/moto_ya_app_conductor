@@ -133,7 +133,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
                         onCerrar: vm.descartarIntencion,
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.lg),
                     PrimaryButton(
                       label: vm.bloqueado
                           ? 'Pagar y reactivar mi cuenta'
@@ -145,7 +145,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
                           : Icons.savings_outlined,
                       onPressed: () => _abrirPago(context, vm, b),
                     ),
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.lg),
                     // El historial no vive en la pantalla principal: es
                     // consulta ocasional y empujaba el formulario de pago
                     // (lo que el conductor viene a hacer) fuera de vista.
@@ -235,70 +235,49 @@ class _PagoSheetState extends State<_PagoSheet> {
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
+          // Todo el formulario cabe sin scroll: el conductor lo llena con el
+          // celular en una mano, saliendo y entrando de la app del banco, y
+          // cada campo que quedaba debajo del pliegue era uno que no se llenaba.
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 b.enDeuda ? 'Pagar comisiones' : 'Abonar a mi saldo',
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                'PAGAR CON',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.inkMuted,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
+              const _Etiqueta('PAGAR CON'),
+              const SizedBox(height: AppSpacing.xs),
               _Medios(vm: vm),
               if (vm.datosPago != null) ...[
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.sm),
                 _DestinoPago(datos: vm.datosPago!, medio: vm.medioSeleccionado),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                'MONTO A PAGAR',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.inkMuted,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
+              const _Etiqueta('MONTO A PAGAR'),
+              const SizedBox(height: AppSpacing.xs),
               TextField(
                 controller: _monto,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
+                  isDense: true,
                   prefixText: r'$ ',
                   hintText: b.enDeuda
                       ? b.deudaActual.round().toString()
                       : 'Monto a abonar',
                   helperText: b.enDeuda
-                      ? 'Puedes pagar más que la deuda: el resto queda como saldo a favor.'
-                      : 'Lo que abones queda como saldo a favor para tus próximas comisiones.',
-                  helperMaxLines: 2,
+                      ? 'Si pagas de más, el resto queda a tu favor.'
+                      : 'Queda a tu favor para tus próximas comisiones.',
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                '¿DESDE DÓNDE ENVÍAS?',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.inkMuted,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
+              const _Etiqueta('¿DESDE DÓNDE ENVÍAS?'),
+              const SizedBox(height: AppSpacing.xs),
               // El nombre que llega al extracto no es el mismo si el conductor
               // transfiere desde su cuenta que si consigna en un corresponsal:
               // en el segundo caso el movimiento sale a nombre del punto y el
@@ -313,7 +292,7 @@ class _PagoSheetState extends State<_PagoSheet> {
                       onTap: () => setState(() => _porCorresponsal = false),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: _OrigenChip(
                       icono: Icons.storefront_outlined,
@@ -324,45 +303,44 @@ class _PagoSheetState extends State<_PagoSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
               TextField(
                 controller: _titularOrigen,
                 textCapitalization: TextCapitalization.words,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
+                  isDense: true,
                   prefixIcon: const Icon(Icons.person_outline),
                   labelText: _porCorresponsal
                       ? 'Nombre de quien consignó'
                       : 'Nombre del dueño de la cuenta',
                   hintText: 'Nombre y apellido',
                   helperText: _porCorresponsal
-                      ? 'El nombre con el que quedó registrada la consignación '
-                            'en el punto.'
-                      : 'Debe ser el titular de la cuenta desde la que sale el '
-                            'dinero, aunque no seas tú.',
-                  helperMaxLines: 3,
+                      ? 'Como quedó registrado en el punto.'
+                      : 'El titular de la cuenta de donde sale el dinero, '
+                            'aunque no seas tú.',
+                  helperMaxLines: 2,
                 ),
               ),
               if (_porCorresponsal) ...[
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: _corresponsal,
                   textCapitalization: TextCapitalization.words,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
+                    isDense: true,
                     prefixIcon: Icon(Icons.storefront_outlined),
-                    labelText: 'Corresponsal o punto donde consignaste',
-                    hintText: 'Ej: Baloto de la esquina, Efecty del parque',
-                    helperText:
-                        'Sin el punto no podemos ubicar el movimiento: en el '
-                        'extracto no aparece tu nombre.',
-                    helperMaxLines: 3,
+                    labelText: 'Punto donde consignaste',
+                    hintText: 'Ej: Baloto de la esquina',
+                    helperText: 'En el extracto aparece el punto, no tu nombre.',
+                    helperMaxLines: 2,
                   ),
                 ),
               ],
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
               const _AvisoComprobante(),
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.md),
               PrimaryButton(
                 label: vm.bloqueado
                     ? 'Pagar ${Formato.moneda(_montoIngresado)} y reactivar'
@@ -378,6 +356,25 @@ class _PagoSheetState extends State<_PagoSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Rótulo de sección del formulario de pago.
+class _Etiqueta extends StatelessWidget {
+  const _Etiqueta(this.texto);
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      texto,
+      style: const TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+        color: AppColors.inkMuted,
+        letterSpacing: 0.4,
       ),
     );
   }
@@ -403,7 +400,12 @@ class _OrigenChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        // Icono y texto en fila: la versión apilada gastaba el doble de alto
+        // para decir lo mismo.
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.sm,
+        ),
         decoration: BoxDecoration(
           color: seleccionado ? AppColors.primarySurface : AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -412,19 +414,24 @@ class _OrigenChip extends StatelessWidget {
             width: seleccionado ? 1.6 : 1,
           ),
         ),
-        child: Column(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icono,
+              size: 18,
               color: seleccionado ? AppColors.primary : AppColors.inkMuted,
             ),
-            const SizedBox(height: 4),
-            Text(
-              titulo,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: seleccionado ? AppColors.primary : AppColors.ink,
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                titulo,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: seleccionado ? AppColors.primary : AppColors.ink,
+                ),
               ),
             ),
           ],
@@ -442,7 +449,7 @@ class _AvisoComprobante extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.accentSurface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -450,14 +457,13 @@ class _AvisoComprobante extends StatelessWidget {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.receipt_long_outlined, size: 18, color: AppColors.accent),
+          Icon(Icons.receipt_long_outlined, size: 16, color: AppColors.accent),
           SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Después de registrar el pago te pediremos la foto del '
-              'comprobante. Con ella lo confirmamos el mismo día; sin ella hay '
-              'que rastrear la transferencia a mano.',
-              style: TextStyle(fontSize: 12.5, height: 1.35),
+              'Al terminar te pedimos la foto del comprobante: con ella '
+              'confirmamos el mismo día.',
+              style: TextStyle(fontSize: 12, height: 1.3),
             ),
           ),
         ],
@@ -1010,13 +1016,18 @@ class _DestinoPago extends StatelessWidget {
         ? titularRaw!.trim()
         : null;
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.primarySurface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Icon(
             Icons.south_east_rounded,
@@ -1041,7 +1052,7 @@ class _DestinoPago extends StatelessWidget {
                         destino!,
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 17,
+                          fontSize: 16,
                         ),
                       ),
                       // El titular va con el mismo peso que el número: es lo
@@ -1051,7 +1062,7 @@ class _DestinoPago extends StatelessWidget {
                         titular ?? 'Titular sin configurar',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 17,
+                          fontSize: 16,
                           color: titular == null
                               ? AppColors.danger
                               : AppColors.ink,
@@ -1133,7 +1144,7 @@ class _MedioChip extends StatelessWidget {
       onTap: () => vm.seleccionarMedio(medio),
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         decoration: BoxDecoration(
           color: sel ? AppColors.primarySurface : AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -1146,23 +1157,33 @@ class _MedioChip extends StatelessWidget {
           children: [
             // Alto uniforme para ambos logos, sin recorte (BoxFit.contain).
             SizedBox(
-              height: 40,
+              height: 30,
               child: Image.asset(_logoMedio(medio), fit: BoxFit.contain),
             ),
-            const SizedBox(height: 6),
-            Text(
-              medio.label,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            if (sel)
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: Icon(
-                  Icons.check_circle,
-                  size: 16,
-                  color: AppColors.primary,
+            const SizedBox(height: 4),
+            // El check va en la misma línea que el nombre: como tercera fila se
+            // llevaba 18dp por chip para repetir lo que ya dice el borde.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  medio.label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: sel ? AppColors.primary : AppColors.ink,
+                  ),
                 ),
-              ),
+                if (sel) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

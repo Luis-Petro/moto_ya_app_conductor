@@ -53,54 +53,82 @@ class _InicioView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<InicioViewModel>();
+    // Los avisos (revisión, foto, pedido activo, oferta) son transitorios pero
+    // empujan: con alguno en pantalla el mapa ya no puede quedarse con "lo que
+    // sobre" —sobraría casi nada— y pasa a un alto fijo con scroll.
+    final hayAvisos =
+        vm.enRevision ||
+        vm.rechazado ||
+        !vm.tieneFotoPerfil ||
+        vm.pedidoActivo != null ||
+        vm.ofertaActual != null;
     return Scaffold(
       body: SafeArea(
         child: vm.cargando
             ? const SkeletonInicio()
-            // El mapa de zonas se dimensiona contra el alto real disponible (no
-            // un valor fijo): es la pantalla donde el conductor decide dónde
-            // pararse. Sigue dentro del ListView para no perder el gesto de
-            // refrescar ni desbordar cuando hay banners de revisión/oferta.
-            : LayoutBuilder(
-                builder: (context, constraints) => RefreshIndicator(
-                  onRefresh: vm.refrescar,
-                  child: ListView(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    children: [
-                      _Header(vm: vm),
-                      const SizedBox(height: AppSpacing.md),
-                      // Aviso de versión nueva (descartable, nunca bloquea).
-                      const BannerVersion(),
-                      if (vm.enRevision || vm.rechazado) ...[
-                        _RevisionBanner(vm: vm),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                      if (!vm.tieneFotoPerfil) ...[
-                        const _FotoPerfilBanner(),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                      if (vm.pedidoActivo != null) ...[
-                        _ActivoBanner(vm: vm),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                      if (vm.ofertaActual != null &&
-                          vm.pedidoActivo == null) ...[
-                        _OfertaBanner(vm: vm),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                      _ToggleEnLinea(vm: vm),
-                      const SizedBox(height: AppSpacing.lg),
-                      _Ganancias(vm: vm),
-                      const SizedBox(height: AppSpacing.lg),
-                      _ZonasDemanda(
-                        vm: vm,
-                        alturaMapa: (constraints.maxHeight * 0.55).clamp(
-                          220,
-                          520,
-                        ),
+            : RefreshIndicator(
+                onRefresh: vm.refrescar,
+                child: CustomScrollView(
+                  // Con el contenido justo la lista no scrollea sola; esto
+                  // conserva el gesto de arrastrar para refrescar.
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        0,
                       ),
-                    ],
-                  ),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _Header(vm: vm),
+                          const SizedBox(height: AppSpacing.md),
+                          // Aviso de versión nueva (descartable, nunca bloquea).
+                          const BannerVersion(),
+                          if (vm.enRevision || vm.rechazado) ...[
+                            _RevisionBanner(vm: vm),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          if (!vm.tieneFotoPerfil) ...[
+                            const _FotoPerfilBanner(),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          if (vm.pedidoActivo != null) ...[
+                            _ActivoBanner(vm: vm),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          if (vm.ofertaActual != null &&
+                              vm.pedidoActivo == null) ...[
+                            _OfertaBanner(vm: vm),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          _ToggleEnLinea(vm: vm),
+                          const SizedBox(height: AppSpacing.md),
+                          _Ganancias(vm: vm),
+                        ]),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                      ),
+                      // Sin avisos el mapa ocupa exactamente el alto que queda:
+                      // se ve entero, con su leyenda, sin hacer scroll. Es la
+                      // pantalla donde el conductor decide dónde pararse.
+                      sliver: hayAvisos
+                          ? SliverToBoxAdapter(
+                              child: _ZonasDemanda(vm: vm, alturaMapa: 260),
+                            )
+                          : SliverFillRemaining(
+                              hasScrollBody: true,
+                              child: _ZonasDemanda(vm: vm),
+                            ),
+                    ),
+                  ],
                 ),
               ),
       ),
@@ -623,25 +651,25 @@ class _Ganancias extends StatelessWidget {
     final m = vm.minutosEnLinea % 60;
     final tiempo = h > 0 ? '${h}h ${m}m' : '${m}m';
     final acept = vm.tasaAceptacion;
+    // Tarjeta compacta a propósito: cada píxel que se ahorra aquí se lo lleva
+    // el mapa de zonas, que es lo que se estaba quedando fuera de pantalla.
     return MotoCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Ganancias de hoy',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
           ),
-          const SizedBox(height: 2),
           Text(
             Formato.moneda(vm.gananciasHoy),
             style: const TextStyle(
-              fontSize: 30,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
               color: AppColors.ink,
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(),
           const SizedBox(height: AppSpacing.sm),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -689,24 +717,93 @@ class _Metrica extends StatelessWidget {
 /// ahora se dice; no se pinta un mapa inventado sobre el que alguien podría
 /// decidir dónde pararse a esperar.
 class _ZonasDemanda extends StatelessWidget {
-  const _ZonasDemanda({required this.vm, required this.alturaMapa});
+  const _ZonasDemanda({required this.vm, this.alturaMapa});
   final InicioViewModel vm;
 
-  /// Alto del mapa, calculado por la pantalla contra el espacio disponible.
-  final double alturaMapa;
+  /// Alto del mapa. `null` = toma todo el espacio que le quede a la pantalla
+  /// (el caso normal, sin avisos arriba); un valor fijo cuando hay avisos y el
+  /// contenido ya excede la pantalla.
+  final double? alturaMapa;
 
   @override
   Widget build(BuildContext context) {
     final d = vm.demanda;
+    final mapa = d == null
+        ? const SizedBox.shrink()
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCameraFit: CameraFit.bounds(
+                        bounds: LatLngBounds.fromPoints([
+                          for (final c in d.celdas) c.centro,
+                          if (vm.ubicacion != null) vm.ubicacion!,
+                        ]),
+                        padding: const EdgeInsets.all(28),
+                      ),
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                      ),
+                    ),
+                    children: [
+                      osmTileLayer(),
+                      CircleLayer(
+                        circles: [
+                          for (final c in d.celdas)
+                            CircleMarker(
+                              point: c.centro,
+                              // ~media celda de la rejilla del backend (0.005°).
+                              radius: 280,
+                              useRadiusInMeter: true,
+                              color: _color(c.nivel).withValues(alpha: 0.18),
+                              borderColor: _color(
+                                c.nivel,
+                              ).withValues(alpha: 0.35),
+                              borderStrokeWidth: 1,
+                            ),
+                        ],
+                      ),
+                      if (vm.ubicacion != null)
+                        MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
+                      osmAttribution(),
+                    ],
+                  ),
+                ),
+                // La leyenda va encima del mapa, no debajo: como fila aparte se
+                // llevaba una línea entera de la pantalla y era justo la que
+                // quedaba cortada.
+                const Positioned(
+                  left: AppSpacing.sm,
+                  top: AppSpacing.sm,
+                  child: _Leyenda(),
+                ),
+              ],
+            ),
+          );
     return Column(
+      mainAxisSize: alturaMapa == null ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Expanded(
+            const Text(
+              'Dónde están pidiendo',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
               child: Text(
-                'Dónde están pidiendo',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                d != null && d.tieneDatos
+                    ? '${d.totalPedidos} pedidos · ${Formato.hora(d.actualizadoEn)}'
+                    : 'Últimas horas',
+                style: const TextStyle(
+                  color: AppColors.inkMuted,
+                  fontSize: 12.5,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (vm.cargandoDemanda)
@@ -716,14 +813,6 @@ class _ZonasDemanda extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
           ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          d != null && d.tieneDatos
-              ? '${d.totalPedidos} pedidos en las últimas ${d.periodoHoras} h · '
-                    'actualizado ${Formato.hora(d.actualizadoEn)}'
-              : 'Zonas de recogida de los pedidos recientes de tu municipio.',
-          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
         ),
         const SizedBox(height: AppSpacing.sm),
         if (d == null && !vm.cargandoDemanda)
@@ -739,57 +828,10 @@ class _ZonasDemanda extends StatelessWidget {
                 'Aún no hay suficientes pedidos recientes por aquí para '
                 'señalar zonas. Cuando los haya, aparecen en el mapa.',
           )
-        else if (d != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-            child: SizedBox(
-              height: alturaMapa,
-              child: FlutterMap(
-                options: MapOptions(
-                  initialCameraFit: CameraFit.bounds(
-                    bounds: LatLngBounds.fromPoints([
-                      for (final c in d.celdas) c.centro,
-                      if (vm.ubicacion != null) vm.ubicacion!,
-                    ]),
-                    padding: const EdgeInsets.all(28),
-                  ),
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-                  ),
-                ),
-                children: [
-                  osmTileLayer(),
-                  CircleLayer(
-                    circles: [
-                      for (final c in d.celdas)
-                        CircleMarker(
-                          point: c.centro,
-                          // ~media celda de la rejilla del backend (0.005°).
-                          radius: 280,
-                          useRadiusInMeter: true,
-                          color: _color(c.nivel).withValues(alpha: 0.18),
-                          borderColor: _color(c.nivel).withValues(alpha: 0.35),
-                          borderStrokeWidth: 1,
-                        ),
-                    ],
-                  ),
-                  if (vm.ubicacion != null)
-                    MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
-                  osmAttribution(),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              for (final n in NivelDemanda.values) ...[
-                _PuntoLeyenda(color: _color(n), label: n.label),
-                const SizedBox(width: AppSpacing.md),
-              ],
-            ],
-          ),
-        ],
+        else if (d != null)
+          alturaMapa == null
+              ? Expanded(child: mapa)
+              : SizedBox(height: alturaMapa, child: mapa),
       ],
     );
   }
@@ -799,6 +841,36 @@ class _ZonasDemanda extends StatelessWidget {
     NivelDemanda.media => AppColors.warning,
     NivelDemanda.baja => AppColors.success,
   };
+}
+
+/// Leyenda de niveles, en una pastilla sobre el mapa.
+class _Leyenda extends StatelessWidget {
+  const _Leyenda();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final n in NivelDemanda.values) ...[
+            if (n != NivelDemanda.values.first)
+              const SizedBox(width: AppSpacing.sm),
+            _PuntoLeyenda(color: _ZonasDemanda._color(n), label: n.label),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _PuntoLeyenda extends StatelessWidget {

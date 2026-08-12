@@ -227,6 +227,14 @@ class InicioViewModel extends ChangeNotifier {
     pedidosHoy = cuenta;
   }
 
+  /// ¿Hay que explicarle el uso de la ubicación antes de pedirle el permiso?
+  ///
+  /// Las tiendas exigen que la explicación de qué se comparte, cuándo y para qué
+  /// aparezca **antes** del diálogo del sistema, y no vale ponerla solo en la ficha
+  /// de la tienda. Devuelve `true` cuando el permiso todavía no está concedido.
+  Future<bool> necesitaExplicarUbicacion() async =>
+      !await _permisos.ubicacionYaConcedida();
+
   /// Alterna el estado en línea. Ponerse en línea EXIGE ubicación y
   /// notificaciones activas (se solicitan si faltan); apagarse nunca las exige.
   /// Devuelve el desenlace para que la UI muestre el aviso correspondiente.

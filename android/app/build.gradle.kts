@@ -1,4 +1,6 @@
-﻿plugins {
+import java.util.Properties
+
+plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -13,10 +15,27 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// Claves de firma para el release. Viven FUERA del repo (android/key.properties,
+// ignorado por git); en CI se materializa el archivo desde secrets. Sin ellas el
+// release se firma con la clave de debug, que sirve para `flutter run --release`
+// pero Google Play rechaza: ver el aviso en buildTypes.
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) {
+        f.inputStream().use { load(it) }
+    }
+}
+val hayFirmaRelease = keystoreProperties.getProperty("storeFile") != null
+
 android {
-    namespace = "co.motoya.app_cliente"
-    compileSdk = flutter.compileSdkVersion
-    // NDK fijado (= flutter.ndkVersion en Flutter 3.32) para que el cachÃ© de CI
+    // Esta es la app del conductor: antes el namespace decía app_cliente, así que
+    // BuildConfig, la clase R y cualquier traza salían con la identidad equivocada.
+    namespace = "co.motoya.conductor"
+    // API 36 explícito: desde el 31-ago-2026 Google Play no acepta apps nuevas ni
+    // actualizaciones que apunten por debajo. No se deja en flutter.compileSdkVersion
+    // para que subir de Flutter no mueva el target sin que nos enteremos.
+    compileSdk = 36
+    // NDK fijado (= flutter.ndkVersion en Flutter 3.32) para que el caché de CI
     // tenga una clave estable y no lo reinstale en cada corrida.
     ndkVersion = "26.3.11579264"
 
@@ -30,22 +49,42 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "co.motoya.conductor"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         // minSdk 23: requerido por firebase_messaging, geolocator y flutter_secure_storage.
         minSdk = maxOf(flutter.minSdkVersion, 23)
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
+        // El versionCode lo puede sobreescribir el CI (--build-number) porque Play
+        // exige uno mayor en cada subida; el versionName sigue saliendo del
+        // pubspec, que es donde se declara la versión a mano.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hayFirmaRelease) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hayFirmaRelease) {
+                signingConfigs.getByName("release")
+            } else {
+                // Sin key.properties se firma con debug para que el release local
+                // arranque. Un artefacto así NO se puede subir a Play (lo rechaza
+                // por estar firmado en modo debug); el aviso de abajo lo recuerda.
+                logger.warn(
+                    "⚠️  android/key.properties no existe: el release se firmará con la " +
+                        "clave de debug y Google Play lo rechazará. Solo sirve para pruebas locales."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
@@ -53,4 +92,3 @@ android {
 flutter {
     source = "../.."
 }
-

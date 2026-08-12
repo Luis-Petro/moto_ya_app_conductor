@@ -52,4 +52,14 @@ class UsuarioService {
     return _api.post<Usuario>('/usuarios/me/telefono/verificar',
         body: {'codigo': codigo}, parse: ApiMappers.usuario);
   }
+
+  /// Baja de la propia cuenta.
+  ///
+  /// El backend anonimiza los datos personales, borra los documentos y cierra el
+  /// acceso; conserva el histórico de pedidos y comisiones porque involucra a la
+  /// otra parte. Responde **409** con el motivo si hay un pedido en curso o deuda
+  /// pendiente, y ese mensaje se le muestra al conductor tal cual.
+  Future<Result<void>> eliminarCuenta() {
+    return _api.delete<void>('/usuarios/me');
+  }
 }

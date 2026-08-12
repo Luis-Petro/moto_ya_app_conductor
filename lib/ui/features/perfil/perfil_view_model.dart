@@ -175,6 +175,29 @@ class PerfilViewModel extends ChangeNotifier {
     _usuarios.limpiar();
   }
 
+  bool eliminandoCuenta = false;
+
+  /// Da de baja la cuenta y cierra la sesión. Devuelve `null` si salió bien, o el
+  /// motivo si el backend lo rechazó —pedido en curso o deuda pendiente—, para
+  /// mostrarlo tal cual: el mensaje del servidor explica qué hacer.
+  Future<String?> eliminarCuenta() async {
+    eliminandoCuenta = true;
+    notifyListeners();
+    final res = await _usuarios.eliminarCuenta();
+    final error = res.when(ok: (_) => null, err: (f) => f.message);
+    if (error == null) {
+      // El backend ya lo dejó fuera de línea al eliminarlo, así que aquí basta con
+      // soltar la sesión y las cachés.
+      await _auth.cerrarSesion();
+      _conductores.limpiar();
+      _usuarios.limpiar();
+      return null;
+    }
+    eliminandoCuenta = false;
+    notifyListeners();
+    return error;
+  }
+
   @override
   void dispose() {
     _tab.removeListener(_onTabActiva);

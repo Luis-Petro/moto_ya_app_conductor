@@ -1,4 +1,4 @@
-package co.motoya.app_cliente
+package co.motoya.conductor
 
 import android.app.Application
 import android.app.NotificationChannel

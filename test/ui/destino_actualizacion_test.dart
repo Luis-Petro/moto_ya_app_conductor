@@ -4,45 +4,36 @@ import 'package:app_conductor/ui/core/widgets/banner_version.dart';
 
 void main() {
   group('destinoActualizacion', () {
-    test('en Android prefiere Google Play sobre el APK', () {
+    test('en Android manda a Google Play', () {
       final d = destinoActualizacion(
         plataforma: TargetPlatform.android,
         playStoreUrl: 'https://play.google.com/store/apps/details?id=x',
-        archivoUrl: 'https://r2/app.apk',
+        appStoreUrl: 'https://apps.apple.com/co/app/motoya/id1',
       );
 
       expect(d!.url, startsWith('https://play.google.com/'));
       expect(d.icono, Icons.shop);
     });
 
-    test('en Android sin Play cae al APK', () {
-      final d = destinoActualizacion(
-        plataforma: TargetPlatform.android,
-        archivoUrl: 'https://r2/app.apk',
-      );
-
-      expect(d!.url, 'https://r2/app.apk');
-      expect(d.etiqueta, 'Descargar ahora');
-    });
-
-    test('en iOS usa el App Store', () {
+    test('en iOS manda al App Store', () {
       final d = destinoActualizacion(
         plataforma: TargetPlatform.iOS,
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=x',
         appStoreUrl: 'https://apps.apple.com/co/app/motoya/id1',
       );
 
-      expect(d!.icono, Icons.apple);
+      expect(d!.url, startsWith('https://apps.apple.com/'));
+      expect(d.icono, Icons.apple);
     });
 
-    test('en iOS nunca ofrece el APK', () {
+    test('sin enlace de su plataforma no hay boton', () {
+      // Publicada en Play pero no en la App Store: en iPhone no se ofrece nada.
+      // Un boton que no lleva a ninguna parte es peor que no tener boton.
       final d = destinoActualizacion(
         plataforma: TargetPlatform.iOS,
-        playStoreUrl: 'https://play.google.com/x',
-        archivoUrl: 'https://r2/app.apk',
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=x',
       );
 
-      // Un .apk no se instala en un iPhone: mejor sin boton que con un boton
-      // que lleva a una descarga inservible.
       expect(d, isNull);
     });
 
@@ -50,7 +41,6 @@ void main() {
       final d = destinoActualizacion(
         plataforma: TargetPlatform.android,
         playStoreUrl: '   ',
-        archivoUrl: '',
       );
 
       expect(d, isNull);

@@ -1,0 +1,19 @@
+# Plantilla de la firma de release. Copiar a android/key.properties (ignorado por
+# git) y rellenar. Sin este archivo el release se firma con la clave de debug y
+# Google Play lo rechaza.
+#
+# Generar la clave de subida una sola vez y guardarla donde no se pierda: si se
+# pierde, hay que pedirle a Google el reseteo de la clave de subida.
+#
+#   keytool -genkey -v -keystore motoya-conductor-upload.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Cada app necesita su propia clave: son dos fichas distintas en Play.
+#
+# En GitHub Actions no se sube el .jks: se guarda en base64 como secret
+# (ANDROID_KEYSTORE_BASE64) y el workflow reconstruye ambos archivos.
+
+storeFile=/ruta/absoluta/a/motoya-conductor-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

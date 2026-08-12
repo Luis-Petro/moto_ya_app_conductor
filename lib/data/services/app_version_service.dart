@@ -3,24 +3,26 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../ui/core/format/version.dart';
 import 'api_client.dart';
 
-/// Release vigente publicada desde el panel admin.
+/// Versión publicada en la tienda, declarada por el admin desde el panel.
 ///
-/// La versión sale de la release; los enlaces de tienda salen de la
-/// configuración del panel y pueden venir vacíos (todavía no publicada ahí).
+/// El backend solo devuelve las versiones de tienda: los APK que el CI sube al
+/// panel son para pruebas internas y no llegan aquí, así que sus notas —que
+/// llevan el commit y el número de build— nunca pueden acabar en pantalla.
+///
+/// Los enlaces de tienda pueden venir vacíos si esa app todavía no está publicada
+/// en esa plataforma. No hay enlace a APK a propósito: ver `banner_version.dart`.
 class VersionVigente {
   const VersionVigente({
     required this.version,
     this.notas,
-    this.archivoUrl,
     this.playStoreUrl,
     this.appStoreUrl,
   });
 
   final String version;
-  final String? notas;
 
-  /// APK directo. `null` si la versión se publicó solo en las tiendas.
-  final String? archivoUrl;
+  /// Novedades escritas por el admin **para los usuarios**.
+  final String? notas;
   final String? playStoreUrl;
   final String? appStoreUrl;
 }
@@ -55,7 +57,6 @@ class AppVersionService {
     return VersionVigente(
       version: remota,
       notas: data['notas'] as String?,
-      archivoUrl: data['archivoUrl'] as String?,
       playStoreUrl: data['playStoreUrl'] as String?,
       appStoreUrl: data['appStoreUrl'] as String?,
     );

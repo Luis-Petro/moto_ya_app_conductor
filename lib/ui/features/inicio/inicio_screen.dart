@@ -398,11 +398,51 @@ class _ToggleEnLinea extends StatelessWidget {
 
   /// Aplica el cambio de estado y traduce el desenlace a un aviso. Ponerse en
   /// línea exige ubicación y notificaciones: si faltan, ofrece abrir Ajustes.
+  /// Divulgación destacada del uso de la ubicación, **antes** del diálogo del
+  /// sistema. Es requisito de las tiendas y tiene que decir las tres cosas:
+  /// qué se comparte, cuándo, y que sigue con la app cerrada. Devuelve `true` si
+  /// el conductor quiere continuar.
+  Future<bool> _explicarUbicacion(BuildContext context) async {
+    final continuar = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Vamos a usar tu ubicación'),
+        content: const Text(
+          'Mientras estés EN LÍNEA, motoYa comparte tu ubicación con la plataforma '
+          'para asignarte los pedidos que tengas cerca y para que el cliente pueda '
+          'seguir su domicilio.\n\n'
+          'Esto sigue funcionando con la app minimizada o la pantalla apagada, y en '
+          'ese caso verás una notificación permanente que te lo recuerda.\n\n'
+          'Al ponerte fuera de línea deja de compartirse.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ahora no'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+    return continuar == true;
+  }
+
   Future<void> _alternar(
     BuildContext context,
     InicioViewModel vm,
     bool valor,
   ) async {
+    // Ponerse en línea es lo que dispara la petición de ubicación: si aún no está
+    // concedida, primero se explica para qué.
+    if (valor && await vm.necesitaExplicarUbicacion()) {
+      if (!context.mounted) return;
+      if (!await _explicarUbicacion(context)) return;
+      if (!context.mounted) return;
+    }
     final r = await vm.alternarEnLinea(valor);
     if (!context.mounted) return;
     switch (r) {

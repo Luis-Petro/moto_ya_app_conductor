@@ -59,5 +59,13 @@ class UsuarioRepository {
     return res;
   }
 
+  /// Baja de la cuenta. Al aceptar limpia la caché: el perfil que quedaba en
+  /// memoria ya no corresponde a ninguna cuenta viva.
+  Future<Result<void>> eliminarCuenta() async {
+    final res = await _service.eliminarCuenta();
+    if (res.isSuccess) limpiar();
+    return res;
+  }
+
   void limpiar() => _cache = null;
 }

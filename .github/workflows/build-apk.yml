@@ -69,8 +69,40 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+      # Firma de release. Sin los secrets el build sigue (firmado con la clave de
+      # debug) y solo sirve para instalar a mano: el .aab de Play necesita la clave
+      # de subida de verdad. Se avisa en el log para que no pase inadvertido.
+      - name: Preparar la firma de release
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::Sin ANDROID_KEYSTORE_BASE64: el release se firmará con la clave de debug y Google Play lo rechazará."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/upload.jks
+          cat > android/key.properties <<EOF
+          storeFile=$(pwd)/android/upload.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          echo "Firma de release lista."
+
+      # El versionCode sale del número de build: Play exige uno estrictamente mayor
+      # en cada subida y no se puede reutilizar. El versionName sigue saliendo del
+      # pubspec, que es donde se declara la versión a mano.
+      - name: Build release APK y App Bundle
+        run: |
+          flutter build apk --release \
+            --build-number=${{ github.run_number }} \
+            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+          flutter build appbundle --release \
+            --build-number=${{ github.run_number }} \
+            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -79,6 +111,16 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      # El .aab es lo que se sube a Play (a mano la primera vez: una ficha nueva no
+      # acepta la primera subida por API).
+      - name: Upload App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motoya-conductor-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
 
       # Publica el APK en el panel admin (sube a R2 vía /admin/releases).
       # Requiere los secrets ADMIN_EMAIL y ADMIN_PASSWORD (usuario ADMINISTRADOR)

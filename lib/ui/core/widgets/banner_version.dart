@@ -20,55 +20,41 @@ class DestinoActualizacion {
   final IconData icono;
 }
 
-/// Elige el destino de actualización según la plataforma.
+/// Elige la tienda a la que manda el botón, según la plataforma.
 ///
-/// En iOS **no** hay respaldo al APK: un `.apk` no se instala en un iPhone, así
-/// que sin enlace de App Store es mejor no ofrecer un botón que llevar a una
-/// descarga inútil. En Android se prefiere Google Play y el APK queda como
-/// respaldo mientras la app no esté publicada.
+/// Solo tiendas: **nunca** un APK. Por un lado, una app descargada de Google Play
+/// no puede actualizarse por otra vía que Play (es política de la tienda, y el
+/// APK del panel es solo para pruebas internas). Por otro, un `.apk` no se
+/// instala en un iPhone.
 ///
-/// Devuelve `null` cuando no hay ningún destino válido: el aviso se pinta igual
-/// (hay versión nueva), pero sin botón.
+/// Devuelve `null` cuando esa plataforma todavía no tiene enlace: el aviso se
+/// pinta igual —hay versión nueva— pero sin botón, que es más honesto que un
+/// botón que no lleva a ninguna parte.
 DestinoActualizacion? destinoActualizacion({
   required TargetPlatform plataforma,
   String? playStoreUrl,
   String? appStoreUrl,
-  String? archivoUrl,
 }) {
-  bool vacio(String? s) => s == null || s.trim().isEmpty;
-
-  if (plataforma == TargetPlatform.iOS) {
-    return vacio(appStoreUrl)
-        ? null
-        : DestinoActualizacion(
-            url: appStoreUrl!.trim(),
-            etiqueta: 'Actualizar en el App Store',
-            icono: Icons.apple,
-          );
+  final esIOS = plataforma == TargetPlatform.iOS;
+  final url = (esIOS ? appStoreUrl : playStoreUrl)?.trim();
+  if (url == null || url.isEmpty) {
+    return null;
   }
-  if (!vacio(playStoreUrl)) {
-    return DestinoActualizacion(
-      url: playStoreUrl!.trim(),
-      etiqueta: 'Actualizar en Google Play',
-      icono: Icons.shop,
-    );
-  }
-  if (!vacio(archivoUrl)) {
-    return DestinoActualizacion(
-      url: archivoUrl!.trim(),
-      etiqueta: 'Descargar ahora',
-      icono: Icons.download_rounded,
-    );
-  }
-  return null;
+  return DestinoActualizacion(
+    url: url,
+    etiqueta: esIOS ? 'Actualizar en el App Store' : 'Actualizar en Google Play',
+    icono: esIOS ? Icons.apple : Icons.shop,
+  );
 }
 
 /// Aviso de versión nueva disponible. Siempre **descartable**: no hay
 /// actualización forzada, así que nunca bloquea el uso de la app. Si la consulta
 /// falla o la versión instalada está al día, no se pinta nada.
 ///
-/// La versión la publica el admin desde el panel; los enlaces de tienda también.
-/// El botón lleva a la tienda de la plataforma y, si no hay, al APK.
+/// Compara la versión instalada con la que el admin declaró como publicada en la
+/// tienda (los APK de prueba del panel no cuentan, ver `AppVersionService`), y el
+/// botón lleva a la tienda de la plataforma. Lo que se muestra son las novedades
+/// que escribió el admin para los usuarios — nunca datos internos del build.
 class BannerVersion extends StatefulWidget {
   const BannerVersion({super.key});
 
@@ -103,7 +89,6 @@ class _BannerVersionState extends State<BannerVersion> {
       plataforma: defaultTargetPlatform,
       playStoreUrl: nueva.playStoreUrl,
       appStoreUrl: nueva.appStoreUrl,
-      archivoUrl: nueva.archivoUrl,
     );
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),

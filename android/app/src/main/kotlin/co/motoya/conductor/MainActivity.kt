@@ -1,4 +1,4 @@
-package co.motoya.app_cliente
+package co.motoya.conductor
 
 import io.flutter.embedding.android.FlutterActivity
 

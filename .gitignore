@@ -49,3 +49,10 @@ android/build/
 **/build/
 
 # (logo vive en assets/images/)
+
+# Firma de release: NUNCA en el repo
+# La clave de subida es lo unico que prueba que un .aab lo publicamos nosotros.
+# Si se filtra hay que revocarla en Play Console y volver a firmar todo.
+android/key.properties
+*.jks
+*.keystore

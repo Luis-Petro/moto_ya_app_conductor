@@ -388,6 +388,41 @@ class _PerfilViewState extends State<_PerfilView> {
     if (salir == true) await vm.cerrarSesion();
   }
 
+  /// Baja de cuenta. El diálogo dice qué se borra y qué se conserva, porque es
+  /// irreversible; y menciona la deuda, que es el motivo más probable de rechazo.
+  Future<void> _confirmarEliminarCuenta(PerfilViewModel vm) async {
+    final eliminar = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar mi cuenta'),
+        content: const Text(
+          'Se borran tu nombre, correo, celular, cédula, tu foto y tus documentos '
+          '(cédula, tarjeta de propiedad, selfie y foto de la moto). Tu historial de '
+          'pedidos y de comisiones se conserva sin tus datos, porque son cuentas '
+          'compartidas con la plataforma y con tus clientes.\n\n'
+          'No se puede deshacer, y necesitas estar al día con tus comisiones.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (eliminar != true) return;
+    final error = await vm.eliminarCuenta();
+    // Si salió bien, el router ya se llevó al conductor fuera (sesión cerrada);
+    // solo queda contar el motivo cuando el backend lo rechaza.
+    if (error != null && mounted) _aviso(error);
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<PerfilViewModel>();
@@ -585,6 +620,21 @@ class _PerfilViewState extends State<_PerfilView> {
                               color: AppColors.danger),
                           label: const Text('Cerrar sesión',
                               style: TextStyle(color: AppColors.danger)),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        // Requisito de las tiendas: quien crea una cuenta tiene
+                        // que poder borrarla desde la app, sin escribirle a nadie.
+                        TextButton(
+                          onPressed: vm.eliminandoCuenta
+                              ? null
+                              : () => _confirmarEliminarCuenta(vm),
+                          child: Text(
+                            vm.eliminandoCuenta
+                                ? 'Eliminando…'
+                                : 'Eliminar mi cuenta',
+                            style: const TextStyle(
+                                color: AppColors.inkMuted, fontSize: 13),
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         const Center(

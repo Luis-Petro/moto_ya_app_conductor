@@ -35,6 +35,17 @@ class PermisosService {
     );
   }
 
+  /// ¿Ya está concedido el permiso de ubicación? **No lo solicita.**
+  ///
+  /// Lo usa la pantalla para saber si tiene que explicar antes qué se va a
+  /// compartir: las tiendas exigen que esa explicación aparezca *antes* del
+  /// diálogo del sistema, y consultarlo con `asegurarParaOperar` lo dispararía.
+  Future<bool> ubicacionYaConcedida() async {
+    final permiso = await Geolocator.checkPermission();
+    return permiso == LocationPermission.always ||
+        permiso == LocationPermission.whileInUse;
+  }
+
   Future<PermisoUbicacion> _asegurarUbicacion() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       return PermisoUbicacion.servicioApagado;

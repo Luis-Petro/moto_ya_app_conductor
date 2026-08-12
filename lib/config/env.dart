@@ -2,16 +2,16 @@
 /// tiempo de compilación con `--dart-define` y nunca se hardcodean en la UI.
 ///
 /// Ejemplo:
-///   flutter run --dart-define=API_BASE_URL=https://api.motoya.co/Api \
+///   flutter run --dart-define=API_BASE_URL=https://api.zumbeo.com/Api \
 ///               --dart-define=OSM_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
 class Env {
   const Env._();
 
   /// Host del backend desplegado (Dokploy). Sobreescribible por entorno.
   static const String _defaultHost =
-      'https://motoya-motoyabackend-bnisvv-62ac9d-149-130-180-30.sslip.io';
+      'https://api.zumbeo.com';
 
-  /// Base de la API del backend motoYa (context-path `/Api`).
+  /// Base de la API del backend Zumbeo (context-path `/Api`).
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '$_defaultHost/Api',

@@ -1,21 +1,40 @@
 {
   "project_info": {
-    "project_number": "12348624682",
-    "project_id": "moto-ya-85b42",
-    "storage_bucket": "moto-ya-85b42.firebasestorage.app"
+    "project_number": "775887932405",
+    "project_id": "zumbeo-2a176",
+    "storage_bucket": "zumbeo-2a176.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:12348624682:android:7f66c146192053b2945853",
+        "mobilesdk_app_id": "1:775887932405:android:85a1fcea372de2d9e62ebc",
         "android_client_info": {
-          "package_name": "co.motoya.conductor"
+          "package_name": "com.zumbeo.cliente"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDsVxGSB6zCsyGXPpXrS2zxPOQ7tkOULYA"
+          "current_key": "AIzaSyAD-hoJurfVz1WxK6hP2Vx-h6iMh9HmzlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:775887932405:android:7768a061cef056afe62ebc",
+        "android_client_info": {
+          "package_name": "com.zumbeo.conductor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD-hoJurfVz1WxK6hP2Vx-h6iMh9HmzlE"
         }
       ],
       "services": {

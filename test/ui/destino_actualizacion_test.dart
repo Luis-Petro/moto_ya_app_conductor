@@ -8,7 +8,7 @@ void main() {
       final d = destinoActualizacion(
         plataforma: TargetPlatform.android,
         playStoreUrl: 'https://play.google.com/store/apps/details?id=x',
-        appStoreUrl: 'https://apps.apple.com/co/app/motoya/id1',
+        appStoreUrl: 'https://apps.apple.com/co/app/zumbeo/id1',
       );
 
       expect(d!.url, startsWith('https://play.google.com/'));
@@ -19,7 +19,7 @@ void main() {
       final d = destinoActualizacion(
         plataforma: TargetPlatform.iOS,
         playStoreUrl: 'https://play.google.com/store/apps/details?id=x',
-        appStoreUrl: 'https://apps.apple.com/co/app/motoya/id1',
+        appStoreUrl: 'https://apps.apple.com/co/app/zumbeo/id1',
       );
 
       expect(d!.url, startsWith('https://apps.apple.com/'));

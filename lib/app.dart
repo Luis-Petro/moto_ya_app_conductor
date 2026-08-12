@@ -9,16 +9,16 @@ import 'di/locator.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/router.dart';
 
-/// Raíz de la app motoYa Conductor. Configura tema, localización en español,
+/// Raíz de la app Zumbeo Conductor. Configura tema, localización en español,
 /// router con guardas y la navegación por notificaciones push.
-class MotoYaConductorApp extends StatefulWidget {
-  const MotoYaConductorApp({super.key});
+class ZumbeoConductorApp extends StatefulWidget {
+  const ZumbeoConductorApp({super.key});
 
   @override
-  State<MotoYaConductorApp> createState() => _MotoYaConductorAppState();
+  State<ZumbeoConductorApp> createState() => _ZumbeoConductorAppState();
 }
 
-class _MotoYaConductorAppState extends State<MotoYaConductorApp> {
+class _ZumbeoConductorAppState extends State<ZumbeoConductorApp> {
   late final AuthRepository _auth = locator<AuthRepository>();
   late final GoRouter _router = crearRouter(_auth);
 
@@ -73,7 +73,7 @@ class _MotoYaConductorAppState extends State<MotoYaConductorApp> {
     return ChangeNotifierProvider<AuthRepository>.value(
       value: _auth,
       child: MaterialApp.router(
-        title: 'motoYa Conductor',
+        title: 'Zumbeo Conductor',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         routerConfig: _router,

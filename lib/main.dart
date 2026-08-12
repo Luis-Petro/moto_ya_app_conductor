@@ -18,5 +18,5 @@ Future<void> main() async {
   }
 
   configurarDependencias();
-  runApp(const MotoYaConductorApp());
+  runApp(const ZumbeoConductorApp());
 }

@@ -19,7 +19,7 @@ const double zoomMaximoMapa = 19;
 TileLayer osmTileLayer() {
   return TileLayer(
     urlTemplate: Env.osmTileUrl,
-    userAgentPackageName: 'co.motoya.conductor',
+    userAgentPackageName: 'com.zumbeo.conductor',
     // `maxNativeZoom`, no `maxZoom`: con `maxZoom` la capa deja de pintarse por
     // encima del valor y el mapa queda gris con los marcadores flotando.
     // `maxNativeZoom` es hasta dónde se piden tiles; más allá reescala el

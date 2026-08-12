@@ -1,5 +1,5 @@
-﻿name: app_conductor
-description: "motoYa â€” App Conductor (recibe pedidos, cobra y liquida comisiones)."
+name: app_conductor
+description: "Zumbeo â€” App Conductor (recibe pedidos, cobra y liquida comisiones)."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -72,7 +72,7 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 # Genera los iconos de Android/iOS desde la cabeza de la mascota sobre navy de
-# marca. El lockup completo (emblema + "MotoYa CONDUCTOR") no sirve de icono:
+# marca. El lockup completo (emblema + "Zumbeo CONDUCTOR") no sirve de icono:
 # a 48px el texto es una mancha y la moto de perfil se deshace.
 # Regenerar con: dart run flutter_launcher_icons
 flutter_launcher_icons:

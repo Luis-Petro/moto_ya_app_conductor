@@ -72,7 +72,7 @@ class _PieVersionState extends State<PieVersion> {
           const BetaChip(compacto: false),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            _version == null ? 'motoYa' : 'motoYa ${_version!}',
+            _version == null ? 'Zumbeo' : 'Zumbeo ${_version!}',
             style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
           ),
         ],

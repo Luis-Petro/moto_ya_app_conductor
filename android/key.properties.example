@@ -5,7 +5,7 @@
 # Generar la clave de subida una sola vez y guardarla donde no se pierda: si se
 # pierde, hay que pedirle a Google el reseteo de la clave de subida.
 #
-#   keytool -genkey -v -keystore motoya-conductor-upload.jks \
+#   keytool -genkey -v -keystore zumbeo-conductor-upload.jks \
 #     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 #
 # Cada app necesita su propia clave: son dos fichas distintas en Play.
@@ -13,7 +13,7 @@
 # En GitHub Actions no se sube el .jks: se guarda en base64 como secret
 # (ANDROID_KEYSTORE_BASE64) y el workflow reconstruye ambos archivos.
 
-storeFile=/ruta/absoluta/a/motoya-conductor-upload.jks
+storeFile=/ruta/absoluta/a/zumbeo-conductor-upload.jks
 storePassword=
 keyAlias=upload
 keyPassword=

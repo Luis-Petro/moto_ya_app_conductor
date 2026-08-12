@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// Ruta del logo de marca (lockup: moto + "MotoYa · Tu domicilio, ya.").
+/// Ruta del logo de marca (lockup: moto + "Zumbeo · Tu domicilio, ya.").
 const String kLogoAsset = 'assets/images/logo.png';
 
 /// Ruta de la mascota de marca, cuerpo completo y fondo transparente.
 const String kMascotaAsset = 'assets/images/mascota.png';
 
-/// Mascota motoYa. Es la cara de la marca en splash, login y pantallas vacías.
+/// Mascota Zumbeo. Es la cara de la marca en splash, login y pantallas vacías.
 ///
 /// Va sin el nombre horneado dentro: el wordmark se compone al lado con
 /// [BrandWordmark], que usa la fuente de la app y se lee igual en cualquier
@@ -24,7 +24,7 @@ class BrandMascota extends StatelessWidget {
       kMascotaAsset,
       height: height,
       fit: BoxFit.contain,
-      semanticLabel: 'motoYa',
+      semanticLabel: 'Zumbeo',
     );
   }
 }
@@ -41,12 +41,12 @@ class BrandLockup extends StatelessWidget {
       kLogoAsset,
       width: width,
       fit: BoxFit.contain,
-      semanticLabel: 'motoYa',
+      semanticLabel: 'Zumbeo',
     );
   }
 }
 
-/// Logo de marca motoYa (ícono de moto sobre fondo teal).
+/// Logo de marca Zumbeo (ícono de moto sobre fondo teal).
 class BrandLogo extends StatelessWidget {
   const BrandLogo({super.key, this.size = 72, this.color = AppColors.primary});
 
@@ -71,7 +71,7 @@ class BrandLogo extends StatelessWidget {
   }
 }
 
-/// Texto de marca "motoYa".
+/// Texto de marca "Zumbeo".
 class BrandWordmark extends StatelessWidget {
   const BrandWordmark({super.key, this.fontSize = 28, this.color});
 
@@ -89,9 +89,9 @@ class BrandWordmark extends StatelessWidget {
           letterSpacing: -0.5,
         ),
         children: [
-          const TextSpan(text: 'moto'),
+          const TextSpan(text: 'Zum'),
           TextSpan(
-            text: 'Ya',
+            text: 'beo',
             style: TextStyle(color: color ?? AppColors.primary),
           ),
         ],

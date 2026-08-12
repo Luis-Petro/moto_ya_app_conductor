@@ -409,7 +409,7 @@ class _ToggleEnLinea extends StatelessWidget {
       builder: (_) => AlertDialog(
         title: const Text('Vamos a usar tu ubicación'),
         content: const Text(
-          'Mientras estés EN LÍNEA, motoYa comparte tu ubicación con la plataforma '
+          'Mientras estés EN LÍNEA, Zumbeo comparte tu ubicación con la plataforma '
           'para asignarte los pedidos que tengas cerca y para que el cliente pueda '
           'seguir su domicilio.\n\n'
           'Esto sigue funcionando con la app minimizada o la pantalla apagada, y en '
@@ -474,7 +474,7 @@ class _ToggleEnLinea extends StatelessWidget {
           context,
           titulo: 'Permite la ubicación',
           mensaje:
-              'motoYa necesita tu ubicación para asignarte pedidos cercanos. '
+              'Zumbeo necesita tu ubicación para asignarte pedidos cercanos. '
               'Actívala en Ajustes para ponerte en línea.',
           onAjustes: vm.abrirConfiguracionApp,
         );

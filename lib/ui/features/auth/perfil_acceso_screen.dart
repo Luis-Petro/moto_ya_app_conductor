@@ -36,7 +36,7 @@ class _PerfilAccesoScreenState extends State<PerfilAccesoScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '¿Cómo quieres usar motoYa?',
+                '¿Cómo quieres usar Zumbeo?',
                 style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
@@ -71,7 +71,7 @@ class _PerfilAccesoScreenState extends State<PerfilAccesoScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content:
-                            Text('Para pedir, descarga la app motoYa Cliente.'),
+                            Text('Para pedir, descarga la app Zumbeo Cliente.'),
                       ),
                     );
                   }

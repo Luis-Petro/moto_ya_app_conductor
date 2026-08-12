@@ -122,7 +122,7 @@ class _LoginViewState extends State<_LoginView> {
                           style: TextStyle(
                               fontSize: 24, fontWeight: FontWeight.w800)),
                       const SizedBox(height: AppSpacing.xs),
-                      const Text('Ingresa para recibir pedidos en motoYa.',
+                      const Text('Ingresa para recibir pedidos en Zumbeo.',
                           style: TextStyle(color: AppColors.inkMuted)),
                       const SizedBox(height: AppSpacing.lg),
 

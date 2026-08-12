@@ -231,7 +231,7 @@ class _RegistroViewState extends State<_RegistroView> {
               controlAffinity: ListTileControlAffinity.leading,
               activeColor: AppColors.primary,
               title: const Text(
-                'Acepto los Términos y la Política de privacidad de motoYa.',
+                'Acepto los Términos y la Política de privacidad de Zumbeo.',
                 style: TextStyle(fontSize: 13),
               ),
             ),

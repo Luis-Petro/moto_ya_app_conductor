@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 
-/// Tema central de motoYa. Todas las pantallas leen colores y tipografía de
+/// Tema central de Zumbeo. Todas las pantallas leen colores y tipografía de
 /// aquí; no se hardcodean valores de marca por pantalla.
 class AppTheme {
   const AppTheme._();

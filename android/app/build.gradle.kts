@@ -8,9 +8,14 @@ plugins {
 }
 
 // Google Services (FCM) se aplica SOLO si existe google-services.json
-// (package_name = co.motoya.conductor). Así el build sigue funcionando sin FCM
+// (package_name = com.zumbeo.conductor). Así el build sigue funcionando sin FCM
 // —igual que el resto del proyecto, donde el push es opcional— y se activa en
 // cuanto se coloca el archivo en android/app/.
+// El archivo es el del proyecto Firebase `zumbeo-2a176` y trae los dos clientes
+// (com.zumbeo.cliente y com.zumbeo.conductor): el plugin escoge el que coincide con
+// el applicationId, así que las dos apps llevan el mismo archivo. Nunca editar el
+// package_name a mano — el mobilesdk_app_id y la api_key son por app, y un archivo
+// retocado registra los tokens contra la app equivocada sin que nada falle.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -30,7 +35,7 @@ val hayFirmaRelease = keystoreProperties.getProperty("storeFile") != null
 android {
     // Esta es la app del conductor: antes el namespace decía app_cliente, así que
     // BuildConfig, la clase R y cualquier traza salían con la identidad equivocada.
-    namespace = "co.motoya.conductor"
+    namespace = "com.zumbeo.conductor"
     // API 36 explícito: desde el 31-ago-2026 Google Play no acepta apps nuevas ni
     // actualizaciones que apunten por debajo. No se deja en flutter.compileSdkVersion
     // para que subir de Flutter no mueva el target sin que nos enteremos.
@@ -49,7 +54,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "co.motoya.conductor"
+        applicationId = "com.zumbeo.conductor"
         // minSdk 23: requerido por firebase_messaging, geolocator y flutter_secure_storage.
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = 36

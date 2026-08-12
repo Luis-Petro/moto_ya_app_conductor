@@ -1,6 +1,6 @@
-# motoYa — App Conductor
+# Zumbeo — App Conductor
 
-App móvil Flutter para el rol **CONDUCTOR** de la plataforma motoYa ("Tu pueblo, a un domicilio"). El conductor se pone en línea, recibe pedidos cercanos, acepta o contraoferta la tarifa, ejecuta la entrega paso a paso, cobra su ganancia neta y liquida la deuda de comisiones (Nequi/Bre‑B).
+App móvil Flutter para el rol **CONDUCTOR** de la plataforma Zumbeo ("Tu pueblo, a un domicilio"). El conductor se pone en línea, recibe pedidos cercanos, acepta o contraoferta la tarifa, ejecuta la entrega paso a paso, cobra su ganancia neta y liquida la deuda de comisiones (Nequi/Bre‑B).
 
 Hermana de `app_cliente/` (rol CLIENTE) y `backend/` (Spring Boot). Consume la misma API (`/Api`) sin modificarla. Comparte el sistema de diseño de `app_cliente` (paleta naranja `#F2641E` + navy `#17293D`).
 
@@ -25,7 +25,7 @@ flutter run \
   --dart-define=FCM_ENABLED=false
 ```
 
-`applicationId`: `co.motoya.conductor` (se instala junto a la app cliente). FCM está desactivado por defecto: la app arranca sin `google-services.json`.
+`applicationId`: `com.zumbeo.conductor` (se instala junto a la app cliente). FCM está desactivado por defecto: la app arranca sin `google-services.json`.
 
 ## Calidad
 

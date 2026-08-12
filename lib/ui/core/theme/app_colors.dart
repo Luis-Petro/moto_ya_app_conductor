@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Paleta de marca motoYa, alineada al logo (naranja + azul marino).
+/// Paleta de marca Zumbeo, alineada al logo (naranja + azul marino).
 class AppColors {
   const AppColors._();
 
   // Marca (naranja del logo)
-  static const Color primary = Color(0xFFF2641E); // naranja motoYa (CTAs)
+  static const Color primary = Color(0xFFF2641E); // naranja Zumbeo (CTAs)
   static const Color primaryDark = Color(0xFFC94E12);
   static const Color primaryLight = Color(0xFFF59A5E);
   static const Color primarySurface = Color(0xFFFCEDE4); // fondos suaves naranja

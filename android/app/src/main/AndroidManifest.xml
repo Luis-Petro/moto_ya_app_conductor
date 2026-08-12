@@ -22,8 +22,8 @@
     <!-- Sin usesCleartextTraffic: el backend es HTTPS y permitir texto claro en
          toda la app solo abre una via de interceptacion en redes publicas. -->
     <application
-        android:label="motoYa Conductor"
-        android:name=".MotoyaApplication"
+        android:label="Zumbeo Conductor"
+        android:name=".ZumbeoApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -48,7 +48,7 @@
             </intent-filter>
         </activity>
         <!-- Canal por defecto para las notificaciones FCM (alta importancia).
-             Debe coincidir con el canal creado en MotoyaApplication y con el
+             Debe coincidir con el canal creado en ZumbeoApplication y con el
              channelId del backend; si no, Android entrega las push como silenciosas. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"

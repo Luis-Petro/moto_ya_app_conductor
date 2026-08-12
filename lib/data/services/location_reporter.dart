@@ -71,7 +71,7 @@ class LocationReporter {
           // el GPS vivo con la app minimizada mientras el conductor está en línea.
           foregroundNotificationConfig: background
               ? const ForegroundNotificationConfig(
-                  notificationTitle: 'motoYa · en línea',
+                  notificationTitle: 'Zumbeo · en línea',
                   notificationText:
                       'Compartiendo tu ubicación para recibir pedidos cercanos.',
                   notificationChannelName: 'Ubicación en línea',

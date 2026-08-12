@@ -16,7 +16,7 @@ env:
   FLUTTER_VERSION: "3.32.0"
   NDK_VERSION: "26.3.11579264"
   # Host del backend desplegado; sobreescribible como variable del repo (vars.API_BASE_URL).
-  API_BASE_URL: ${{ vars.API_BASE_URL || 'https://motoya-motoyabackend-bnisvv-62ac9d-149-130-180-30.sslip.io/Api' }}
+  API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.zumbeo.com/Api' }}
 
 jobs:
   analyze-test:
@@ -107,7 +107,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: motoya-conductor-apk
+          name: zumbeo-conductor-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -117,7 +117,7 @@ jobs:
       - name: Upload App Bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: motoya-conductor-aab
+          name: zumbeo-conductor-aab
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 90

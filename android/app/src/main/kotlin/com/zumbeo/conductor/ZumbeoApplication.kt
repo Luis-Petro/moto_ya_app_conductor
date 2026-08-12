@@ -1,4 +1,4 @@
-package co.motoya.conductor
+package com.zumbeo.conductor
 
 import android.app.Application
 import android.app.NotificationChannel
@@ -16,7 +16,7 @@ import android.os.Build
  * importancia baja obtienen un canal nuevo en IMPORTANCE_HIGH. Además borramos
  * el canal viejo para no dejarlo huérfano en los Ajustes del sistema.
  */
-class MotoyaApplication : Application() {
+class ZumbeoApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
@@ -33,7 +33,7 @@ class MotoyaApplication : Application() {
             "Pedidos y alertas",
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Nuevos pedidos y avisos importantes de motoYa"
+            description = "Nuevos pedidos y avisos importantes de Zumbeo"
             enableVibration(true)
         }
         manager.createNotificationChannel(canal)

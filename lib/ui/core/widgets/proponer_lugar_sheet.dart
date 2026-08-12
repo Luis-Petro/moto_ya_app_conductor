@@ -27,9 +27,12 @@ Future<bool?> mostrarProponerLugar(
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => Padding(
+    builder: (contextoHoja) => Padding(
+      // El MediaQuery tiene que ser el de la hoja, no el de quien la abrió: con
+      // el context de fuera, viewInsets se queda en 0 y el teclado tapa los
+      // campos y el botón en vez de empujar la hoja hacia arriba.
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.of(contextoHoja).viewInsets.bottom,
       ),
       child: _ProponerLugarSheet(punto: punto, municipioId: municipioId),
     ),
@@ -93,12 +96,26 @@ class _ProponerLugarSheetState extends State<_ProponerLugarSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
+      // Desplazable: con el teclado abierto en un teléfono corto, el contenido
+      // no cabe y el botón de guardar tiene que seguir siendo alcanzable.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Agarradera: indica que la hoja se puede arrastrar para cerrar.
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: AppColors.line,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const Text(
               'Guardar este sitio',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),

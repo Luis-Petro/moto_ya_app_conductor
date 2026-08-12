@@ -20,6 +20,7 @@ import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/banner_version.dart';
+import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
@@ -193,6 +194,9 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        // La app está en pruebas y se dice donde se ve siempre, no escondido en
+        // un "acerca de".
+        const BetaChip(),
         // Refresco manual (además del gesto de arrastrar hacia abajo).
         IconButton(
           onPressed: vm.refrescar,
@@ -710,12 +714,15 @@ class _Metrica extends StatelessWidget {
   }
 }
 
-/// Dónde han salido pedidos en las últimas horas, con datos del backend.
+/// Dónde han salido pedidos, con datos del backend.
 ///
 /// Antes esto dibujaba tres círculos alrededor del conductor con offsets fijos:
-/// parecía información y no lo era. Si el servidor no tiene datos suficientes,
-/// ahora se dice; no se pinta un mapa inventado sobre el que alguien podría
-/// decidir dónde pararse a esperar.
+/// parecía información y no lo era. Nunca se pinta un mapa inventado sobre el
+/// que alguien podría decidir dónde pararse a esperar.
+///
+/// El backend ensancha la ventana si en las últimas horas no hubo pedidos (en un
+/// municipio de 5 pedidos al día casi nunca los hay) y devuelve cuál usó: el
+/// encabezado pinta ese periodo. Solo queda vacío si no hay ni un pedido.
 class _ZonasDemanda extends StatelessWidget {
   const _ZonasDemanda({required this.vm, this.alturaMapa});
   final InicioViewModel vm;
@@ -744,6 +751,8 @@ class _ZonasDemanda extends StatelessWidget {
                         ]),
                         padding: const EdgeInsets.all(28),
                       ),
+                      minZoom: zoomMinimoMapa,
+                      maxZoom: zoomMaximoMapa,
                       interactionOptions: const InteractionOptions(
                         flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
                       ),
@@ -797,7 +806,10 @@ class _ZonasDemanda extends StatelessWidget {
             Expanded(
               child: Text(
                 d != null && d.tieneDatos
-                    ? '${d.totalPedidos} pedidos · ${Formato.hora(d.actualizadoEn)}'
+                    // El periodo lo decide el servidor: si no hubo pedidos en
+                    // las últimas horas, ensancha la ventana. Pintarlo es lo
+                    // que evita leer lo de la semana pasada como si fuera ahora.
+                    ? '${d.totalPedidos} pedidos · ${d.periodoLabel}'
                     : 'Últimas horas',
                 style: const TextStyle(
                   color: AppColors.inkMuted,
@@ -825,8 +837,8 @@ class _ZonasDemanda extends StatelessWidget {
           const _AvisoDemanda(
             icono: Icons.query_stats_outlined,
             texto:
-                'Aún no hay suficientes pedidos recientes por aquí para '
-                'señalar zonas. Cuando los haya, aparecen en el mapa.',
+                'Todavía no hay ningún pedido registrado en tu zona. En cuanto '
+                'entre el primero, aparece en el mapa.',
           )
         else if (d != null)
           alturaMapa == null

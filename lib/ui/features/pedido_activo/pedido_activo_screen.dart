@@ -208,7 +208,12 @@ class _ActivoViewState extends State<_ActivoView> {
           SizedBox(
             height: 150,
             child: FlutterMap(
-              options: MapOptions(initialCenter: centro, initialZoom: 15),
+              options: MapOptions(
+                initialCenter: centro,
+                initialZoom: 15,
+                minZoom: zoomMinimoMapa,
+                maxZoom: zoomMaximoMapa,
+              ),
               children: [
                 osmTileLayer(),
                 MarkerLayer(

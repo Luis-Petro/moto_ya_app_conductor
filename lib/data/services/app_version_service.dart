@@ -4,12 +4,25 @@ import '../../ui/core/format/version.dart';
 import 'api_client.dart';
 
 /// Release vigente publicada desde el panel admin.
+///
+/// La versión sale de la release; los enlaces de tienda salen de la
+/// configuración del panel y pueden venir vacíos (todavía no publicada ahí).
 class VersionVigente {
-  const VersionVigente({required this.version, this.notas, this.archivoUrl});
+  const VersionVigente({
+    required this.version,
+    this.notas,
+    this.archivoUrl,
+    this.playStoreUrl,
+    this.appStoreUrl,
+  });
 
   final String version;
   final String? notas;
+
+  /// APK directo. `null` si la versión se publicó solo en las tiendas.
   final String? archivoUrl;
+  final String? playStoreUrl;
+  final String? appStoreUrl;
 }
 
 /// Compara la versión instalada con la vigente en el backend.
@@ -43,6 +56,8 @@ class AppVersionService {
       version: remota,
       notas: data['notas'] as String?,
       archivoUrl: data['archivoUrl'] as String?,
+      playStoreUrl: data['playStoreUrl'] as String?,
+      appStoreUrl: data['appStoreUrl'] as String?,
     );
   }
 }

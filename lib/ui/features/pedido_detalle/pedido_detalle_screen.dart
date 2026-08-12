@@ -100,7 +100,12 @@ class _Mapa extends StatelessWidget {
     return SizedBox(
       height: 220,
       child: FlutterMap(
-        options: MapOptions(initialCenter: centro, initialZoom: 14),
+        options: MapOptions(
+          initialCenter: centro,
+          initialZoom: 14,
+          minZoom: zoomMinimoMapa,
+          maxZoom: zoomMaximoMapa,
+        ),
         children: [
           osmTileLayer(),
           if (ruta.length >= 2)

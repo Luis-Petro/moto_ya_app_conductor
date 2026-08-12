@@ -12,6 +12,7 @@ import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/phone_field.dart';
@@ -591,6 +592,9 @@ class _PerfilViewState extends State<_PerfilView> {
                               style: TextStyle(
                                   color: AppColors.inkMuted, fontSize: 12)),
                         ),
+                        // Versión + beta: es la pantalla donde alguien mira
+                        // antes de reportar un problema.
+                        const Center(child: PieVersion()),
                       ],
                     ),
                   ),

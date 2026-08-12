@@ -6,6 +6,7 @@ import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/demanda_zonas.dart';
 import '../../domain/models/estado_pedido.dart';
+import '../../domain/models/lugar.dart';
 import '../../domain/models/municipio.dart';
 import '../../domain/models/oferta.dart';
 import '../../domain/models/pedido.dart';
@@ -52,6 +53,17 @@ class ApiMappers {
       departamento: (m['departamento'] as String?) ?? '',
       nombre: (m['nombre'] as String?) ?? '',
       centro: (lat != null && lng != null) ? LatLng(lat, lng) : null,
+    );
+  }
+
+  static Lugar lugar(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return Lugar(
+      id: _int(m['id'])!,
+      nombre: (m['nombre'] as String?) ?? '',
+      categoria: CategoriaLugar.desdeApi(m['categoria'] as String?),
+      punto: LatLng(_double(m['lat']) ?? 0, _double(m['lng']) ?? 0),
+      referencia: m['referencia'] as String?,
     );
   }
 

@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../data/repositories/pedido_repository.dart';
+import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/tracking_service.dart';
 import '../../../di/locator.dart';
@@ -21,6 +22,7 @@ import '../../core/widgets/brand.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
+import '../../core/widgets/proponer_lugar_sheet.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 import 'pedido_activo_view_model.dart';
@@ -723,6 +725,56 @@ class _BotonEvidencia extends StatelessWidget {
   }
 }
 
+/// Acción secundaria de la pantalla de entrega: aportar el punto al catálogo.
+///
+/// Deliberadamente discreta (no compite con "Volver al inicio") y con
+/// confirmación explícita al enviar: si alguien se toma el trabajo de aportar,
+/// lo mínimo es decirle que llegó — mismo criterio que el agradecimiento del
+/// feedback.
+class _GuardarLugar extends StatefulWidget {
+  const _GuardarLugar({required this.punto});
+  final LatLng punto;
+
+  @override
+  State<_GuardarLugar> createState() => _GuardarLugarState();
+}
+
+class _GuardarLugarState extends State<_GuardarLugar> {
+  bool _guardado = false;
+
+  Future<void> _abrir() async {
+    final ok = await mostrarProponerLugar(
+      context,
+      punto: widget.punto,
+      municipioId: locator<UsuarioRepository>().enCache?.municipioId,
+    );
+    if (!mounted || ok != true) return;
+    setState(() => _guardado = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '¡Gracias! Lo revisamos y queda disponible para los clientes.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_guardado) {
+      return const Text(
+        'Lugar enviado para revisión ✓',
+        style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600),
+      );
+    }
+    return TextButton.icon(
+      onPressed: _abrir,
+      icon: const Icon(Icons.add_location_alt_outlined),
+      label: const Text('Guardar este sitio en el mapa'),
+    );
+  }
+}
+
 class _Entregado extends StatelessWidget {
   const _Entregado({required this.vm});
   final PedidoActivoViewModel vm;
@@ -762,6 +814,12 @@ class _Entregado extends StatelessWidget {
                   label: 'Volver al inicio',
                   onPressed: () => context.pop(),
                 ),
+                // Justo aquí el conductor acaba de estar en la puerta: es el
+                // único momento en que sabe con certeza dónde queda el sitio.
+                if (vm.pedido?.destino case final LatLng destino) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _GuardarLugar(punto: destino),
+                ],
               ],
             ),
           ),

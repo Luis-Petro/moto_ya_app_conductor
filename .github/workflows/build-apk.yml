@@ -160,8 +160,12 @@ jobs:
           NOTAS="CI · commit ${GITHUB_SHA::7} · build #${GITHUB_RUN_NUMBER}"
 
           echo "Autenticando en $API_BASE_URL ..."
+          # 10 intentos cada 30 s ≈ 5 min. Eran 6 cada 15 s (90 s), menos de lo que
+          # tarda Dokploy en construir y arrancar el backend: un push que llega
+          # mientras el backend se redespliega ponía el build en rojo por un 502 que
+          # se resolvía solo un minuto después.
           LOGIN_CODE=$(curl -sS -o login.json -w '%{http_code}' \
-            --retry 6 --retry-delay 15 --retry-all-errors --max-time 120 \
+            --retry 10 --retry-delay 30 --retry-all-errors --max-time 120 \
             -X POST "$API_BASE_URL/auth/login" \
             -H 'Content-Type: application/json' \
             -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
@@ -174,7 +178,7 @@ jobs:
           echo "Subiendo APK v$VERSION ($APP, $(du -h "$APK" | cut -f1)) al panel ..."
           # Reintenta ante 5xx transitorios (Dokploy redesplegando → 502 del proxy).
           CODE=$(curl -sS -o publish.json -w '%{http_code}' \
-            --retry 6 --retry-delay 15 --retry-all-errors --max-time 600 \
+            --retry 10 --retry-delay 30 --retry-all-errors --max-time 600 \
             -X POST "$API_BASE_URL/admin/releases" \
             -H "Authorization: Bearer $TOKEN" \
             -F "app=$APP" \

@@ -120,6 +120,28 @@ List<Marker> marcadoresDeLugares(
   ];
 }
 
+/// Polígonos de los lugares que son un área, para una `PolygonLayer`.
+///
+/// Van **debajo** de los marcadores: el relleno no puede tapar un pin, y el
+/// marcador del punto sigue siendo el que lleva el icono, el nombre y el toque
+/// para elegir el lugar.
+///
+/// El relleno es el color de la categoría a baja opacidad y el borde el mismo
+/// color: un parque relleno de verde translúcido se reconoce como superficie sin
+/// competir con la ruta del pedido, que va encima y en naranja.
+List<Polygon> poligonosDeLugares(List<Lugar> lugares) {
+  return [
+    for (final lugar in lugares)
+      if (lugar.tieneForma)
+        Polygon(
+          points: lugar.forma!,
+          color: colorDeCategoria(lugar.categoria).withValues(alpha: 0.15),
+          borderColor: colorDeCategoria(lugar.categoria).withValues(alpha: 0.7),
+          borderStrokeWidth: 1.5,
+        ),
+  ];
+}
+
 class _MarcadorLugar extends StatelessWidget {
   const _MarcadorLugar({
     required this.lugar,

@@ -26,6 +26,10 @@ import 'lugar_marcadores.dart';
 /// Las calles del municipio no tienen nombre ni número en el mapa; lo que le
 /// dice dónde está es la plaza, la droguería y el D1. Y el catálogo lo alimenta
 /// él mismo: cada lugar que propone se lo encuentra dibujado la próxima vez.
+///
+/// Los lugares que son un **área** (el parque, el polideportivo, la cancha) se
+/// dibujan además como polígono debajo de los marcadores. "Te espero en el
+/// parque" deja de ser un pin flotando en medio de la nada.
 class LugaresLayer extends StatefulWidget {
   const LugaresLayer({
     super.key,
@@ -79,13 +83,21 @@ class _LugaresLayerState extends State<LugaresLayer> {
     if (_lugares.isEmpty) return const SizedBox.shrink();
     final zoom = MapCamera.of(context).zoom;
     if (zoom < zoomMinimoLugares) return const SizedBox.shrink();
-    return MarkerLayer(
+    final marcadores = MarkerLayer(
       markers: marcadoresDeLugares(
         _lugares,
         zoom: zoom,
         onTap: widget.onTap,
         permitirNombres: widget.mostrarNombres,
       ),
+    );
+    final poligonos = poligonosDeLugares(_lugares);
+    if (poligonos.isEmpty) return marcadores;
+    // Las áreas van debajo de los marcadores, para que ningún relleno tape un
+    // pin. `Positioned.fill` da a las dos capas el mismo tamaño que tendrían
+    // como hijas directas del mapa.
+    return Positioned.fill(
+      child: Stack(children: [PolygonLayer(polygons: poligonos), marcadores]),
     );
   }
 }

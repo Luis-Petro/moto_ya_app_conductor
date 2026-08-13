@@ -64,7 +64,27 @@ class ApiMappers {
       categoria: CategoriaLugar.desdeApi(m['categoria'] as String?),
       punto: LatLng(_double(m['lat']) ?? 0, _double(m['lng']) ?? 0),
       referencia: m['referencia'] as String?,
+      forma: _forma(m['forma']),
     );
+  }
+
+  /// Vértices del área de un lugar, `[[lat,lng],…]`.
+  ///
+  /// **Tolerante a propósito**: una forma malformada devuelve `null` y el lugar
+  /// se dibuja como punto. Esta respuesta trae el municipio entero, así que un
+  /// trazo corrupto no puede dejar la pantalla sin mapa. El par es `[lat, lng]`,
+  /// no el orden inverso de GeoJSON.
+  static List<LatLng>? _forma(dynamic valor) {
+    if (valor is! List || valor.length < 3) return null;
+    final puntos = <LatLng>[];
+    for (final par in valor) {
+      if (par is! List || par.length != 2) return null;
+      final lat = _double(par[0]);
+      final lng = _double(par[1]);
+      if (lat == null || lng == null) return null;
+      puntos.add(LatLng(lat, lng));
+    }
+    return puntos;
   }
 
   /// Demanda reciente por zonas. `celdas` puede llegar vacía: es un dato

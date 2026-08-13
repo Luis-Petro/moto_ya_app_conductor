@@ -12,15 +12,31 @@ class Lugar {
     required this.categoria,
     required this.punto,
     this.referencia,
+    this.forma,
   });
 
   final int id;
   final String nombre;
   final CategoriaLugar categoria;
+
+  /// **El punto de encuentro con el conductor**, no el centro del sitio. Un
+  /// parque no tiene puerta: aunque el lugar tenga [forma], aquí es donde se
+  /// espera, y es lo que se copia al pedido.
   final LatLng punto;
 
   /// Cómo llegar cuando el punto no basta: "segundo piso", "portón azul".
   final String? referencia;
+
+  /// Vértices que delimitan el área, o `null` —lo normal— si el lugar es un
+  /// punto. El anillo llega **abierto**: el último vértice no repite el primero.
+  ///
+  /// Solo la trae `GET /lugares/mapa`; el autocompletar no, porque es una lista
+  /// de texto. Es presentación: nada del pedido depende de ella.
+  final List<LatLng>? forma;
+
+  /// `true` si hay un área que dibujar. Un anillo de menos de tres vértices no
+  /// es un área, así que cuenta como no tenerla.
+  bool get tieneForma => forma != null && forma!.length >= 3;
 }
 
 /// Tipo de sitio. El orden es el de la lista en el selector: agrupado por tipo,

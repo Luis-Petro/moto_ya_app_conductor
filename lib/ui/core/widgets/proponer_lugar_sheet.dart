@@ -144,7 +144,7 @@ class _ProponerLugarSheetState extends State<_ProponerLugarSheet> {
                 for (final c in CategoriaLugar.values)
                   DropdownMenuItem(
                     value: c,
-                    child: Text('${c.emoji}  ${_etiqueta(c)}'),
+                    child: Text('${c.emoji}  ${c.etiqueta}'),
                   ),
               ],
               onChanged: (c) =>
@@ -179,16 +179,4 @@ class _ProponerLugarSheetState extends State<_ProponerLugarSheet> {
       ),
     );
   }
-
-  String _etiqueta(CategoriaLugar c) => switch (c) {
-        CategoriaLugar.comercio => 'Tienda o comercio',
-        CategoriaLugar.restaurante => 'Restaurante',
-        CategoriaLugar.farmacia => 'Droguería',
-        CategoriaLugar.supermercado => 'Supermercado',
-        CategoriaLugar.salud => 'Salud',
-        CategoriaLugar.educacion => 'Colegio o educación',
-        CategoriaLugar.publico => 'Sitio público',
-        CategoriaLugar.referencia => 'Punto de referencia',
-        CategoriaLugar.otro => 'Otro',
-      };
 }

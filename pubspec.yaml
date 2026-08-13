@@ -57,6 +57,13 @@ dependencies:
   intl: ^0.20.2
   shared_preferences: ^2.5.3
   go_router: ^17.0.0
+  # Caché en disco de los tiles del mapa (ver data/services/map_tile_cache.dart).
+  # Las mismas versiones que app_cliente: las dos apps comparten infraestructura
+  # y divergir en el paquete de mapas es cómo se acaban viendo distintas.
+  flutter_map_cache: ^1.5.2
+  dio_cache_interceptor: ^3.5.1
+  dio_cache_interceptor_file_store: ^1.2.3
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

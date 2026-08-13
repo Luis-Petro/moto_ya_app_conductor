@@ -96,13 +96,25 @@ jobs:
       # en cada subida y no se puede reutilizar. El versionName sigue saliendo del
       # pubspec, que es donde se declara la versión a mano.
       - name: Build release APK y App Bundle
+        env:
+          # Clave de Geoapify (tiles del mapa), secret del environment `prod`.
+          # Sin ella el build sale igual, pero el mapa cae al respaldo de
+          # openstreetmap.org: ese uso en una app distribuida no está permitido y
+          # bloquean por User-Agent sin avisar, así que se avisa en el log para
+          # que un release no salga así por descuido.
+          TILE_API_KEY: ${{ secrets.TILE_API_KEY }}
         run: |
+          if [ -z "${TILE_API_KEY:-}" ]; then
+            echo "::warning::Sin TILE_API_KEY: el mapa usará los tiles de openstreetmap.org, que no permiten este uso. Añade el secret en el environment 'prod'."
+          fi
           flutter build apk --release \
             --build-number=${{ github.run_number }} \
-            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
+            --dart-define=TILE_API_KEY="$TILE_API_KEY"
           flutter build appbundle --release \
             --build-number=${{ github.run_number }} \
-            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }}
+            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
+            --dart-define=TILE_API_KEY="$TILE_API_KEY"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

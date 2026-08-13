@@ -41,7 +41,7 @@ tile, uso comercial permitido con atribución). La clave va en el secret
 | Flag | Default | Uso |
 |------|---------|-----|
 | `TILE_API_KEY` | `''` | Clave de Geoapify. Sin ella el mapa cae a los tiles de OSM: vale para desarrollo, **no** para un release |
-| `TILE_STYLE` | `positron` | Estilo de Geoapify. El mismo que la app cliente: son la misma marca |
+| `TILE_STYLE` | `klokantech-basic` | Estilo de Geoapify. El mismo que la app cliente: son la misma marca |
 | `TILE_URL` | `''` | Plantilla completa `{z}/{x}/{y}`. Salida de emergencia: otro proveedor o tiles propios en R2 sin tocar código. Gana sobre `TILE_API_KEY` |
 
 Los tiles se guardan en disco 30 días (`MapTileCache`). Aquí pesa más que en la

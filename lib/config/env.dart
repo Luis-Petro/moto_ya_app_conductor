@@ -41,14 +41,19 @@ class Env {
   /// Política de privacidad, también obligatoria en la ficha de Play.
   static const String privacidadUrl = '$sitioBaseUrl/privacidad';
 
-  /// Estilo de tiles de Geoapify. `positron` es gris casi blanco y con muy
-  /// pocos POI propios: el mapa no compite con lo que el conductor sí tiene que
-  /// leer encima —recogida, entrega, la ruta y su propia posición—, que va todo
-  /// en naranja de marca. Debe ser el mismo estilo que la app cliente: son la
-  /// misma marca y el conductor y el cliente miran el mismo pedido.
+  /// Estilo de tiles de Geoapify.
+  ///
+  /// Antes era `positron`. Se cambió tras verlo en un celular: se pasaba de
+  /// vacío. Sus etiquetas son gris claro sobre gris casi blanco y no se leen al
+  /// sol —que es la condición normal de un conductor en moto— y borraba la
+  /// plaza, que es *el* punto de referencia del municipio.
+  ///
+  /// `klokantech-basic` mantiene contenido y contraste sin ser el ruido de
+  /// `osm-carto`. Debe ser el mismo en las dos apps: el conductor y el cliente
+  /// miran el mismo pedido.
   static const String tileStyle = String.fromEnvironment(
     'TILE_STYLE',
-    defaultValue: 'positron',
+    defaultValue: 'klokantech-basic',
   );
 
   /// Clave de Geoapify. Se inyecta en el build desde el secret `TILE_API_KEY`;

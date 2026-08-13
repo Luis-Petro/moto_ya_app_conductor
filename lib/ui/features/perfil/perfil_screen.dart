@@ -14,6 +14,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/legal.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
@@ -637,6 +638,10 @@ class _PerfilViewState extends State<_PerfilView> {
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xl),
+                        // Alcanzables desde dentro de la app, que es lo que
+                        // piden las tiendas. Abren la landing en el navegador.
+                        const EnlacesLegales(),
+                        const SizedBox(height: AppSpacing.sm),
                         const Center(
                           child: Text('Hecho en Colombia 🇨🇴',
                               style: TextStyle(

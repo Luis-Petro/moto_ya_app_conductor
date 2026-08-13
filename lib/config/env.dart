@@ -23,6 +23,24 @@ class Env {
     defaultValue: '$_defaultHost/Api/ws-tracking',
   );
 
+  /// Sitio público (la landing del apex). **No** es el panel administrativo:
+  /// las páginas legales las abre un conductor, y un enlace a un host que dice
+  /// "admin" parece un phishing. Es el mismo host de `PANEL_BASE_URL` en el
+  /// backend, que conserva ese nombre por historia.
+  static const String sitioBaseUrl = String.fromEnvironment(
+    'SITIO_BASE_URL',
+    defaultValue: 'https://zumbeo.com',
+  );
+
+  /// Términos y condiciones. Google Play exige declarar esta URL en la ficha, y
+  /// tiene que ser alcanzable **desde dentro de la app**, no solo desde la web.
+  /// Es donde está escrito que el conductor es independiente y cómo funciona la
+  /// comisión, así que aquí importa más todavía que en la app cliente.
+  static const String terminosUrl = '$sitioBaseUrl/terminos';
+
+  /// Política de privacidad, también obligatoria en la ficha de Play.
+  static const String privacidadUrl = '$sitioBaseUrl/privacidad';
+
   /// Plantilla de tiles OpenStreetMap (configurable para producción).
   static const String osmTileUrl = String.fromEnvironment(
     'OSM_TILE_URL',

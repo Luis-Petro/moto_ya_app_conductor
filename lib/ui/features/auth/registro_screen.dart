@@ -7,6 +7,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/legal.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
@@ -230,10 +231,11 @@ class _RegistroViewState extends State<_RegistroView> {
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               activeColor: AppColors.primary,
-              title: const Text(
-                'Acepto los Términos y la Política de privacidad de Zumbeo.',
-                style: TextStyle(fontSize: 13),
-              ),
+              // Los dos documentos son enlaces: pedir que se acepte algo que no
+              // se puede leer desde ningún sitio no es aceptación de nada, y
+              // aquí es donde dice que el conductor es independiente y cómo se
+              // cobra la comisión.
+              title: const TextoAceptacionLegal(),
             ),
             const SizedBox(height: AppSpacing.md),
             PrimaryButton(

@@ -12,6 +12,7 @@ import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/star_rating.dart';
 import 'pedido_detalle_view_model.dart';
@@ -108,6 +109,8 @@ class _Mapa extends StatelessWidget {
         ),
         children: [
           osmTileLayer(),
+          // Sin nombres: en 220 px de alto las etiquetas taparían la ruta.
+          const LugaresLayer(mostrarNombres: false),
           if (ruta.length >= 2)
             PolylineLayer(polylines: [
               Polyline(points: ruta, strokeWidth: 4, color: AppColors.primary),

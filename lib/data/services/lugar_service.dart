@@ -30,6 +30,51 @@ class LugarService {
     );
   }
 
+  /// Todos los lugares activos del municipio, para pintarlos en el mapa.
+  /// Sin tope: paginar dejaría marcadores invisibles sin avisar.
+  Future<Result<List<Lugar>>> paraMapa({required int municipioId}) {
+    return _api.get<List<Lugar>>(
+      '/lugares/mapa',
+      query: {'municipioId': municipioId},
+      parse: (data) =>
+          (data as List).map(ApiMappers.lugar).toList(growable: false),
+    );
+  }
+
+  /// Catálogo del municipio para dibujarlo, **cacheado en memoria**.
+  ///
+  /// El conductor tiene el mapa abierto todo el pedido y pasa por él varias
+  /// veces al día (inicio → pedido activo → detalle). Es un catálogo curado a
+  /// mano: entre esas aperturas no cambia, y él trabaja con datos propios.
+  ///
+  /// Nunca falla hacia la UI: sin catálogo el mapa sigue sirviendo, solo va sin
+  /// marcadores. Un error tampoco se cachea, para que la pantalla siguiente
+  /// reintente.
+  Future<List<Lugar>> catalogoDeMapa(int municipioId) {
+    final cacheado = _cache[municipioId];
+    if (cacheado != null && cacheado.fresco) {
+      return Future.value(cacheado.lugares);
+    }
+    // Una sola petición aunque dos pantallas la pidan a la vez: al abrir la app
+    // el mapa de zonas y el del pedido activo arrancan casi al mismo tiempo.
+    return _enVuelo[municipioId] ??= _traerCatalogo(municipioId)
+        .whenComplete(() => _enVuelo.remove(municipioId));
+  }
+
+  Future<List<Lugar>> _traerCatalogo(int municipioId) async {
+    final res = await paraMapa(municipioId: municipioId);
+    return res.when(
+      ok: (lugares) {
+        _cache[municipioId] = _CatalogoCacheado(lugares);
+        return lugares;
+      },
+      err: (_) => _cache[municipioId]?.lugares ?? const <Lugar>[],
+    );
+  }
+
+  final Map<int, _CatalogoCacheado> _cache = {};
+  final Map<int, Future<List<Lugar>>> _enVuelo = {};
+
   /// Propone un lugar nuevo. Queda pendiente de revisión del administrador
   /// antes de aparecerle a los clientes.
   Future<Result<Lugar>> proponer({
@@ -54,4 +99,18 @@ class LugarService {
       parse: ApiMappers.lugar,
     );
   }
+}
+
+/// Cuánto se considera fresco el catálogo en memoria. Diez minutos es más de lo
+/// que dura un pedido, y menos de lo que tarda un administrador en aprobar un
+/// lugar y querer verlo.
+const Duration _frescuraCatalogo = Duration(minutes: 10);
+
+class _CatalogoCacheado {
+  _CatalogoCacheado(this.lugares) : traidoEn = DateTime.now();
+
+  final List<Lugar> lugares;
+  final DateTime traidoEn;
+
+  bool get fresco => DateTime.now().difference(traidoEn) < _frescuraCatalogo;
 }

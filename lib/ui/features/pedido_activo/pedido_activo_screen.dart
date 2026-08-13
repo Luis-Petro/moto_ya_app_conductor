@@ -19,6 +19,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
@@ -216,6 +217,9 @@ class _ActivoViewState extends State<_ActivoView> {
               ),
               children: [
                 osmTileLayer(),
+                // Sin nombres: en 150 px de alto las etiquetas taparían los
+                // pines de recogida y entrega, que son el objetivo del viaje.
+                const LugaresLayer(mostrarNombres: false),
                 MarkerLayer(
                   markers: [
                     if (pedido.origen != null)

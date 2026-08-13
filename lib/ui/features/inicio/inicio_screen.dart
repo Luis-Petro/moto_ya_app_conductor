@@ -22,6 +22,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/banner_version.dart';
 import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/skeleton.dart';
@@ -799,6 +800,11 @@ class _ZonasDemanda extends StatelessWidget {
                     ),
                     children: [
                       osmTileLayer(),
+                      // Las manchas de demanda dicen "por aquí se pide"; los
+                      // lugares dicen dónde es "por aquí". Una mancha sobre
+                      // calles sin nombre no le sirve para decidir dónde
+                      // pararse a esperar.
+                      const LugaresLayer(),
                       CircleLayer(
                         circles: [
                           for (final c in d.celdas)

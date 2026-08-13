@@ -42,6 +42,10 @@ class BilleteraViewModel extends ChangeNotifier {
   /// de la pantalla y se perdía al cambiar de pestaña o reabrir la app.
   List<PagoRealizado> pagos = const [];
 
+  /// Ajustes que registró el administrador (incentivos, correcciones). Sin
+  /// esto, un abono se ve como una deuda que bajó sola.
+  List<MovimientoSaldo> movimientos = const [];
+
   /// El pago que aún está en revisión (el más reciente pendiente), si lo hay.
   PagoRealizado? get pagoPendiente {
     for (final p in pagos) {
@@ -101,6 +105,8 @@ class BilleteraViewModel extends ChangeNotifier {
     res.when(ok: (b) => billetera = b, err: (f) => error = f.message);
     final resPagos = await _billetera.pagos();
     pagos = resPagos.valueOrNull ?? pagos;
+    final resMovimientos = await _billetera.movimientos();
+    movimientos = resMovimientos.valueOrNull ?? movimientos;
     _resolverPagoVigilado();
     cargando = false;
     if (!_disposed) notifyListeners();

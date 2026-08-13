@@ -24,6 +24,7 @@ import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../core/widgets/proponer_lugar_sheet.dart';
+import '../../core/widgets/visor_foto.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 import 'pedido_activo_view_model.dart';
@@ -489,28 +490,6 @@ class _DetallePedido extends StatelessWidget {
   const _DetallePedido({required this.pedido});
   final Pedido pedido;
 
-  void _verFoto(BuildContext context, String url) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        insetPadding: const EdgeInsets.all(AppSpacing.md),
-        child: Stack(
-          alignment: Alignment.topRight,
-          children: [
-            InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
-            IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: Icon(Icons.close, color: Colors.white, size: 20),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final tarifa = pedido.tarifaFinal ?? pedido.tarifaSugerida;
@@ -608,31 +587,11 @@ class _DetallePedido extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          GestureDetector(
-            onTap: () => _verFoto(context, pedido.fotoUrl!),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-              child: Image.network(
-                pedido.fotoUrl!,
-                height: 140,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 80,
-                  alignment: Alignment.center,
-                  color: AppColors.background,
-                  child: const Text(
-                    'No pudimos cargar la foto',
-                    style: TextStyle(color: AppColors.inkMuted, fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Toca la foto para ampliarla',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5),
+          // Mismo visor que usa la app cliente: a pantalla completa, con zoom.
+          FotoAmpliable(
+            url: pedido.fotoUrl!,
+            titulo: 'Foto del pedido',
+            alto: 140,
           ),
         ],
       ],

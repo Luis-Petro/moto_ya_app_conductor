@@ -40,6 +40,7 @@ class ApiMappers {
       urlImagen: m['urlImagen'] as String?,
       rol: Rol.fromWire(m['rol'] as String?),
       telefonoVerificado: (m['telefonoVerificado'] as bool?) ?? false,
+      emailVerificado: (m['emailVerificado'] as bool?) ?? false,
       municipioId: _int(m['municipioId']),
     );
   }
@@ -135,6 +136,7 @@ class ApiMappers {
       tasaCancelacion: _double(m['tasaCancelacion']),
       tiempoRespuestaSeg: _int(m['tiempoRespuestaSeg']),
       estado: EstadoConductor.fromWire(m['estado'] as String?),
+      verificadoEn: _date(m['verificadoEn']),
       motivoRechazo: m['motivoRechazo'] as String?,
     );
   }
@@ -195,6 +197,20 @@ class ApiMappers {
 
   static List<PagoRealizado> pagos(dynamic json) =>
       (json as List).map(pago).toList();
+
+  static MovimientoSaldo movimientoSaldo(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    return MovimientoSaldo(
+      id: _int(m['id']) ?? 0,
+      valor: _double(m['valor']) ?? 0,
+      concepto: (m['concepto'] as String?) ?? 'OTRO',
+      nota: (m['nota'] as String?) ?? '',
+      creadoEn: _date(m['creadoEn']),
+    );
+  }
+
+  static List<MovimientoSaldo> movimientosSaldo(dynamic json) =>
+      (json as List).map(movimientoSaldo).toList();
 
   static Pedido pedido(dynamic json) {
     final m = json as Map<String, dynamic>;

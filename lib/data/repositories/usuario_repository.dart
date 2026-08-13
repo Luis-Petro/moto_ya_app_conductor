@@ -67,5 +67,29 @@ class UsuarioRepository {
     return res;
   }
 
+  /// Verificar el celular que ya tiene la cuenta (sin cambiarlo).
+  Future<Result<void>> solicitarVerificacionTelefonoActual() =>
+      _service.solicitarVerificacionTelefonoActual();
+
+  Future<Result<Usuario>> verificarTelefonoActual(String codigo) async {
+    final res = await _service.verificarTelefonoActual(codigo);
+    if (res case Ok<Usuario>(value: final u)) {
+      _cache = u;
+    }
+    return res;
+  }
+
+  /// Verificar el correo que ya tiene la cuenta (sin cambiarlo).
+  Future<Result<void>> solicitarVerificacionEmailActual() =>
+      _service.solicitarVerificacionEmailActual();
+
+  Future<Result<Usuario>> verificarEmailActual(String codigo) async {
+    final res = await _service.verificarEmailActual(codigo);
+    if (res case Ok<Usuario>(value: final u)) {
+      _cache = u;
+    }
+    return res;
+  }
+
   void limpiar() => _cache = null;
 }

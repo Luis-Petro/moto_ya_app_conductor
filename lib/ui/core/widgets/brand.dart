@@ -125,8 +125,11 @@ class InitialsAvatar extends StatelessWidget {
       radius: radius,
       backgroundColor: background,
       foregroundImage: tieneFoto ? NetworkImage(imageUrl!) : null,
-      // Se muestra si no hay foto o si la carga falla (onBackgroundImageError
-      // no es necesario: el child es el fallback natural del CircleAvatar).
+      // El child es el respaldo visual, pero sin `onForegroundImageError` el
+      // fallo de descarga sube como error de Flutter sin manejar: en producción
+      // se ve bien y ensucia el log, y en un test tumba la prueba. Se traga aquí
+      // porque ya hay una respuesta en pantalla: las iniciales.
+      onForegroundImageError: tieneFoto ? (_, __) {} : null,
       child: Text(
         initials,
         style: TextStyle(

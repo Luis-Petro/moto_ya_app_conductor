@@ -86,6 +86,41 @@ enum MedioPago {
   final String label;
 }
 
+/// Ajuste de saldo que un administrador registró sobre este conductor
+/// (`GET /billetera/movimientos`).
+///
+/// Existe para que un abono no aparezca como un cambio de deuda sin origen: eso
+/// es indistinguible de un error del sistema, y sobre dinero ajeno no se puede
+/// pedir confianza a ciegas.
+class MovimientoSaldo {
+  const MovimientoSaldo({
+    required this.id,
+    required this.valor,
+    required this.concepto,
+    required this.nota,
+    this.creadoEn,
+  });
+
+  final int id;
+
+  /// Positivo = abono (le bajó la deuda); negativo = cargo (se la subió).
+  final double valor;
+
+  /// INCENTIVO | CORRECCION | COMPENSACION | OTRO.
+  final String concepto;
+  final String nota;
+  final DateTime? creadoEn;
+
+  bool get esAbono => valor > 0;
+
+  String get conceptoLegible => switch (concepto) {
+        'INCENTIVO' => 'Incentivo',
+        'CORRECCION' => 'Corrección',
+        'COMPENSACION' => 'Compensación',
+        _ => 'Ajuste',
+      };
+}
+
 /// Un pago registrado del conductor (`GET /billetera/pagos`). Es la fuente de
 /// verdad del pago en proceso: al vivir en el servidor sobrevive al cambio de
 /// pestaña y al reinicio de la app.

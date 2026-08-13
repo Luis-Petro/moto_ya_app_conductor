@@ -50,5 +50,10 @@ class BilleteraRepository {
   Future<Result<List<PagoRealizado>>> pagos({int page = 0, int size = 20}) =>
       _service.pagos(page: page, size: size);
 
+  /// Ajustes de saldo registrados por el administrador (incentivos,
+  /// correcciones). Sin caché, por el mismo motivo que los pagos.
+  Future<Result<List<MovimientoSaldo>>> movimientos({int page = 0, int size = 20}) =>
+      _service.movimientos(page: page, size: size);
+
   void limpiar() => _cache = null;
 }

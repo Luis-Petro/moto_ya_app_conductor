@@ -48,6 +48,29 @@ class UsuarioService {
   }
 
   /// Paso 2: confirma el código, aplica el número y lo marca verificado.
+  /// Verificación del celular que la cuenta **ya tiene**, sin cambiarlo.
+  ///
+  /// Flujo aparte del cambio: pedir "cambiar" al mismo número choca contra la
+  /// validación de unicidad del backend y responde 409.
+  Future<Result<void>> solicitarVerificacionTelefonoActual() {
+    return _api.post<void>('/usuarios/me/telefono/verificar-actual/solicitar');
+  }
+
+  Future<Result<Usuario>> verificarTelefonoActual(String codigo) {
+    return _api.post<Usuario>('/usuarios/me/telefono/verificar-actual',
+        body: {'codigo': codigo}, parse: ApiMappers.usuario);
+  }
+
+  /// Verificación del correo que la cuenta ya tiene, sin cambiarlo.
+  Future<Result<void>> solicitarVerificacionEmailActual() {
+    return _api.post<void>('/usuarios/me/email/verificar-actual/solicitar');
+  }
+
+  Future<Result<Usuario>> verificarEmailActual(String codigo) {
+    return _api.post<Usuario>('/usuarios/me/email/verificar-actual',
+        body: {'codigo': codigo}, parse: ApiMappers.usuario);
+  }
+
   Future<Result<Usuario>> verificarCambioTelefono(String codigo) {
     return _api.post<Usuario>('/usuarios/me/telefono/verificar',
         body: {'codigo': codigo}, parse: ApiMappers.usuario);

@@ -73,11 +73,15 @@ class _BilleteraViewState extends State<_BilleteraView> {
 
   /// Historial completo en una hoja: se consulta de vez en cuando (una duda,
   /// un reclamo), no en cada pago.
-  Future<void> _verHistorial(BuildContext context, List<PagoRealizado> pagos) {
+  Future<void> _verHistorial(
+    BuildContext context,
+    List<PagoRealizado> pagos,
+    List<MovimientoSaldo> movimientos,
+  ) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _HistorialSheet(pagos: pagos),
+      builder: (_) => _HistorialSheet(pagos: pagos, movimientos: movimientos),
     );
   }
 
@@ -151,7 +155,8 @@ class _BilleteraViewState extends State<_BilleteraView> {
                     // (lo que el conductor viene a hacer) fuera de vista.
                     _AccesoHistorial(
                       pagos: vm.pagos,
-                      onVer: () => _verHistorial(context, vm.pagos),
+                      onVer: () =>
+                          _verHistorial(context, vm.pagos, vm.movimientos),
                     ),
                   ],
                 ),
@@ -853,8 +858,13 @@ class _AccesoHistorial extends StatelessWidget {
 
 /// Historial completo de pagos, en hoja inferior.
 class _HistorialSheet extends StatelessWidget {
-  const _HistorialSheet({required this.pagos});
+  const _HistorialSheet({required this.pagos, this.movimientos = const []});
   final List<PagoRealizado> pagos;
+
+  /// Ajustes que registró el administrador. Van arriba y aparte: no los hizo el
+  /// conductor, y verlos con su concepto es lo que evita que un abono parezca
+  /// una deuda que bajó sola.
+  final List<MovimientoSaldo> movimientos;
 
   @override
   Widget build(BuildContext context) {
@@ -867,12 +877,12 @@ class _HistorialSheet extends StatelessWidget {
         children: [
           const SizedBox(height: AppSpacing.md),
           const Text(
-            'Mis pagos',
+            'Mis movimientos',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(
-            child: ListView.separated(
+            child: ListView(
               controller: scroll,
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
@@ -880,9 +890,93 @@ class _HistorialSheet extends StatelessWidget {
                 AppSpacing.lg,
                 AppSpacing.xl,
               ),
-              itemCount: pagos.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) => _FilaPago(pago: pagos[i]),
+              children: [
+                if (movimientos.isNotEmpty) ...[
+                  const _TituloSeccion('Ajustes del administrador'),
+                  for (final m in movimientos) _FilaMovimiento(movimiento: m),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                const _TituloSeccion('Mis pagos'),
+                if (pagos.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    child: Text(
+                      'Aún no has registrado pagos de comisión.',
+                      style: TextStyle(fontSize: 13, color: AppColors.inkMuted),
+                    ),
+                  )
+                else
+                  for (final p in pagos) _FilaPago(pago: p),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TituloSeccion extends StatelessWidget {
+  const _TituloSeccion(this.texto);
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Text(
+        texto.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.inkMuted,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Un ajuste de saldo: signo, concepto, nota y fecha.
+class _FilaMovimiento extends StatelessWidget {
+  const _FilaMovimiento({required this.movimiento});
+  final MovimientoSaldo movimiento;
+
+  @override
+  Widget build(BuildContext context) {
+    final abono = movimiento.esAbono;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(
+            abono ? Icons.add_circle_outline : Icons.remove_circle_outline,
+            size: 20,
+            color: abono ? AppColors.success : AppColors.warning,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(movimiento.conceptoLegible,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                if (movimiento.nota.isNotEmpty)
+                  Text(movimiento.nota,
+                      style: const TextStyle(
+                          fontSize: 12.5, color: AppColors.inkMuted)),
+                if (movimiento.creadoEn != null)
+                  Text(Formato.fechaHora(movimiento.creadoEn!),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.inkMuted)),
+              ],
+            ),
+          ),
+          Text(
+            '${abono ? '+' : '−'}${Formato.moneda(movimiento.valor.abs())}',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: abono ? AppColors.success : AppColors.warning,
             ),
           ),
         ],

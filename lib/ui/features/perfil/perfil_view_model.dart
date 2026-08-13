@@ -132,6 +132,38 @@ class PerfilViewModel extends ChangeNotifier {
     return err;
   }
 
+  // ── Verificar el contacto que la cuenta YA tiene (sin cambiarlo) ──
+
+  Future<String?> solicitarVerificacionCorreoActual() async {
+    final res = await _usuarios.solicitarVerificacionEmailActual();
+    return res.when(ok: (_) => null, err: (f) => f.message);
+  }
+
+  Future<String?> confirmarVerificacionCorreoActual(String codigo) async {
+    final res = await _usuarios.verificarEmailActual(codigo);
+    final err = res.when(ok: (u) {
+      usuario = u;
+      return null;
+    }, err: (f) => f.message);
+    notifyListeners();
+    return err;
+  }
+
+  Future<String?> solicitarVerificacionCelularActual() async {
+    final res = await _usuarios.solicitarVerificacionTelefonoActual();
+    return res.when(ok: (_) => null, err: (f) => f.message);
+  }
+
+  Future<String?> confirmarVerificacionCelularActual(String codigo) async {
+    final res = await _usuarios.verificarTelefonoActual(codigo);
+    final err = res.when(ok: (u) {
+      usuario = u;
+      return null;
+    }, err: (f) => f.message);
+    notifyListeners();
+    return err;
+  }
+
   // ─────────────────────────── Documentos ───────────────────────────
 
   /// Sube (o reemplaza) uno de los cuatro documentos de habilitación. Devuelve

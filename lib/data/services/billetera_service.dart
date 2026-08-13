@@ -30,6 +30,18 @@ class BilleteraService {
     );
   }
 
+  /// Ajustes de saldo que el administrador registró (incentivos, correcciones).
+  ///
+  /// Van aparte de los pagos porque no los hizo el conductor: aquí es donde un
+  /// abono deja de ser "mi deuda bajó sola" y pasa a tener concepto y fecha.
+  Future<Result<List<MovimientoSaldo>>> movimientos({int page = 0, int size = 20}) {
+    return _api.get<List<MovimientoSaldo>>(
+      '/billetera/movimientos',
+      query: {'page': page, 'size': size},
+      parse: ApiMappers.movimientosSaldo,
+    );
+  }
+
   /// Inicia el pago de la deuda con Nequi o Bre-B, declarando la cuenta de
   /// origen. La confirmación llega por webhook del proveedor (design D8).
   Future<Result<IntencionPago>> pagar({

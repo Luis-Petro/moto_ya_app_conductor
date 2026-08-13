@@ -10,6 +10,7 @@ class Usuario {
     this.urlImagen,
     required this.rol,
     this.telefonoVerificado = false,
+    this.emailVerificado = false,
     this.municipioId,
   });
 
@@ -20,6 +21,7 @@ class Usuario {
   final String? urlImagen;
   final Rol rol;
   final bool telefonoVerificado;
+  final bool emailVerificado;
 
   /// Municipio elegido (id del catálogo `/municipios`); null si aún no define.
   final int? municipioId;
@@ -44,6 +46,7 @@ class Usuario {
       urlImagen: urlImagen,
       rol: rol,
       telefonoVerificado: telefonoVerificado,
+      emailVerificado: emailVerificado,
       municipioId: municipioId ?? this.municipioId,
     );
   }

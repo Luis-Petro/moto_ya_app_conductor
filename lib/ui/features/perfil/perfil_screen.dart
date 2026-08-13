@@ -14,6 +14,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/confirmar_baja_dialog.dart';
 import '../../core/widgets/legal.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/phone_field.dart';
@@ -389,35 +390,151 @@ class _PerfilViewState extends State<_PerfilView> {
     if (salir == true) await vm.cerrarSesion();
   }
 
+  /// Verifica el correo o el celular que la cuenta ya tiene: un solo paso
+  /// (código), porque el destino no se elige — es el dato guardado.
+  Future<void> _verificarActual({
+    required String titulo,
+    required String destino,
+    required Future<String?> Function() solicitar,
+    required Future<String?> Function(String codigo) confirmar,
+    required String avisoExito,
+  }) async {
+    final primerEnvio = await solicitar();
+    if (!mounted) return;
+    if (primerEnvio != null) {
+      _aviso(primerEnvio);
+      return;
+    }
+
+    final codeCtrl = TextEditingController();
+    var ocupado = false;
+    String? errorLocal;
+    var exito = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> enviar() async {
+            setSheet(() {
+              ocupado = true;
+              errorLocal = null;
+            });
+            final err = await solicitar();
+            setSheet(() {
+              ocupado = false;
+              errorLocal = err;
+            });
+          }
+
+          Future<void> confirmarCodigo() async {
+            setSheet(() {
+              ocupado = true;
+              errorLocal = null;
+            });
+            final err = await confirmar(codeCtrl.text.trim());
+            if (err == null) {
+              exito = true;
+              if (ctx.mounted) Navigator.pop(ctx);
+              return;
+            }
+            setSheet(() {
+              ocupado = false;
+              errorLocal = err;
+            });
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: AppSpacing.xl,
+              right: AppSpacing.xl,
+              top: AppSpacing.xl,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titulo,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Escribe el código que enviamos a $destino.',
+                  style:
+                      const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                TextField(
+                  controller: codeCtrl,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Código',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                if (errorLocal != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(errorLocal!,
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 13)),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  label: 'Confirmar',
+                  loading: ocupado,
+                  onPressed: confirmarCodigo,
+                ),
+                TextButton(
+                  onPressed: ocupado ? null : enviar,
+                  child: const Text('Reenviar código'),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+
+    codeCtrl.dispose();
+    if (exito && mounted) _aviso(avisoExito);
+  }
+
+  Future<void> _verificarCorreoActual(PerfilViewModel vm) {
+    return _verificarActual(
+      titulo: 'Verifica tu correo',
+      destino: vm.usuario?.email ?? 'tu correo',
+      solicitar: vm.solicitarVerificacionCorreoActual,
+      confirmar: vm.confirmarVerificacionCorreoActual,
+      avisoExito: 'Correo verificado',
+    );
+  }
+
+  Future<void> _verificarCelularActual(PerfilViewModel vm) {
+    return _verificarActual(
+      titulo: 'Verifica tu celular',
+      destino: vm.usuario?.telefono ?? 'tu celular',
+      solicitar: vm.solicitarVerificacionCelularActual,
+      confirmar: vm.confirmarVerificacionCelularActual,
+      avisoExito: 'Celular verificado',
+    );
+  }
+
   /// Baja de cuenta. El diálogo dice qué se borra y qué se conserva, porque es
   /// irreversible; y menciona la deuda, que es el motivo más probable de rechazo.
   Future<void> _confirmarEliminarCuenta(PerfilViewModel vm) async {
-    final eliminar = await showDialog<bool>(
-      context: context,
-      useRootNavigator: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar mi cuenta'),
-        content: const Text(
+    final eliminar = await ConfirmarBajaDialog.pedir(
+      context,
+      descripcion:
           'Se borran tu nombre, correo, celular, cédula, tu foto y tus documentos '
           '(cédula, tarjeta de propiedad, selfie y foto de la moto). Tu historial de '
           'pedidos y de comisiones se conserva sin tus datos, porque son cuentas '
           'compartidas con la plataforma y con tus clientes.\n\n'
           'No se puede deshacer, y necesitas estar al día con tus comisiones.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar',
-                style: TextStyle(color: AppColors.danger)),
-          ),
-        ],
-      ),
     );
-    if (eliminar != true) return;
+    if (!eliminar) return;
     final error = await vm.eliminarCuenta();
     // Si salió bien, el router ya se llevó al conductor fuera (sesión cerrada);
     // solo queda contar el motivo cuando el backend lo rechaza.
@@ -561,8 +678,11 @@ class _PerfilViewState extends State<_PerfilView> {
                                 icono: Icons.mail_outline,
                                 valor: vm.usuario!.email,
                                 vacio: 'Sin correo registrado',
-                                verificado: null,
+                                verificado: (vm.usuario!.email ?? '').isEmpty
+                                    ? null
+                                    : vm.usuario!.emailVerificado,
                                 onCambiar: () => _cambiarCorreo(vm),
+                                onVerificar: () => _verificarCorreoActual(vm),
                               ),
                               const Divider(height: AppSpacing.lg),
                               _CredencialTile(
@@ -572,6 +692,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                 vacio: 'Sin celular registrado',
                                 verificado: vm.usuario!.telefonoVerificado,
                                 onCambiar: () => _cambiarCelular(vm),
+                                onVerificar: () => _verificarCelularActual(vm),
                               ),
                             ],
                           ),
@@ -674,14 +795,10 @@ class _FotoPerfil extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        if (fotoUrl != null && fotoUrl!.isNotEmpty)
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColors.primarySurface,
-            backgroundImage: NetworkImage(fotoUrl!),
-          )
-        else
-          InitialsAvatar(initials: iniciales, radius: 40),
+        // `InitialsAvatar` usa `foregroundImage`, así que las iniciales quedan
+        // debajo como respaldo natural si la foto no carga. Con `backgroundImage`
+        // y sin child —como estaba— una URL vencida dejaba un círculo vacío.
+        InitialsAvatar(initials: iniciales, imageUrl: fotoUrl, radius: 40),
         if (cargando)
           const CircleAvatar(
             radius: 40,
@@ -721,6 +838,7 @@ class _CredencialTile extends StatelessWidget {
     required this.onCambiar,
     this.valor,
     this.verificado,
+    this.onVerificar,
   });
 
   final String etiqueta;
@@ -728,9 +846,12 @@ class _CredencialTile extends StatelessWidget {
   final String vacio;
   final String? valor;
 
-  /// null cuando no aplica mostrar el estado (el correo no lo expone el backend).
+  /// null cuando no aplica mostrar el estado (p. ej. el dato no existe).
   final bool? verificado;
   final VoidCallback onCambiar;
+
+  /// Verificar el dato **actual** (sin cambiarlo). Nulo = no aplica.
+  final VoidCallback? onVerificar;
 
   @override
   Widget build(BuildContext context) {
@@ -780,6 +901,14 @@ class _CredencialTile extends StatelessWidget {
             ],
           ),
         ),
+        // "Verificar" solo cuando el dato existe y está sin verificar: antes la
+        // única salida era "cambiarlo" por el mismo valor, que el backend
+        // rechaza por unicidad.
+        if (tiene && verificado == false && onVerificar != null)
+          TextButton(
+            onPressed: onVerificar,
+            child: const Text('Verificar'),
+          ),
         TextButton(
           onPressed: onCambiar,
           child: Text(tiene ? 'Cambiar' : 'Agregar'),
@@ -819,12 +948,22 @@ class _Documentos extends StatelessWidget {
                   url: conductor.urlDocumento(DocumentoConductor.values[i]),
                   subiendo:
                       vm.subiendoDocumento == DocumentoConductor.values[i],
+                  enFirme: conductor.documentosEnFirme,
                   onSubir: () => onSubir(DocumentoConductor.values[i]),
                 ),
               ],
             ],
           ),
         ),
+        if (conductor.documentosEnFirme) ...[
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Tus documentos ya fueron verificados y no se pueden cambiar desde la '
+            'app. Si alguno quedó mal (borroso, vencido), pídele al administrador '
+            'que devuelva tu cuenta a revisión.',
+            style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+          ),
+        ],
         if (faltantes.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
@@ -845,12 +984,16 @@ class _FilaDocumento extends StatelessWidget {
     required this.url,
     required this.subiendo,
     required this.onSubir,
+    this.enFirme = false,
   });
 
   final DocumentoConductor doc;
   final String? url;
   final bool subiendo;
   final VoidCallback onSubir;
+
+  /// Ya verificada por un administrador: no se puede reemplazar desde la app.
+  final bool enFirme;
 
   @override
   Widget build(BuildContext context) {
@@ -885,7 +1028,12 @@ class _FilaDocumento extends StatelessWidget {
             children: [
               Text(doc.titulo,
                   style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(tiene ? 'Subida' : 'Pendiente',
+              Text(
+                  enFirme
+                      ? 'Verificada'
+                      : tiene
+                          ? 'Subida'
+                          : 'Pendiente',
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
@@ -898,11 +1046,15 @@ class _FilaDocumento extends StatelessWidget {
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2))
-        else
+        // Verificada: sin botón. Uno que siempre responde 409 es peor que no
+        // tenerlo — el texto de arriba explica cómo pedir la corrección.
+        else if (!enFirme)
           TextButton(
             onPressed: onSubir,
             child: Text(tiene ? 'Reemplazar' : 'Subir'),
-          ),
+          )
+        else
+          const Icon(Icons.lock_outline, size: 18, color: AppColors.inkMuted),
       ],
     );
   }

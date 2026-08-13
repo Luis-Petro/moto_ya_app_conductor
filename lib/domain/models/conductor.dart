@@ -66,6 +66,7 @@ class Conductor {
     this.tasaCancelacion,
     this.tiempoRespuestaSeg,
     this.estado = EstadoConductor.pendienteVerificacion,
+    this.verificadoEn,
     this.motivoRechazo,
   });
 
@@ -96,7 +97,17 @@ class Conductor {
   final double? tasaCancelacion;
   final int? tiempoRespuestaSeg;
   final EstadoConductor estado;
+
+  /// Cuándo un administrador revisó y habilitó la cuenta.
+  final DateTime? verificadoEn;
+
   final String? motivoRechazo;
+
+  /// Los documentos ya fueron verificados y no se pueden reemplazar desde la
+  /// app: cambiar una cédula aprobada convertiría la verificación en un trámite
+  /// decorativo. La corrección pasa por que el admin devuelva la cuenta a
+  /// revisión. Es la misma condición que aplica el backend (409).
+  bool get documentosEnFirme => habilitado && verificadoEn != null;
 
   /// El perfil tiene los datos mínimos para operar (matching lo exige).
   /// La licencia es opcional por ahora: no puede condicionar este flag o el

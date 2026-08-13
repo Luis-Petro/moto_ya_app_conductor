@@ -258,7 +258,16 @@ class _PedidoTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: MotoCard(
         padding: const EdgeInsets.all(AppSpacing.md),
-        onTap: () => context.push(Rutas.pedidoDetalle(pedido.id), extra: pedido),
+        // Un pedido que sigue en curso abre la pantalla donde se avanza, no el
+        // detalle de solo lectura. Es lo que permite llevar dos a la vez cuando
+        // el encadenamiento está encendido: `GET /pedidos/activo` devuelve uno
+        // solo, y el segundo se alcanza desde esta lista.
+        onTap: () => context.push(
+          pedido.estado.esFinal
+              ? Rutas.pedidoDetalle(pedido.id)
+              : Rutas.pedidoActivo(pedido.id),
+          extra: pedido,
+        ),
         child: Row(
           children: [
             CircleAvatar(

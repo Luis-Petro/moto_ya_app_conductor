@@ -126,6 +126,20 @@ void main() {
     expect(resultado.lengthSync(), lessThan(antes));
   });
 
+  test('el piso de calidad se prueba de verdad', () async {
+    // La escala baja de 10 en 10 desde 70; con `q -= 10` la última era la 40 y la
+    // calidad 35 no se llegaba a codificar nunca — el piso prometido no era el
+    // piso real. Se comprueba comparando contra la 40 hecha a mano: lo que sale
+    // del compresor con un tope inalcanzable tiene que ser **más pequeño**.
+    final grande = jpegComoFoto('piso.jpg');
+    final decodificada = img.decodeImage(grande.readAsBytesSync())!;
+    final a40 = img.encodeJpg(decodificada, quality: 40).length;
+
+    final resultado = await compresor.aTope(grande, topeBytes: 1024);
+
+    expect(resultado.lengthSync(), lessThan(a40));
+  });
+
   test('un archivo ilegible devuelve el original', () async {
     final basura = File('${dir.path}/no-es-imagen.jpg')
       ..writeAsBytesSync(List<int>.filled(400 * 1024, 7));

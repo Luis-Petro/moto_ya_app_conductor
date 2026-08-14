@@ -69,6 +69,22 @@ class ImagenCompresor {
   }
 }
 
+/// Calidades a probar, de mayor a menor, **terminando siempre en el piso**.
+///
+/// Pasos de 10 porque cada uno recorta bastante peso y son pocas iteraciones;
+/// bajar de uno en uno multiplicaría el tiempo para afinar kilobytes que no se
+/// ven. Pero el último paso es el piso exacto y no lo que caiga en la cuenta: con
+/// un simple `q -= 10` desde 70 la escala era 70·60·50·40 y **la calidad 35 nunca
+/// se llegaba a probar**, así que el piso prometido no era el piso real.
+List<int> _escalaDeCalidad(int minima) {
+  final pasos = <int>[];
+  for (var q = 70; q > minima; q -= 10) {
+    pasos.add(q);
+  }
+  pasos.add(minima);
+  return pasos;
+}
+
 /// Baja la calidad por pasos hasta caber en el tope o hasta tocar el piso.
 ///
 /// Corre en un isolate, así que es una función de nivel superior y recibe un
@@ -80,9 +96,7 @@ Uint8List? _recomprimir((Uint8List, int, int) peticion) {
   if (decodificada == null) return null;
 
   Uint8List? ultima;
-  // Pasos de 10: cada uno recorta bastante peso y son pocas iteraciones. Bajar
-  // de uno en uno multiplicaría el tiempo para afinar kilobytes que no se ven.
-  for (var calidad = 70; calidad >= calidadMinima; calidad -= 10) {
+  for (final calidad in _escalaDeCalidad(calidadMinima)) {
     ultima = img.encodeJpg(decodificada, quality: calidad);
     if (ultima.length <= topeBytes) return ultima;
   }

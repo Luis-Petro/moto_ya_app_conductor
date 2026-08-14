@@ -100,9 +100,12 @@ class ConductorRepository extends ChangeNotifier {
   }
 
   /// Reporte de ubicación (best-effort; no altera el perfil en caché).
-  Future<void> reportarUbicacion(LatLng ubicacion) async {
-    await _service.actualizarUbicacion(ubicacion);
-  }
+  ///
+  /// Devuelve el desenlace porque quien reporta necesita saber si el backend lo
+  /// aceptó: una posición que no llega deja al conductor fuera del matching, y
+  /// tragarse el resultado aquí era lo que hacía ese fallo invisible.
+  Future<Result<void>> reportarUbicacion(LatLng ubicacion) =>
+      _service.actualizarUbicacion(ubicacion);
 
   void limpiar() {
     _conductor = null;

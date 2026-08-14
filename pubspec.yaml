@@ -53,6 +53,19 @@ dependencies:
   stomp_dart_client: ^3.0.1
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.1
+  # ── Solo en la app conductor ────────────────────────────────────────────────
+  # Hasta aquí los dos pubspec eran gemelos, y esa simetría era una comodidad
+  # real al portar código. Se rompe a conciencia: la app cliente no tiene ninguna
+  # razón para despertar la pantalla bloqueada ni para pedir exención de batería.
+  #
+  # El aviso de oferta a pantalla completa (fullScreenIntent + categoría llamada)
+  # no se puede pedir desde el payload de FCM: hay que construir la notificación
+  # en el dispositivo, y eso es lo que hace este paquete.
+  flutter_local_notifications: ^19.4.2
+  # Exención de la optimización de batería. En los teléfonos de gama media que
+  # dominan el mercado local el sistema mata el proceso al minimizar la app, y
+  # sin la exención no llegan ni el push ni el sondeo.
+  permission_handler: ^12.0.1
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^7.0.1
   url_launcher: ^6.3.2

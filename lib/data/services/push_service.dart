@@ -4,10 +4,17 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../config/env.dart';
+import 'notificacion_local_service.dart';
 
 /// Notificación de negocio normalizada para navegación interna.
 class PushMensaje {
-  const PushMensaje({this.titulo, this.cuerpo, this.pedidoId, this.tipo});
+  const PushMensaje({
+    this.titulo,
+    this.cuerpo,
+    this.pedidoId,
+    this.tipo,
+    this.vigencia,
+  });
   final String? titulo;
   final String? cuerpo;
   final int? pedidoId;
@@ -15,23 +22,53 @@ class PushMensaje {
   /// Tipo de evento de negocio: PROPUESTA, ACEPTACION, PEDIDO_NUEVO, etc.
   final String? tipo;
 
+  /// Cuánto le queda de vida a la oferta. Solo viene en `PEDIDO_NUEVO`.
+  final Duration? vigencia;
+
+  /// El único aviso que la app pinta por su cuenta, porque es el único que va a
+  /// pantalla completa.
+  static const tipoOferta = 'PEDIDO_NUEVO';
+
   static PushMensaje fromRemote(RemoteMessage m) {
     final data = m.data;
     final pedidoRaw = data['pedidoId'] ?? data['pedido_id'];
+    final segundos = int.tryParse('${data['segundosRestantes']}');
     return PushMensaje(
-      titulo: m.notification?.title,
-      cuerpo: m.notification?.body,
+      // La oferta viaja como mensaje de datos y no trae bloque de notificación,
+      // así que su título y su cuerpo vienen en los datos. El resto de avisos sí
+      // lo traen. Se lee de los dos sitios para no tener dos rutas de lectura.
+      titulo: m.notification?.title ?? data['titulo'] as String?,
+      cuerpo: m.notification?.body ?? data['cuerpo'] as String?,
       pedidoId: pedidoRaw == null ? null : int.tryParse(pedidoRaw.toString()),
       tipo: data['tipo'] as String?,
+      vigencia: segundos == null || segundos <= 0
+          ? null
+          : Duration(seconds: segundos),
     );
   }
 }
 
 /// Handler de mensajes en background (debe ser top-level).
+///
+/// Corre en un isolate propio, sin la app ni la DI montadas, así que solo puede
+/// depender de lo que construya él mismo.
+///
+/// Para todo lo que no sea una oferta no hace nada: el mensaje trae bloque de
+/// notificación y la pinta el sistema. La **oferta** llega como mensaje de datos
+/// —una notificación a pantalla completa no se puede pedir desde el payload de
+/// FCM— y es aquí donde se construye. Y solo aquí: con la app en primer plano el
+/// mensaje entra por `onMessage` y la oferta se presenta dentro de la app, así
+/// que este camino no puede duplicarla.
 @pragma('vm:entry-point')
 Future<void> _backgroundHandler(RemoteMessage message) async {
-  // Sin lógica pesada: el sistema muestra la notificación; el tap se maneja
-  // al reabrir la app vía getInitialMessage / onMessageOpenedApp.
+  final aviso = PushMensaje.fromRemote(message);
+  if (aviso.tipo != PushMensaje.tipoOferta || aviso.pedidoId == null) return;
+  await NotificacionLocalService().mostrarOferta(
+    pedidoId: aviso.pedidoId!,
+    titulo: aviso.titulo ?? '¡Nuevo pedido!',
+    cuerpo: aviso.cuerpo ?? 'Tienes un pedido cercano.',
+    vigencia: aviso.vigencia,
+  );
 }
 
 /// Integración con Firebase Cloud Messaging. Es defensiva: si FCM no está

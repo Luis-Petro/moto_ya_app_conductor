@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'data/repositories/auth_repository.dart';
+import 'data/services/notificacion_local_service.dart';
 import 'data/services/push_service.dart';
 import 'di/locator.dart';
 import 'ui/core/theme/app_theme.dart';
@@ -65,6 +66,17 @@ class _ZumbeoConductorAppState extends State<ZumbeoConductorApp> {
         ),
       );
     };
+
+    // Aviso de oferta a pantalla completa: lo pinta la app (FCM no puede pedirlo
+    // desde el payload), así que su toque tampoco pasa por `onMessageOpenedApp`
+    // y hay que enrutarlo aquí. Sin esto el aviso despierta la pantalla y deja
+    // al conductor en el Inicio buscando qué pedido era, con el reloj corriendo.
+    final avisos = locator<NotificacionLocalService>();
+    avisos.onOfertaTocada = (pedidoId) =>
+        abrir(PushMensaje(tipo: PushMensaje.tipoOferta, pedidoId: pedidoId));
+    await avisos.inicializar();
+    await avisos.atenderAperturaDesdeAviso();
+
     await push.inicializar();
   }
 

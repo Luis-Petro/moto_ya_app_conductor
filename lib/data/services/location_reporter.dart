@@ -12,8 +12,37 @@ class LocationReporter {
   StreamSubscription<Position>? _sub;
   Timer? _heartbeat;
   LatLng? _ultima;
+  DateTime? _ultimoReporteOk;
 
   bool get activo => _sub != null;
+
+  /// Margen tras el cual el backend considera caducada la ubicación y deja de
+  /// ofrecer pedidos (`MATCHING_UBICACION_TTL_SEGUNDOS`, default 300s). Es el
+  /// default del servidor copiado aquí: el backend no lo expone y un conductor
+  /// que se cree en línea mientras el matching ya lo descartó no tiene forma de
+  /// saber por qué no le llegan ofertas.
+  static const Duration margenVisibilidad = Duration(seconds: 300);
+
+  /// Instante del último reporte que el backend **aceptó**. No basta con que el
+  /// GPS emita: si el POST falla, la posición no llega y el conductor deja de
+  /// ser visible igual. Lo marca quien hace la petición, que es el único que
+  /// conoce su desenlace.
+  DateTime? get ultimoReporteOk => _ultimoReporteOk;
+
+  void marcarReporteOk() => _ultimoReporteOk = DateTime.now();
+
+  /// El conductor lleva más del margen sin conseguir reportar, así que el
+  /// backend ya no lo ve. Falso mientras el reporte no está activo: fuera de
+  /// línea no hay nada que avisar.
+  bool get reporteCaducado {
+    if (!activo) return false;
+    // `start` lo siembra, así que "nunca consiguió reportar desde que se puso en
+    // línea" también caduca. Tratarlo como "aún no se sabe" dejaría el caso peor
+    // —el que nunca reporta— sin ningún aviso.
+    final ultimo = _ultimoReporteOk;
+    if (ultimo == null) return false;
+    return DateTime.now().difference(ultimo) > margenVisibilidad;
+  }
 
   /// Latido que reenvía la última posición conocida aunque el conductor no se
   /// mueva. Debe ser holgadamente menor que `MATCHING_UBICACION_TTL_SEGUNDOS`
@@ -44,6 +73,7 @@ class LocationReporter {
   }) {
     stop();
     _ultima = inicial;
+    _ultimoReporteOk = DateTime.now();
     _sub = Geolocator.getPositionStream(
       locationSettings: _settings(distanceFilterM, background),
     ).listen(
@@ -51,7 +81,11 @@ class LocationReporter {
         _ultima = LatLng(pos.latitude, pos.longitude);
         onPosition(_ultima!);
       },
-      onError: (_) {/* permiso revocado / GPS off: se detiene con gracia */},
+      // Permiso revocado, GPS apagado o servicio en primer plano terminado por
+      // el sistema: se suelta la suscripción para que `activo` diga la verdad.
+      // Si siguiera en pie, quien pregunte creería que se está reportando.
+      onError: (_) => stop(),
+      onDone: stop,
     );
     // Latido: reenvía la última ubicación conocida aunque el GPS no emita
     // (conductor quieto), para no caducar frente al TTL del backend.
@@ -69,6 +103,17 @@ class LocationReporter {
           distanceFilter: distanceFilterM,
           // El servicio en primer plano (lo declara geolocator_android) mantiene
           // el GPS vivo con la app minimizada mientras el conductor está en línea.
+          //
+          // Su notificación vive en un canal aparte del de ofertas y del de
+          // avisos: es un indicador permanente, no un aviso, y mezclarlo con los
+          // pedidos haría que silenciar lo uno silenciara lo otro.
+          //
+          // Ese canal lo crea el propio plugin con el id `geolocator_channel_01`
+          // e `IMPORTANCE_NONE` —silencioso y sin heads-up, justo lo que hace
+          // falta—. El id es privado del plugin y no se puede sustituir; lo
+          // único que decidimos es el nombre visible en los Ajustes, de ahí
+          // `notificationChannelName`. Crear un canal propio que nada usaría
+          // solo añadiría una entrada muerta a los Ajustes del sistema.
           foregroundNotificationConfig: background
               ? const ForegroundNotificationConfig(
                   notificationTitle: 'Zumbeo · en línea',
@@ -104,5 +149,6 @@ class LocationReporter {
     _heartbeat?.cancel();
     _heartbeat = null;
     _ultima = null;
+    _ultimoReporteOk = null;
   }
 }

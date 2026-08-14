@@ -11,6 +11,7 @@ import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_reporter.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/notificacion_local_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../domain/models/conductor.dart';
@@ -48,6 +49,7 @@ class InicioViewModel extends ChangeNotifier {
     this._ofertas,
     this._municipios,
     this._permisos,
+    this._avisos,
     this._tab,
   ) : _reporter = LocationReporter() {
     _tab.addListener(_onTabActiva);
@@ -60,6 +62,7 @@ class InicioViewModel extends ChangeNotifier {
   final OfertasService _ofertas;
   final MunicipioRepository _municipios;
   final PermisosService _permisos;
+  final NotificacionLocalService _avisos;
   final TabActiva _tab;
   final LocationReporter _reporter;
 
@@ -97,6 +100,22 @@ class InicioViewModel extends ChangeNotifier {
   /// un resultado legítimo y se muestra como tal.
   DemandaZonas? demanda;
   bool cargandoDemanda = false;
+
+  /// Exención de la optimización de batería. Sin ella el sistema mata el proceso
+  /// al minimizar la app en los teléfonos de gama media, y no llegan ni el push
+  /// ni el sondeo. Es informativa: nunca impide ponerse en línea.
+  PermisoBateria bateria = PermisoBateria.noAplica;
+
+  /// El conductor está en línea pero el backend ya no lo ve, porque lleva más del
+  /// margen sin conseguir reportar su posición. Sin este aviso creería que está
+  /// disponible mientras el matching lo descartó, y no tendría forma de saber por
+  /// qué dejaron de llegarle ofertas.
+  bool get sinVisibilidad => enLinea && _reporter.reporteCaducado;
+
+  /// Vigila el margen de visibilidad. El reporte falla en silencio —ni el GPS ni
+  /// la red avisan— así que el aviso solo puede aparecer mirando el reloj.
+  Timer? _vigilanciaVisibilidad;
+  static const Duration _cadenciaVigilancia = Duration(seconds: 30);
 
   Timer? _poll;
   StreamSubscription<EventoOferta>? _ofertaSub;
@@ -165,9 +184,13 @@ class InicioViewModel extends ChangeNotifier {
       }),
     );
     unawaited(cargarDemanda());
-    if (enLinea) {
-      _reporter.start(_onPosicion, background: true, inicial: ubicacion);
-    }
+    unawaited(
+      _permisos.estadoBateria().then((b) {
+        bateria = b;
+        _notificar();
+      }),
+    );
+    if (enLinea) _arrancarReporte();
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
     _iniciarPoll();
@@ -185,6 +208,10 @@ class InicioViewModel extends ChangeNotifier {
   /// retiran de inmediato la oferta mostrada si corresponde a ese pedido.
   void _onEventoOferta(EventoOferta e) {
     if (e.tipo.cierraOferta) {
+      // Retira también el aviso del sistema, lo estuviera mostrando esta pantalla
+      // o no: pudo pintarlo el handler de background con la app cerrada, y un
+      // aviso que sigue ofreciendo un pedido muerto es peor que ninguno.
+      unawaited(_avisos.retirarOferta(e.pedidoId));
       if (ofertaActual?.pedidoId == e.pedidoId) {
         ofertaActual = null;
         _notificar();
@@ -291,6 +318,11 @@ class InicioViewModel extends ChangeNotifier {
     if (permisos.notificaciones != PermisoNotificaciones.ok) {
       return ResultadoEnLinea.faltaNotificaciones;
     }
+    // La exención de batería NO bloquea. El sistema puede ni ofrecer el diálogo,
+    // y dejar a un conductor sin poder trabajar por una pantalla que su teléfono
+    // no muestra es peor que el problema. Se registra y la pantalla lo deja
+    // visible: puede perder avisos con la app cerrada.
+    bateria = permisos.bateria;
 
     // Con permiso recién concedido, refresca la ubicación real antes de
     // publicar el estado (así no arrancamos en el fallback del municipio).
@@ -309,11 +341,18 @@ class InicioViewModel extends ChangeNotifier {
     if (ok) {
       if (valor) {
         _enLineaDesde = DateTime.now();
-        _reporter.start(_onPosicion, background: true, inicial: ubicacion);
+        _arrancarReporte();
       } else {
         _enLineaDesde = null;
-        _reporter.stop();
-        ofertaActual = null; // fuera de línea no se ofrecen pedidos
+        // Detiene el reporte y con él la notificación del servicio en primer
+        // plano: fuera de línea no se comparte ubicación, y dejar el indicador
+        // permanente diciendo lo contrario sería mentirle al conductor.
+        _detenerReporte();
+        // Fuera de línea no se ofrecen pedidos: se retira la oferta de la
+        // pantalla y también su aviso del sistema, si quedó uno abierto.
+        final pedidoId = ofertaActual?.pedidoId;
+        ofertaActual = null;
+        if (pedidoId != null) unawaited(_avisos.retirarOferta(pedidoId));
       }
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);
@@ -344,6 +383,13 @@ class InicioViewModel extends ChangeNotifier {
     return err;
   }
 
+  /// Ofrece el diálogo del sistema para salir de la optimización de batería.
+  /// Se respeta el rechazo: solo se refresca el estado que pinta el aviso.
+  Future<void> pedirExencionBateria() async {
+    bateria = await _permisos.pedirExencionBateria();
+    _notificar();
+  }
+
   /// Abre los Ajustes de la app (permiso de ubicación/notificaciones denegado).
   Future<void> abrirConfiguracionApp() => _permisos.abrirConfiguracionApp();
 
@@ -351,9 +397,40 @@ class InicioViewModel extends ChangeNotifier {
   Future<void> abrirConfiguracionUbicacion() =>
       _permisos.abrirConfiguracionUbicacion();
 
-  void _onPosicion(LatLng punto) {
+  Future<void> _onPosicion(LatLng punto) async {
     ubicacion = punto;
-    _conductores.reportarUbicacion(punto);
+    _notificar();
+    // El sello de visibilidad se pone con el desenlace del envío, no con el fix
+    // del GPS: si el POST falla, la posición no llega al backend y el conductor
+    // deja de ser visible exactamente igual que si no tuviera señal.
+    final res = await _conductores.reportarUbicacion(punto);
+    if (res.isSuccess) _reporter.marcarReporteOk();
+    _notificar();
+  }
+
+  /// Arranca el reporte de posición y su vigilancia.
+  void _arrancarReporte() {
+    _reporter.start(_onPosicion, background: true, inicial: ubicacion);
+    _vigilanciaVisibilidad?.cancel();
+    _vigilanciaVisibilidad = Timer.periodic(
+      _cadenciaVigilancia,
+      (_) => _notificar(),
+    );
+  }
+
+  void _detenerReporte() {
+    _reporter.stop();
+    _vigilanciaVisibilidad?.cancel();
+    _vigilanciaVisibilidad = null;
+  }
+
+  /// El sistema puede matar el servicio en primer plano con la app minimizada —
+  /// es justo lo que hacen los teléfonos sin la exención de batería. Al volver a
+  /// la app se comprueba y se restablece: un conductor en línea sin reporte no
+  /// recibe ofertas y nada se lo dice.
+  Future<void> alVolverDeSegundoPlano() async {
+    bateria = await _permisos.estadoBateria();
+    if (enLinea && !_reporter.activo) _arrancarReporte();
     _notificar();
   }
 
@@ -425,7 +502,7 @@ class InicioViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _tab.removeListener(_onTabActiva);
-    _reporter.stop();
+    _detenerReporte();
     _poll?.cancel();
     _ofertaSub?.cancel();
     _ofertas.disconnect();

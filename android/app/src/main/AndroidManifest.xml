@@ -18,6 +18,16 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Notificaciones push (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Aviso de oferta sobre la pantalla bloqueada, como una llamada entrante.
+         Con el telefono en el bolsillo es lo unico que hace que el conductor se
+         entere dentro de la ventana de respuesta de la oferta. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- Pedir la exencion de la optimizacion de bateria. En los telefonos de
+         gama media que dominan el mercado local el sistema mata el proceso al
+         minimizar la app: sin la exencion no llegan ni el push ni el sondeo, y
+         el conductor descubre el pedido cuando ya lo tomo otro. Se pide, no se
+         exige: la app deja ponerse en linea aunque el conductor la rechace. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <!-- Sin usesCleartextTraffic: el backend es HTTPS y permitir texto claro en
          toda la app solo abre una via de interceptacion en redes publicas. -->
@@ -47,12 +57,15 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Canal por defecto para las notificaciones FCM (alta importancia).
-             Debe coincidir con el canal creado en ZumbeoApplication y con el
-             channelId del backend; si no, Android entrega las push como silenciosas. -->
+        <!-- Canal por defecto para las notificaciones FCM: el de AVISOS GENERALES,
+             no el de ofertas. Este solo se usa cuando el mensaje no declara canal,
+             y una oferta siempre lo declara. Si por defecto fuera el de ofertas,
+             cualquier aviso sin canal sonaria como un pedido.
+             Debe coincidir con ZumbeoApplication.CANAL_AVISOS y con el channelId
+             del backend; si no, Android entrega las push como silenciosas. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="motoya_alta_importancia_v2" />
+            android:value="motoya_avisos_v1" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

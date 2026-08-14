@@ -11,6 +11,7 @@ import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/notificacion_local_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
@@ -42,6 +43,7 @@ class InicioScreen extends StatelessWidget {
         locator<OfertasService>(),
         locator<MunicipioRepository>(),
         locator<PermisosService>(),
+        locator<NotificacionLocalService>(),
         locator<TabActiva>(),
       )..cargar(),
       child: const _InicioView(),
@@ -49,8 +51,35 @@ class InicioScreen extends StatelessWidget {
   }
 }
 
-class _InicioView extends StatelessWidget {
+class _InicioView extends StatefulWidget {
   const _InicioView();
+
+  @override
+  State<_InicioView> createState() => _InicioViewState();
+}
+
+class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// El sistema puede matar el servicio en primer plano con la app minimizada, y
+  /// el conductor no se entera: la app sigue diciendo "en línea" mientras el
+  /// backend ya lo descartó. Al volver se comprueba y se restablece.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    if (estado == AppLifecycleState.resumed) {
+      context.read<InicioViewModel>().alVolverDeSegundoPlano();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +92,9 @@ class _InicioView extends StatelessWidget {
         vm.rechazado ||
         !vm.tieneFotoPerfil ||
         vm.pedidoActivo != null ||
-        vm.ofertaActual != null;
+        vm.ofertaActual != null ||
+        vm.sinVisibilidad ||
+        vm.bateria == PermisoBateria.denegado;
     return Scaffold(
       body: SafeArea(
         child: vm.cargando
@@ -98,6 +129,17 @@ class _InicioView extends StatelessWidget {
                           ],
                           if (!vm.tieneFotoPerfil) ...[
                             const _FotoPerfilBanner(),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          // Va antes que el pedido activo y la oferta: si el
+                          // conductor no está siendo visible, lo primero que
+                          // necesita saber es eso.
+                          if (vm.sinVisibilidad) ...[
+                            const _SinVisibilidadBanner(),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                          if (vm.bateria == PermisoBateria.denegado) ...[
+                            const _BateriaBanner(),
                             const SizedBox(height: AppSpacing.md),
                           ],
                           if (vm.pedidoActivo != null) ...[
@@ -637,6 +679,107 @@ class _FotoPerfilBanner extends StatelessWidget {
             )
           else
             const Icon(Icons.photo_camera_rounded, color: AppColors.primary),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso de que el conductor está en línea pero el backend ya no lo ve.
+///
+/// El reporte de posición falla en silencio: ni el GPS ni la red avisan de que
+/// dejaron de funcionar. Sin esta tarjeta el conductor ve el interruptor en «en
+/// línea», no le llega ninguna oferta y no tiene forma de saber por qué.
+class _SinVisibilidadBanner extends StatelessWidget {
+  const _SinVisibilidadBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<InicioViewModel>();
+    return MotoCard(
+      color: AppColors.dangerSurface,
+      borderColor: AppColors.danger,
+      child: Row(
+        children: [
+          const Icon(Icons.location_disabled_rounded, color: AppColors.danger),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No estás recibiendo pedidos',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Llevas un rato sin poder enviar tu ubicación, así que no '
+                  'apareces cerca de los pedidos. Revisa el GPS y los datos.',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          TextButton(
+            onPressed: vm.abrirConfiguracionUbicacion,
+            child: const Text('Ajustes'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso de que la app está sometida a la optimización de batería.
+///
+/// En los teléfonos de gama media que dominan el mercado local el sistema mata
+/// el proceso al minimizar la app, y sin la exención no llegan ni el push ni el
+/// sondeo. **No bloquea nada**: es información y un atajo al diálogo del sistema.
+class _BateriaBanner extends StatelessWidget {
+  const _BateriaBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<InicioViewModel>();
+    return MotoCard(
+      color: AppColors.primarySurface,
+      borderColor: AppColors.primary,
+      onTap: vm.pedirExencionBateria,
+      child: Row(
+        children: [
+          const Icon(Icons.battery_alert_rounded, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Te pueden faltar pedidos con la app cerrada',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Tu teléfono puede cerrar Zumbeo para ahorrar batería. Toca '
+                  'aquí y elige "Permitir" para que los avisos te lleguen '
+                  'aunque no tengas la app abierta.',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                // Xiaomi, Huawei, Oppo y Realme tienen además su propia lista de
+                // arranque automático, en una pantalla distinta en cada marca y
+                // sin ninguna API pública para abrirla. Lo mejor que se puede
+                // hacer es decirle dónde mirar.
+                Text(
+                  'Si tienes Xiaomi, Huawei, Oppo o Realme, busca además '
+                  '"Inicio automático" en los ajustes y actívalo para Zumbeo.',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
         ],
       ),
     );

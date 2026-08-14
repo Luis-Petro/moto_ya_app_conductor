@@ -16,6 +16,7 @@ import '../data/services/dispositivo_service.dart';
 import '../data/services/location_service.dart';
 import '../data/services/lugar_service.dart';
 import '../data/services/municipio_service.dart';
+import '../data/services/notificacion_local_service.dart';
 import '../data/services/notificacion_service.dart';
 import '../data/services/ofertas_service.dart';
 import '../data/services/permisos_service.dart';
@@ -38,8 +39,12 @@ void configurarDependencias() {
       () => ApiClient(locator(), dispositivo: locator<DispositivoService>()));
   locator.registerLazySingleton(() => SocialAuthService());
   locator.registerLazySingleton(() => PushService());
+  locator.registerLazySingleton(() => NotificacionLocalService());
   locator.registerLazySingleton(() => LocationService());
-  locator.registerLazySingleton(() => PermisosService(locator<PushService>()));
+  locator.registerLazySingleton(() => PermisosService(
+        locator<PushService>(),
+        locator<NotificacionLocalService>(),
+      ));
   locator.registerLazySingleton(() => TabActiva());
 
   // ── Services (acceso crudo a la API) ──

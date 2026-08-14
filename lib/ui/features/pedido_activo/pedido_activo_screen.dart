@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
+import '../../../data/services/imagen_compresor.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/tracking_service.dart';
 import '../../../di/locator.dart';
@@ -55,16 +56,45 @@ class _ActivoView extends StatefulWidget {
 
 class _ActivoViewState extends State<_ActivoView> {
   final _picker = ImagePicker();
+  static const _compresor = ImagenCompresor();
+
   File? _evidencia;
+  int? _pesoEvidencia;
+
+  /// La entrega falló con la foto ya tomada. La foto **no** se pierde: el botón
+  /// pasa a reintentar el envío y no se vuelve a abrir la cámara.
+  bool _falloConFoto = false;
 
   Future<void> _tomarEvidencia() async {
+    // 1280 px y calidad 55 al capturar: una foto de entrega es la prueba de que
+    // el paquete llegó, no un documento que haya que leer. Se sube por datos
+    // móviles, desde la calle y con el cliente delante.
     final XFile? foto = await _picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 70,
-      maxWidth: 1600,
+      imageQuality: 55,
+      maxWidth: 1280,
     );
     if (foto == null) return;
-    setState(() => _evidencia = File(foto.path));
+
+    // Segunda pasada al tope de peso: la misma configuración de captura da 180 KB
+    // en un teléfono y 900 KB en otro con mejor sensor. Si falla, se queda el
+    // original — comprimir es una mejora, no un requisito de la entrega.
+    final archivo = await _compresor.aTope(File(foto.path));
+    final peso = await archivo.length();
+    if (!mounted) return;
+    setState(() {
+      _evidencia = archivo;
+      _pesoEvidencia = peso;
+      _falloConFoto = false;
+    });
+  }
+
+  void _descartarEvidencia() {
+    setState(() {
+      _evidencia = null;
+      _pesoEvidencia = null;
+      _falloConFoto = false;
+    });
   }
 
   /// Si el dispositivo puede abrir `wa.me`. Se resuelve una vez al entrar: sin
@@ -166,14 +196,32 @@ class _ActivoViewState extends State<_ActivoView> {
   }
 
   Future<void> _accion(PedidoActivoViewModel vm) async {
+    // Doble toque: el botón ya se deshabilita con `procesando`, pero la guarda
+    // aquí cierra la ventana entre el toque y el primer rebuild. Dos entregas
+    // significan dos subidas de la misma foto y dos avances de estado.
+    if (vm.procesando) return;
+
     final esEntrega = vm.proximoEstado == EstadoPedido.entregado;
     final ok = esEntrega
         ? await vm.entregar(foto: _evidencia)
         : await vm.avanzar();
     if (!mounted) return;
+
     if (!ok) {
+      // Con foto, el fallo no cuesta repetirla: el pedido no avanzó y el archivo
+      // sigue en `_evidencia`, listo para reenviarse.
+      if (esEntrega && _evidencia != null) {
+        setState(() => _falloConFoto = true);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos actualizar el estado')),
+        SnackBar(
+          content: Text(
+            esEntrega && _evidencia != null
+                ? '${vm.error ?? 'No pudimos enviar la evidencia'} La foto sigue '
+                      'guardada: toca "Reintentar envío".'
+                : (vm.error ?? 'No pudimos actualizar el estado'),
+          ),
+        ),
       );
     }
   }
@@ -315,7 +363,15 @@ class _ActivoViewState extends State<_ActivoView> {
                 // La evidencia solo importa en el último tramo.
                 if (vm.proximoEstado == EstadoPedido.entregado) ...[
                   const SizedBox(height: AppSpacing.md),
-                  _BotonEvidencia(archivo: _evidencia, onTap: _tomarEvidencia),
+                  _BotonEvidencia(
+                    archivo: _evidencia,
+                    onTap: _tomarEvidencia,
+                    onDescartar: _descartarEvidencia,
+                    pesoBytes: _pesoEvidencia,
+                    progreso: vm.progresoSubida,
+                    subiendo: vm.procesando && _evidencia != null,
+                    falloEnvio: _falloConFoto,
+                  ),
                 ],
               ],
             ),
@@ -327,12 +383,18 @@ class _ActivoViewState extends State<_ActivoView> {
               border: Border(top: BorderSide(color: AppColors.line)),
             ),
             child: PrimaryButton(
-              label: vm.etiquetaAvance,
-              icon: vm.proximoEstado == EstadoPedido.entregado
-                  ? Icons.check_circle_outline
-                  : Icons.arrow_forward_rounded,
+              // Tras un fallo con la foto ya tomada, el botón dice qué va a
+              // hacer: reenviar lo que ya está, no volver a empezar.
+              label: _falloConFoto ? 'Reintentar envío' : vm.etiquetaAvance,
+              icon: _falloConFoto
+                  ? Icons.refresh_rounded
+                  : (vm.proximoEstado == EstadoPedido.entregado
+                        ? Icons.check_circle_outline
+                        : Icons.arrow_forward_rounded),
               loading: vm.procesando,
-              onPressed: vm.proximoEstado == null ? null : () => _accion(vm),
+              onPressed: vm.proximoEstado == null || vm.procesando
+                  ? null
+                  : () => _accion(vm),
             ),
           ),
         ],
@@ -656,38 +718,143 @@ class _PuntoFila extends StatelessWidget {
 }
 
 class _BotonEvidencia extends StatelessWidget {
-  const _BotonEvidencia({required this.archivo, required this.onTap});
+  const _BotonEvidencia({
+    required this.archivo,
+    required this.onTap,
+    required this.onDescartar,
+    this.pesoBytes,
+    this.progreso,
+    this.subiendo = false,
+    this.falloEnvio = false,
+  });
+
   final File? archivo;
   final VoidCallback onTap;
 
+  /// Descartar la foto y volver a capturar. Solo con foto y sin subida en curso.
+  final VoidCallback onDescartar;
+
+  final int? pesoBytes;
+
+  /// Fracción 0..1 de la subida. Nula = subida en curso sin total conocido.
+  final double? progreso;
+  final bool subiendo;
+
+  /// La subida falló y la foto sigue guardada. Decirlo es lo que evita que el
+  /// conductor vuelva a abrir la cámara creyendo que la perdió.
+  final bool falloEnvio;
+
+  static String _peso(int bytes) => bytes >= 1024 * 1024
+      ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+      : '${(bytes / 1024).round()} KB';
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          border: Border.all(color: AppColors.line),
+    final tiene = archivo != null;
+
+    final (icono, color, titulo) = switch ((subiendo, falloEnvio, tiene)) {
+      (true, _, _) => (
+        Icons.cloud_upload_outlined,
+        AppColors.primary,
+        'Enviando la foto…',
+      ),
+      (_, true, _) => (
+        Icons.cloud_off_outlined,
+        AppColors.warning,
+        'La foto sigue guardada',
+      ),
+      (_, _, true) => (
+        Icons.check_circle,
+        AppColors.success,
+        'Foto lista para enviar',
+      ),
+      _ => (
+        Icons.photo_camera_outlined,
+        AppColors.inkMuted,
+        'Subir foto de evidencia',
+      ),
+    };
+
+    // Un spinner sin porcentaje sobre datos móviles se lee como app colgada: el
+    // conductor no sabe si esperar o si volver a tocar. Con el porcentaje y el
+    // peso, esperar es una decisión informada.
+    final detalle = switch ((subiendo, falloEnvio, pesoBytes)) {
+      (true, _, final p?) when progreso != null =>
+        '${(progreso! * 100).round()}% de ${_peso(p)}',
+      (true, _, final p?) => 'Enviando ${_peso(p)}…',
+      (true, _, _) => null,
+      (_, true, _) => 'Toca "Reintentar envío" abajo. No hace falta repetirla.',
+      (_, _, final p?) => _peso(p),
+      _ => 'Se comprime antes de enviarla, para que salga rápido con datos',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: falloEnvio ? AppColors.warning : AppColors.line,
         ),
-        child: Row(
-          children: [
-            Icon(
-              archivo == null
-                  ? Icons.photo_camera_outlined
-                  : Icons.check_circle,
-              color: archivo == null ? AppColors.inkMuted : AppColors.success,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            // Durante la subida no se abre la cámara: se perdería la foto que se
+            // está enviando.
+            onTap: subiendo ? null : onTap,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: Row(
+              children: [
+                Icon(icono, color: color),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (detalle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          detalle,
+                          style: const TextStyle(
+                            color: AppColors.inkMuted,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.md),
-            Text(
-              archivo == null
-                  ? 'Subir foto de evidencia'
-                  : 'Foto lista para enviar',
+          ),
+          if (subiendo) ...[
+            const SizedBox(height: AppSpacing.md),
+            // `value` nulo = indeterminado. Es lo correcto cuando Dio no informa
+            // el total: mejor una barra que no promete nada que un porcentaje
+            // inventado.
+            LinearProgressIndicator(value: progreso),
+          ],
+          if (tiene && !subiendo) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onDescartar,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.inkMuted,
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Tomar otra foto'),
+              ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

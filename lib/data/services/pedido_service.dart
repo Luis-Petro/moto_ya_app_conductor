@@ -23,26 +23,35 @@ class PedidoService {
   /// Calificación que el conductor recibió en un pedido (`/mi-calificacion`):
   /// devuelve la calificación o `null` (204) si aún no lo calificaron.
   Future<Result<Calificacion?>> miCalificacion(int pedidoId) {
-    return _api.get<Calificacion?>('/pedidos/$pedidoId/mi-calificacion', parse: (data) {
-      if (data == null || (data is String && data.isEmpty)) return null;
-      return ApiMappers.calificacion(data);
-    });
+    return _api.get<Calificacion?>(
+      '/pedidos/$pedidoId/mi-calificacion',
+      parse: (data) {
+        if (data == null || (data is String && data.isEmpty)) return null;
+        return ApiMappers.calificacion(data);
+      },
+    );
   }
 
   /// Historial de pedidos asignados al conductor autenticado.
   /// (`/pedidos/mios` es solo para CLIENTE; el conductor usa `/pedidos/asignados`.)
   Future<Result<List<Pedido>>> asignados() {
-    return _api.get<List<Pedido>>('/pedidos/asignados', parse: ApiMappers.pedidos);
+    return _api.get<List<Pedido>>(
+      '/pedidos/asignados',
+      parse: ApiMappers.pedidos,
+    );
   }
 
   /// Pedido en curso del conductor (endpoint ligero `/pedidos/activo`): devuelve
   /// un solo pedido o `null` (204). Evita descargar todo el historial en cada
   /// tick del sondeo.
   Future<Result<Pedido?>> activo() {
-    return _api.get<Pedido?>('/pedidos/activo', parse: (data) {
-      if (data == null || (data is String && data.isEmpty)) return null;
-      return ApiMappers.pedido(data);
-    });
+    return _api.get<Pedido?>(
+      '/pedidos/activo',
+      parse: (data) {
+        if (data == null || (data is String && data.isEmpty)) return null;
+        return ApiMappers.pedido(data);
+      },
+    );
   }
 
   /// Envía una propuesta: sin `valor` (o igual a la sugerida) acepta; con un
@@ -75,6 +84,7 @@ class PedidoService {
     int pedidoId, {
     MultipartFile? foto,
     LatLng? coordenadas,
+    void Function(int enviados, int total)? onProgreso,
   }) {
     return _api.postMultipart<void>(
       '/pedidos/$pedidoId/evidencia',
@@ -83,6 +93,7 @@ class PedidoService {
         if (coordenadas != null) 'lat': coordenadas.latitude,
         if (coordenadas != null) 'lng': coordenadas.longitude,
       },
+      onProgreso: onProgreso,
     );
   }
 
@@ -99,7 +110,10 @@ class PedidoService {
   /// Ofertas dirigidas y vigentes para el conductor en línea (fallback de sondeo
   /// del canal STOMP). Cada una trae la ventana del servidor (`segundosRestantes`).
   Future<Result<List<Oferta>>> ofertas() {
-    return _api.get<List<Oferta>>('/pedidos/ofertas', parse: ApiMappers.ofertas);
+    return _api.get<List<Oferta>>(
+      '/pedidos/ofertas',
+      parse: ApiMappers.ofertas,
+    );
   }
 
   /// Rechaza una oferta: deja de aparecer en el sondeo y baja la tasa de

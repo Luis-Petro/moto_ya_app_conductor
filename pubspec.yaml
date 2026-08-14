@@ -1,5 +1,5 @@
 name: app_conductor
-description: "Zumbeo â€” App Conductor (recibe pedidos, cobra y liquida comisiones)."
+description: "Zumbeo — App Conductor (recibe pedidos, cobra y liquida comisiones)."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -45,6 +45,11 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
   image_picker: ^1.2.1
+  # Recompresión de la evidencia de entrega antes de subirla (ver
+  # data/services/imagen_compresor.dart). Dart puro, sin código nativo ni
+  # configuración de plataforma. `dart:ui` no servía: decodifica, pero solo
+  # codifica PNG, y un PNG de una foto pesa más que el JPEG de origen.
+  image: ^4.8.0
   stomp_dart_client: ^3.0.1
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.1

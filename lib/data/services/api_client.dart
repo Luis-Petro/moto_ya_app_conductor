@@ -12,15 +12,18 @@ import 'session_storage.dart';
 /// de 401 (sesión expirada → logout).
 class ApiClient {
   ApiClient(this._session, {Dio? dio, DispositivoService? dispositivo})
-      : _dispositivo = dispositivo,
-        _dio = dio ??
-            Dio(BaseOptions(
+    : _dispositivo = dispositivo,
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
               baseUrl: Env.apiBaseUrl,
               connectTimeout: const Duration(seconds: 12),
               receiveTimeout: const Duration(seconds: 20),
               // No lanzamos en 4xx/5xx: lo convertimos a Failure nosotros.
               validateStatus: (s) => s != null && s < 500,
-            )) {
+            ),
+          ) {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -55,10 +58,12 @@ class ApiClient {
     final dispositivo = _dispositivo;
     if (dispositivo == null) return;
     try {
-      options.headers['X-Dispositivo-Id'] =
-          DispositivoService.soloAscii(await dispositivo.id());
-      options.headers['X-Dispositivo'] =
-          DispositivoService.soloAscii(await dispositivo.descripcion());
+      options.headers['X-Dispositivo-Id'] = DispositivoService.soloAscii(
+        await dispositivo.id(),
+      );
+      options.headers['X-Dispositivo'] = DispositivoService.soloAscii(
+        await dispositivo.descripcion(),
+      );
     } catch (e) {
       debugPrint('ApiClient: sin cabeceras de dispositivo ($e)');
     }
@@ -105,10 +110,16 @@ class ApiClient {
   }
 
   /// POST con `multipart/form-data` (crear pedido, evidencia, etc.).
+  ///
+  /// [onProgreso] recibe bytes enviados y total. Es opcional y por defecto nulo:
+  /// el resto de subidas no cambia de comportamiento. Dio informa `total` en `-1`
+  /// cuando no lo conoce, y ese caso hay que dejarlo pasar tal cual — inventar un
+  /// porcentaje es peor que no dar ninguno.
   Future<Result<T>> postMultipart<T>(
     String path, {
     required Map<String, dynamic> fields,
     T Function(dynamic data)? parse,
+    void Function(int enviados, int total)? onProgreso,
   }) {
     final form = FormData();
     fields.forEach((key, value) {
@@ -119,7 +130,10 @@ class ApiClient {
         form.fields.add(MapEntry(key, value.toString()));
       }
     });
-    return _send<T>(() => _dio.post(path, data: form), parse);
+    return _send<T>(
+      () => _dio.post(path, data: form, onSendProgress: onProgreso),
+      parse,
+    );
   }
 
   Future<Result<T>> _send<T>(
@@ -143,13 +157,16 @@ class ApiClient {
     } on DioException catch (e) {
       return Err<T>(_failureFromDio(e));
     } catch (e) {
-      return Err<T>(Failure('Ocurrió un error inesperado.', kind: FailureKind.unknown));
+      return Err<T>(
+        Failure('Ocurrió un error inesperado.', kind: FailureKind.unknown),
+      );
     }
   }
 
   Failure _failureFromResponse(Response res) {
     final code = res.statusCode;
-    final msg = _extractMessage(res.data) ??
+    final msg =
+        _extractMessage(res.data) ??
         switch (code) {
           400 => 'Datos inválidos. Revisa la información.',
           401 => 'Tu sesión expiró. Inicia sesión de nuevo.',
@@ -168,19 +185,27 @@ class ApiClient {
   }
 
   Failure _failureFromDio(DioException e) {
-    final isTimeout = e.type == DioExceptionType.connectionTimeout ||
+    final isTimeout =
+        e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
         e.type == DioExceptionType.sendTimeout;
     if (isTimeout) {
-      return const Failure('La conexión tardó demasiado. Reintenta.',
-          kind: FailureKind.network);
+      return const Failure(
+        'La conexión tardó demasiado. Reintenta.',
+        kind: FailureKind.network,
+      );
     }
     if (e.type == DioExceptionType.connectionError) {
-      return const Failure('Sin conexión. Verifica tu internet.',
-          kind: FailureKind.network);
+      return const Failure(
+        'Sin conexión. Verifica tu internet.',
+        kind: FailureKind.network,
+      );
     }
-    return Failure(_extractMessage(e.response?.data) ?? 'Error de red.',
-        statusCode: e.response?.statusCode, kind: FailureKind.network);
+    return Failure(
+      _extractMessage(e.response?.data) ?? 'Error de red.',
+      statusCode: e.response?.statusCode,
+      kind: FailureKind.network,
+    );
   }
 
   String? _extractMessage(dynamic data) {

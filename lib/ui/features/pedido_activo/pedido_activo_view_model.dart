@@ -16,7 +16,7 @@ import '../../../domain/models/pedido.dart';
 /// publicación de posición GPS en vivo por STOMP.
 class PedidoActivoViewModel extends ChangeNotifier {
   PedidoActivoViewModel(this._pedidos, this._tracking, this.pedidoId)
-      : _reporter = LocationReporter();
+    : _reporter = LocationReporter();
 
   final PedidoRepository _pedidos;
   final TrackingService _tracking;
@@ -126,21 +126,54 @@ class PedidoActivoViewModel extends ChangeNotifier {
     return ok;
   }
 
+  /// Fracción subida de la evidencia, 0..1. Nula cuando no hay subida en curso
+  /// **o cuando Dio no informa el total**: un porcentaje inventado es peor que
+  /// ninguno, porque el conductor decide si esperar mirándolo.
+  double? progresoSubida;
+
+  /// Bytes que se están subiendo, para poder decir *cuánto* pesa lo que espera.
+  int? bytesSubiendo;
+
   /// Marca el pedido entregado con evidencia opcional.
+  ///
+  /// Si la subida de la foto falla, **el pedido no avanza** y la foto sigue en
+  /// pantalla para reintentar: es la prueba con la que se resuelve una disputa, y
+  /// perderla en silencio era el comportamiento anterior.
   Future<bool> entregar({File? foto}) async {
     procesando = true;
+    error = null;
+    progresoSubida = null;
+    bytesSubiendo = null;
     notifyListeners();
+
     MultipartFile? multipart;
-    if (foto != null) multipart = await MultipartFile.fromFile(foto.path);
+    if (foto != null) {
+      multipart = await MultipartFile.fromFile(foto.path);
+      bytesSubiendo = await foto.length();
+    }
+
     final res = await _pedidos.entregar(
       pedidoId,
       foto: multipart,
       coordenadas: posicion,
+      onProgreso: multipart == null
+          ? null
+          : (enviados, total) {
+              // Dio manda `-1` cuando no conoce el total.
+              progresoSubida = total > 0
+                  ? (enviados / total).clamp(0, 1)
+                  : null;
+              notifyListeners();
+            },
     );
+
     procesando = false;
+    progresoSubida = null;
+    bytesSubiendo = null;
     final ok = res.isSuccess;
     if (ok) {
-      pedido = res.valueOrNull ?? pedido?.copyWith(estado: EstadoPedido.entregado);
+      pedido =
+          res.valueOrNull ?? pedido?.copyWith(estado: EstadoPedido.entregado);
       _detenerTracking();
     } else {
       error = res.when(ok: (_) => null, err: (f) => f.message);

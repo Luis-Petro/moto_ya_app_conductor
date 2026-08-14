@@ -45,13 +45,26 @@ class PedidoRepository {
 
   /// Marca entregado: primero sube la evidencia (si hay) y luego avanza el
   /// estado a ENTREGADO (la comisión se genera en el backend en ese paso).
+  ///
+  /// **Si la evidencia no sube, el pedido no avanza.** Antes el `Result` de
+  /// `registrarEvidencia` se descartaba: con datos móviles malos, la foto se
+  /// perdía en silencio y el pedido quedaba `ENTREGADO` **sin evidencia**, que es
+  /// justo el registro con el que se resuelve una disputa. Y sin esto no hay nada
+  /// que reintentar: el estado ya habría avanzado.
   Future<Result<Pedido>> entregar(
     int pedidoId, {
     MultipartFile? foto,
     LatLng? coordenadas,
+    void Function(int enviados, int total)? onProgreso,
   }) async {
     if (foto != null || coordenadas != null) {
-      await _service.registrarEvidencia(pedidoId, foto: foto, coordenadas: coordenadas);
+      final evidencia = await _service.registrarEvidencia(
+        pedidoId,
+        foto: foto,
+        coordenadas: coordenadas,
+        onProgreso: onProgreso,
+      );
+      if (evidencia case Err<void>(failure: final f)) return Err<Pedido>(f);
     }
     return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire);
   }

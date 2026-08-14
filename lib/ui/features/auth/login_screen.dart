@@ -51,8 +51,15 @@ class _LoginViewState extends State<_LoginView> {
     if (ok) {
       context.go(Rutas.alta);
     } else {
+      final motivo = vm.error ?? 'No pudimos iniciar sesión';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos iniciar sesión')),
+        SnackBar(
+          content: Text(motivo),
+          // Los motivos largos piden acción, no información: el 409 de "esta
+          // cuenta es de cliente" dice a qué app hay que ir, y cuatro segundos
+          // no alcanzan para leerlo y entenderlo.
+          duration: Duration(seconds: motivo.length > 60 ? 8 : 4),
+        ),
       );
     }
   }

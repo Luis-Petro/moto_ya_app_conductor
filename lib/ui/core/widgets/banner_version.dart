@@ -6,6 +6,7 @@ import '../../../data/services/app_version_service.dart';
 import '../../../di/locator.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import 'mascota_animada.dart';
 
 /// A dónde manda el botón del banner, con qué texto y con qué icono.
 class DestinoActualizacion {
@@ -101,8 +102,10 @@ class _BannerVersionState extends State<BannerVersion> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.system_update_rounded,
-              color: AppColors.primary, size: 20),
+          // La mascota con el teléfono en la mano, en vez del icono de sistema.
+          // El banner no es un momento de espera, así que va quieta: aquí la
+          // mascota es identidad de marca, no acompañamiento.
+          const MascotaAnimada(pose: PoseMascota.actualizar, alto: 48),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(

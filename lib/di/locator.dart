@@ -12,6 +12,7 @@ import '../data/services/auth_service.dart';
 import '../data/services/feedback_service.dart';
 import '../data/services/billetera_service.dart';
 import '../data/services/conductor_service.dart';
+import '../data/services/dispositivo_service.dart';
 import '../data/services/location_service.dart';
 import '../data/services/lugar_service.dart';
 import '../data/services/municipio_service.dart';
@@ -32,7 +33,9 @@ final GetIt locator = GetIt.instance;
 void configurarDependencias() {
   // ── Infraestructura ──
   locator.registerLazySingleton(() => SessionStorage());
-  locator.registerLazySingleton(() => ApiClient(locator()));
+  locator.registerLazySingleton(() => DispositivoService());
+  locator.registerLazySingleton(
+      () => ApiClient(locator(), dispositivo: locator<DispositivoService>()));
   locator.registerLazySingleton(() => SocialAuthService());
   locator.registerLazySingleton(() => PushService());
   locator.registerLazySingleton(() => LocationService());

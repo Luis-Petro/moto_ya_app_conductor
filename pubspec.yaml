@@ -54,6 +54,9 @@ dependencies:
   # Versión instalada real (para el banner de versión nueva): leerla del paquete
   # y no de un --dart-define evita reportar una versión falsa en builds manuales.
   package_info_plus: ^8.1.1
+  # Marca, modelo y versión del sistema, para el reporte de feedback y para
+  # identificar el equipo en el panel. Se obtiene, no se le pregunta a nadie.
+  device_info_plus: ^12.2.0
   intl: ^0.20.2
   shared_preferences: ^2.5.3
   go_router: ^17.0.0

@@ -20,13 +20,39 @@ void main() {
     test('continuar se bloquea con el paso incompleto', () {
       expect(alta, contains('habilitado: _pasoValido(vm)'));
       // Y cada paso tiene su propia condición: la del primero no puede exigir
-      // la cédula, que todavía no ha llegado.
+      // la placa, que todavía no ha llegado.
       final valido = alta.substring(
         alta.indexOf('bool _pasoValido('),
         alta.indexOf('void _siguiente()'),
       );
-      expect(valido, contains('0 => _motoLista'));
-      expect(valido, contains('1 => vm.tieneCedula'));
+      expect(valido, contains('0 => vm.tieneCedula'));
+      expect(valido, contains('1 => _motoLista'));
+    });
+
+    test('los pasos se agrupan por lo que documentan', () {
+      // Identidad (cédula + selfie) y moto (datos + tarjeta + foto). Antes las
+      // cuatro fotos iban juntas y la tarjeta de propiedad quedaba a dos pasos
+      // de la placa que aparece en ella.
+      expect(alta, contains('_PasoIdentidad'));
+      expect(alta, isNot(contains('class _PasoDocumentos')));
+
+      // En el archivo `_PasoMoto` va antes que `_PasoIdentidad`; el orden de
+      // los pasos lo fija el `PageView`, no el orden de las clases.
+      final identidad = alta.substring(
+        alta.indexOf('class _PasoIdentidad'),
+        alta.indexOf('class _PasoRevision'),
+      );
+      expect(identidad, contains('Foto de tu cédula'));
+      expect(identidad, contains('Selfie tuya'));
+      expect(identidad, isNot(contains('Foto de tu moto')));
+
+      final moto = alta.substring(
+        alta.indexOf('class _PasoMoto'),
+        alta.indexOf('class _PasoIdentidad'),
+      );
+      expect(moto, contains('Tarjeta de propiedad'));
+      expect(moto, contains('Foto de tu moto'));
+      expect(moto, isNot(contains('Foto de tu cédula')));
     });
 
     test('no se puede deslizar entre pasos', () {

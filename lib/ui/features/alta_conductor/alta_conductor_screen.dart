@@ -130,9 +130,9 @@ class _AltaViewState extends State<_AltaView> {
 
   /// Si el paso actual está completo. Lo que bloquea "Continuar".
   bool _pasoValido(AltaConductorViewModel vm) => switch (_paso) {
-        0 => _motoLista,
         // La cédula es lo mínimo para enviar; el resto se puede completar luego.
-        1 => vm.tieneCedula,
+        0 => vm.tieneCedula,
+        1 => _motoLista,
         _ => _valido(vm),
       };
 
@@ -311,6 +311,17 @@ class _AltaViewState extends State<_AltaView> {
                   // validación del paso sin que nadie lo note.
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
+                    // Los pasos van agrupados por **lo que documentan**, no por
+                    // tipo de dato: antes las cuatro fotos iban juntas y los
+                    // datos de la moto en otro paso, así que la tarjeta de
+                    // propiedad quedaba a dos pantallas de la placa que aparece
+                    // en ella. Ahora quien va a fotografiar la moto lo hace todo
+                    // de una vez, junto a la moto.
+                    _PasoIdentidad(
+                      vm: vm,
+                      onCedula: () => _tomarCedula(vm),
+                      onSelfie: () => _tomarSelfie(vm),
+                    ),
                     _PasoMoto(
                       vm: vm,
                       marca: _marca,
@@ -323,12 +334,7 @@ class _AltaViewState extends State<_AltaView> {
                       onMarca: _elegirMarca,
                       onModelo: (m) => setState(() => _modelo = m),
                       onCambio: () => setState(() {}),
-                    ),
-                    _PasoDocumentos(
-                      vm: vm,
-                      onCedula: () => _tomarCedula(vm),
                       onPapeles: () => _tomarPapeles(vm),
-                      onSelfie: () => _tomarSelfie(vm),
                       onFotoMoto: () => _tomarFotoMoto(vm),
                     ),
                     _PasoRevision(
@@ -360,21 +366,21 @@ class _AltaViewState extends State<_AltaView> {
   }
 
   static String _tituloPaso(int paso) => switch (paso) {
-        0 => 'Tu moto',
-        1 => 'Tus documentos',
+        0 => 'Tu identidad',
+        1 => 'Tu moto',
         _ => 'Revisar y enviar',
       };
 
   /// Qué falta **de este paso**, no del alta entera. Decirle a alguien en el
-  /// paso de la moto que le falta la cédula es ruido: todavía no ha llegado.
+  /// paso de la identidad que le falta la placa es ruido: todavía no ha llegado.
   String? _faltaEnEstePaso(AltaConductorViewModel vm) {
-    if (_paso == 0) {
+    if (_paso == 0 && !vm.tieneCedula) {
+      return 'La foto de tu cédula es la única obligatoria para enviar.';
+    }
+    if (_paso == 1) {
       if (_vehiculo == null) return 'Elige la marca y el modelo de tu moto.';
       if (_placa.text.trim().length < 5) return 'Escribe la placa completa.';
       return null;
-    }
-    if (_paso == 1 && !vm.tieneCedula) {
-      return 'La foto de tu cédula es la única obligatoria para enviar.';
     }
     if (_paso == _pasos - 1) {
       final faltan = _faltantes(vm);
@@ -392,7 +398,12 @@ class _AltaViewState extends State<_AltaView> {
   }
 }
 
-/// Paso 1 · la moto: marca, modelo, placa, municipio y licencia.
+/// Paso 2 · la moto: marca, modelo, placa, municipio, licencia y **sus dos
+/// fotos**.
+///
+/// La tarjeta de propiedad y la foto de la moto viven aquí, junto a la placa que
+/// aparece en las dos. Estaban a dos pasos de distancia y eso obligaba a ir y
+/// volver para comprobar que coincidían.
 class _PasoMoto extends StatelessWidget {
   const _PasoMoto({
     required this.vm,
@@ -406,6 +417,8 @@ class _PasoMoto extends StatelessWidget {
     required this.onMarca,
     required this.onModelo,
     required this.onCambio,
+    required this.onPapeles,
+    required this.onFotoMoto,
   });
 
   final AltaConductorViewModel vm;
@@ -419,6 +432,8 @@ class _PasoMoto extends StatelessWidget {
   final ValueChanged<String?> onMarca;
   final ValueChanged<String?> onModelo;
   final VoidCallback onCambio;
+  final VoidCallback onPapeles;
+  final VoidCallback onFotoMoto;
 
   @override
   Widget build(BuildContext context) {
@@ -430,7 +445,8 @@ class _PasoMoto extends StatelessWidget {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
         const SizedBox(height: AppSpacing.xs),
         const Text(
-            'Con estos datos y la foto de tu cédula quedas en revisión. Te avisamos apenas puedas empezar a trabajar.',
+            'Los datos y las dos fotos de la moto. Aprovecha que estás junto a '
+            'ella y hazlo todo de una vez.',
             style: TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: AppSpacing.xl),
         const _Label('Marca'),
@@ -516,38 +532,61 @@ class _PasoMoto extends StatelessWidget {
             helperMaxLines: 2,
           ),
         ),
+        const SizedBox(height: AppSpacing.xl),
+        _DocCard(
+          icon: Icons.description_outlined,
+          titulo: 'Tarjeta de propiedad de la moto',
+          subtitulo: 'La tarjeta donde aparece la placa y tu nombre. Puedes '
+              'incluir el SOAT en la misma foto.',
+          etiqueta: 'Para habilitarte',
+          etiquetaColor: AppColors.accent,
+          archivo: vm.papelesMoto,
+          accion: 'Subir',
+          onElegir: onPapeles,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _DocCard(
+          icon: Icons.two_wheeler_outlined,
+          titulo: 'Foto de tu moto',
+          subtitulo: 'De lado o desde atrás, con la placa que se pueda leer.',
+          etiqueta: 'Para habilitarte',
+          etiquetaColor: AppColors.accent,
+          archivo: vm.fotoMoto,
+          accion: 'Tomar foto',
+          onElegir: onFotoMoto,
+        ),
       ],
     );
   }
 }
 
-/// Paso 2 · las cuatro fotos.
-class _PasoDocumentos extends StatelessWidget {
-  const _PasoDocumentos({
+/// Paso 1 · quién eres: la cédula y la selfie que la respalda.
+///
+/// Van juntas porque son la misma pregunta —"¿esta cédula es tuya?"— y porque
+/// las dos se toman en el mismo sitio y en el mismo minuto. Nada de la moto
+/// aparece aquí.
+class _PasoIdentidad extends StatelessWidget {
+  const _PasoIdentidad({
     required this.vm,
     required this.onCedula,
-    required this.onPapeles,
     required this.onSelfie,
-    required this.onFotoMoto,
   });
 
   final AltaConductorViewModel vm;
   final VoidCallback onCedula;
-  final VoidCallback onPapeles;
   final VoidCallback onSelfie;
-  final VoidCallback onFotoMoto;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
-        const Text('Tus documentos',
+        const Text('Empecemos por ti',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
         const SizedBox(height: AppSpacing.xs),
         const Text(
-            'Son cuatro fotos. Con la cédula ya puedes enviar tu solicitud, '
-            'pero el administrador necesita las cuatro para habilitarte.',
+            'Dos fotos para confirmar quién eres. Con la cédula ya puedes '
+            'enviar tu solicitud; la selfie hace falta para habilitarte.',
             style: TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: AppSpacing.lg),
         _DocCard(
@@ -562,18 +601,6 @@ class _PasoDocumentos extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _DocCard(
-          icon: Icons.description_outlined,
-          titulo: 'Tarjeta de propiedad de la moto',
-          subtitulo: 'La tarjeta donde aparece la placa y tu nombre. Puedes '
-              'incluir el SOAT en la misma foto.',
-          etiqueta: 'Para habilitarte',
-          etiquetaColor: AppColors.accent,
-          archivo: vm.papelesMoto,
-          accion: 'Subir',
-          onElegir: onPapeles,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _DocCard(
           icon: Icons.face_outlined,
           titulo: 'Selfie tuya',
           subtitulo: 'Tu cara, de frente y con buena luz. Sirve para '
@@ -583,17 +610,6 @@ class _PasoDocumentos extends StatelessWidget {
           archivo: vm.selfie,
           accion: 'Tomar selfie',
           onElegir: onSelfie,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _DocCard(
-          icon: Icons.two_wheeler_outlined,
-          titulo: 'Foto de tu moto',
-          subtitulo: 'De lado o desde atrás, con la placa que se pueda leer.',
-          etiqueta: 'Para habilitarte',
-          etiquetaColor: AppColors.accent,
-          archivo: vm.fotoMoto,
-          accion: 'Tomar foto',
-          onElegir: onFotoMoto,
         ),
       ],
     );
@@ -630,7 +646,7 @@ class _PasoRevision extends StatelessWidget {
             style: TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: AppSpacing.lg),
         MotoCard(
-          onTap: () => onIrAPaso(0),
+          onTap: () => onIrAPaso(1),
           child: Row(
             children: [
               const Icon(Icons.two_wheeler_rounded, color: AppColors.primary),
@@ -658,7 +674,9 @@ class _PasoRevision extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         GestureDetector(
-          onTap: () => onIrAPaso(1),
+          // A la identidad: la cédula es lo único que bloquea el envío, así que
+          // es donde tiene sentido caer si algo falta.
+          onTap: () => onIrAPaso(0),
           child: _Checklist(vm: vm, motoLista: motoLista),
         ),
         const SizedBox(height: AppSpacing.md),

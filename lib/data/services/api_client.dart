@@ -1,15 +1,19 @@
 import 'package:dio/dio.dart';
 
+import 'package:flutter/foundation.dart';
+
 import '../../config/env.dart';
 import 'api_result.dart';
+import 'dispositivo_service.dart';
 import 'session_storage.dart';
 
 /// Cliente HTTP central. Apunta a la base `/Api`, adjunta el JWT en cada
 /// petición autenticada, normaliza errores a [Failure] y centraliza el manejo
 /// de 401 (sesión expirada → logout).
 class ApiClient {
-  ApiClient(this._session, {Dio? dio})
-      : _dio = dio ??
+  ApiClient(this._session, {Dio? dio, DispositivoService? dispositivo})
+      : _dispositivo = dispositivo,
+        _dio = dio ??
             Dio(BaseOptions(
               baseUrl: Env.apiBaseUrl,
               connectTimeout: const Duration(seconds: 12),
@@ -24,6 +28,11 @@ class ApiClient {
           if (sesion != null) {
             options.headers['Authorization'] = 'Bearer ${sesion.token}';
           }
+          // Equipo y versión, en cabecera y no en el cuerpo: si fueran cuerpo
+          // habría que tocar los cinco endpoints que lo necesitan y sus records
+          // en el servidor; aquí es un sitio y ninguna llamada cambia. El
+          // servidor las trata como opcionales.
+          await _adjuntarDispositivo(options);
           handler.next(options);
         },
       ),
@@ -32,6 +41,19 @@ class ApiClient {
 
   final Dio _dio;
   final SessionStorage _session;
+  final DispositivoService? _dispositivo;
+
+  /// Nunca deja caer la petición: esto es contexto de soporte, no autenticación.
+  Future<void> _adjuntarDispositivo(RequestOptions options) async {
+    final dispositivo = _dispositivo;
+    if (dispositivo == null) return;
+    try {
+      options.headers['X-Dispositivo-Id'] = await dispositivo.id();
+      options.headers['X-Dispositivo'] = await dispositivo.descripcion();
+    } catch (e) {
+      debugPrint('ApiClient: sin cabeceras de dispositivo ($e)');
+    }
+  }
 
   /// Invocado cuando una petición autenticada recibe 401: la app limpia sesión
   /// y redirige al acceso.

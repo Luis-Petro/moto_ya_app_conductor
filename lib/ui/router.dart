@@ -13,6 +13,7 @@ import 'features/feedback/feedback_screen.dart';
 import 'features/historial/historial_screen.dart';
 import 'features/inicio/inicio_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/perfil/documentos_screen.dart';
 import 'features/pedido_activo/pedido_activo_screen.dart';
 import 'features/pedido_detalle/pedido_detalle_screen.dart';
 import 'features/pedido_entrante/pedido_entrante_screen.dart';
@@ -34,6 +35,10 @@ abstract class Rutas {
   static const historial = '/historial';
   static const perfil = '/perfil';
   static const feedback = '/feedback';
+
+  /// Los cuatro documentos de habilitación. A pantalla completa sobre el shell:
+  /// se entra a corregir algo y se vuelve, no es un tab.
+  static const documentos = '/perfil/documentos';
 
   static String pedidoEntrante(int pedidoId, {int? segundos}) =>
       '/pedido/$pedidoId/entrante${segundos != null ? '?seg=$segundos' : ''}';
@@ -127,6 +132,11 @@ GoRouter crearRouter(AuthRepository auth) {
         path: Rutas.feedback,
         parentNavigatorKey: rootKey,
         builder: (_, state) => FeedbackScreen(pedidoId: state.extra as int?),
+      ),
+      GoRoute(
+        path: Rutas.documentos,
+        parentNavigatorKey: rootKey,
+        builder: (_, __) => const DocumentosScreen(),
       ),
       GoRoute(
         path: '/pedido/:id/entrante',

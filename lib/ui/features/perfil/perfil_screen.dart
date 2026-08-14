@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/auth_repository.dart';
@@ -8,6 +7,7 @@ import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/conductor.dart';
+import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -73,7 +73,7 @@ class _PerfilViewState extends State<_PerfilView> {
     _aviso(ok ? 'Foto actualizada' : (vm.error ?? 'No se pudo subir la foto'));
   }
 
-  /// Flujo de cambio de correo en dos pasos (código al correo nuevo).
+  /// Flujo de cambio de correo en dos pasos (cÃ³digo al correo nuevo).
   Future<void> _cambiarCorreo(PerfilViewModel vm) async {
     final emailCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
@@ -146,8 +146,8 @@ class _PerfilViewState extends State<_PerfilView> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   paso == 1
-                      ? 'Te enviaremos un código al correo nuevo para confirmar que es tuyo.'
-                      : 'Escribe el código que enviamos a ${emailCtrl.text.trim()}.',
+                      ? 'Te enviaremos un cÃ³digo al correo nuevo para confirmar que es tuyo.'
+                      : 'Escribe el cÃ³digo que enviamos a ${emailCtrl.text.trim()}.',
                   style:
                       const TextStyle(color: AppColors.inkMuted, fontSize: 13),
                 ),
@@ -168,7 +168,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     autofocus: true,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Código',
+                      labelText: 'CÃ³digo',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),
@@ -180,14 +180,14 @@ class _PerfilViewState extends State<_PerfilView> {
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 PrimaryButton(
-                  label: paso == 1 ? 'Enviar código' : 'Confirmar',
+                  label: paso == 1 ? 'Enviar cÃ³digo' : 'Confirmar',
                   loading: ocupado,
                   onPressed: paso == 1 ? enviar : confirmar,
                 ),
                 if (paso == 2)
                   TextButton(
                     onPressed: ocupado ? null : enviar,
-                    child: const Text('Reenviar código'),
+                    child: const Text('Reenviar cÃ³digo'),
                   ),
               ],
             ),
@@ -201,8 +201,8 @@ class _PerfilViewState extends State<_PerfilView> {
     if (exito && mounted) _aviso('Correo actualizado');
   }
 
-  /// Flujo de cambio de celular en dos pasos (OTP al número nuevo). Mismo
-  /// patrón que el correo: el número no se aplica hasta comprobar que es tuyo.
+  /// Flujo de cambio de celular en dos pasos (OTP al nÃºmero nuevo). Mismo
+  /// patrÃ³n que el correo: el nÃºmero no se aplica hasta comprobar que es tuyo.
   Future<void> _cambiarCelular(PerfilViewModel vm) async {
     final telCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
@@ -275,8 +275,8 @@ class _PerfilViewState extends State<_PerfilView> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   paso == 1
-                      ? 'Te enviaremos un código al número nuevo para confirmar que es tuyo.'
-                      : 'Escribe el código que enviamos a ${telCtrl.text.trim()}.',
+                      ? 'Te enviaremos un cÃ³digo al nÃºmero nuevo para confirmar que es tuyo.'
+                      : 'Escribe el cÃ³digo que enviamos a ${telCtrl.text.trim()}.',
                   style:
                       const TextStyle(color: AppColors.inkMuted, fontSize: 13),
                 ),
@@ -289,7 +289,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     autofocus: true,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Código',
+                      labelText: 'CÃ³digo',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),
@@ -301,14 +301,14 @@ class _PerfilViewState extends State<_PerfilView> {
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 PrimaryButton(
-                  label: paso == 1 ? 'Enviar código' : 'Confirmar',
+                  label: paso == 1 ? 'Enviar cÃ³digo' : 'Confirmar',
                   loading: ocupado,
                   onPressed: paso == 1 ? enviar : confirmar,
                 ),
                 if (paso == 2)
                   TextButton(
                     onPressed: ocupado ? null : enviar,
-                    child: const Text('Reenviar código'),
+                    child: const Text('Reenviar cÃ³digo'),
                   ),
               ],
             ),
@@ -322,68 +322,37 @@ class _PerfilViewState extends State<_PerfilView> {
     if (exito && mounted) _aviso('Celular actualizado');
   }
 
-  /// Sube o reemplaza uno de los documentos de habilitación.
-  Future<void> _subirDocumento(
-      PerfilViewModel vm, DocumentoConductor doc) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.lg,
-                  AppSpacing.xl, AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(doc.titulo,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(doc.guia,
-                      style: const TextStyle(
-                          color: AppColors.inkMuted, fontSize: 13)),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-        ),
-      ),
-    );
-    if (source == null) return;
-    final err = await vm.subirDocumento(doc, source);
-    if (!mounted) return;
-    _aviso(err ?? '${doc.titulo}: foto actualizada');
+  /// QuÃ© falta, en una lÃ­nea. Con todo subido dice lo que el conductor quiere
+  /// leer; con algo pendiente, exactamente quÃ©.
+  String _resumenDocumentos(Conductor conductor) {
+    final faltantes = conductor.documentosFaltantes;
+    if (faltantes.isEmpty) {
+      return conductor.documentosEnFirme
+          ? 'Los 4 verificados'
+          : 'Los 4 subidos, en revisiÃ³n';
+    }
+    if (faltantes.length == 1) {
+      return 'Falta ${faltantes.first}';
+    }
+    return 'Faltan ${faltantes.length} de ${DocumentoConductor.values.length}';
   }
 
   Future<void> _confirmarSalir(PerfilViewModel vm) async {
-    // useRootNavigator: false — dentro de un tab del StatefulShellRoute el
-    // navigator raíz pinta un velo negro sobre el shell (pantalla en negro).
+    // useRootNavigator: false â€” dentro de un tab del StatefulShellRoute el
+    // navigator raÃ­z pinta un velo negro sobre el shell (pantalla en negro).
     final salir = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
       builder: (_) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Seguro que deseas cerrar sesión?'),
+        title: const Text('Cerrar sesiÃ³n'),
+        content: const Text('Â¿Seguro que deseas cerrar sesiÃ³n?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancelar')),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Cerrar sesión')),
+              child: const Text('Cerrar sesiÃ³n')),
         ],
       ),
     );
@@ -391,7 +360,7 @@ class _PerfilViewState extends State<_PerfilView> {
   }
 
   /// Verifica el correo o el celular que la cuenta ya tiene: un solo paso
-  /// (código), porque el destino no se elige — es el dato guardado.
+  /// (cÃ³digo), porque el destino no se elige â€” es el dato guardado.
   Future<void> _verificarActual({
     required String titulo,
     required String destino,
@@ -461,7 +430,7 @@ class _PerfilViewState extends State<_PerfilView> {
                         fontSize: 18, fontWeight: FontWeight.w800)),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Escribe el código que enviamos a $destino.',
+                  'Escribe el cÃ³digo que enviamos a $destino.',
                   style:
                       const TextStyle(color: AppColors.inkMuted, fontSize: 13),
                 ),
@@ -471,7 +440,7 @@ class _PerfilViewState extends State<_PerfilView> {
                   autofocus: true,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Código',
+                    labelText: 'CÃ³digo',
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
                 ),
@@ -489,7 +458,7 @@ class _PerfilViewState extends State<_PerfilView> {
                 ),
                 TextButton(
                   onPressed: ocupado ? null : enviar,
-                  child: const Text('Reenviar código'),
+                  child: const Text('Reenviar cÃ³digo'),
                 ),
               ],
             ),
@@ -522,21 +491,21 @@ class _PerfilViewState extends State<_PerfilView> {
     );
   }
 
-  /// Baja de cuenta. El diálogo dice qué se borra y qué se conserva, porque es
-  /// irreversible; y menciona la deuda, que es el motivo más probable de rechazo.
+  /// Baja de cuenta. El diÃ¡logo dice quÃ© se borra y quÃ© se conserva, porque es
+  /// irreversible; y menciona la deuda, que es el motivo mÃ¡s probable de rechazo.
   Future<void> _confirmarEliminarCuenta(PerfilViewModel vm) async {
     final eliminar = await ConfirmarBajaDialog.pedir(
       context,
       descripcion:
-          'Se borran tu nombre, correo, celular, cédula, tu foto y tus documentos '
-          '(cédula, tarjeta de propiedad, selfie y foto de la moto). Tu historial de '
+          'Se borran tu nombre, correo, celular, cÃ©dula, tu foto y tus documentos '
+          '(cÃ©dula, tarjeta de propiedad, selfie y foto de la moto). Tu historial de '
           'pedidos y de comisiones se conserva sin tus datos, porque son cuentas '
           'compartidas con la plataforma y con tus clientes.\n\n'
-          'No se puede deshacer, y necesitas estar al día con tus comisiones.',
+          'No se puede deshacer, y necesitas estar al dÃ­a con tus comisiones.',
     );
     if (!eliminar) return;
     final error = await vm.eliminarCuenta();
-    // Si salió bien, el router ya se llevó al conductor fuera (sesión cerrada);
+    // Si saliÃ³ bien, el router ya se llevÃ³ al conductor fuera (sesiÃ³n cerrada);
     // solo queda contar el motivo cuando el backend lo rechaza.
     if (error != null && mounted) _aviso(error);
   }
@@ -551,11 +520,11 @@ class _PerfilViewState extends State<_PerfilView> {
       appBar: AppBar(
         title: const Text('Perfil'),
         actions: [
-          // Cerrar sesión SIEMPRE accesible: aunque el perfil no cargue (401 o
+          // Cerrar sesiÃ³n SIEMPRE accesible: aunque el perfil no cargue (401 o
           // error de red), el conductor debe poder salir y no quedar atrapado.
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
+            tooltip: 'Cerrar sesiÃ³n',
             onPressed: () => _confirmarSalir(vm),
           ),
         ],
@@ -617,7 +586,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                 ),
                                 if (conductor.tasaAceptacion != null)
                                   Text(
-                                    '  ·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% aceptación',
+                                    '  Â·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% aceptaciÃ³n',
                                     style: const TextStyle(
                                         color: AppColors.inkMuted,
                                         fontSize: 13),
@@ -626,12 +595,19 @@ class _PerfilViewState extends State<_PerfilView> {
                             ),
                           ),
                         ],
+                        if (conductor != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          // La pregunta con la que se entra a esta pantalla es
+                          // "Â¿estoy habilitado y cuÃ¡nto debo?". Antes habÃ­a que
+                          // bajar hasta el final para responderla.
+                          _CabeceraEstado(conductor: conductor),
+                        ],
                         const SizedBox(height: AppSpacing.lg),
 
                         // Canal directo de queja/sugerencia hacia el operador.
-                        // Va arriba, sin scroll: estaba al final, después de los
+                        // Va arriba, sin scroll: estaba al final, despuÃ©s de los
                         // documentos, y quien tiene un problema no baja tres
-                        // pantallas para contarlo — simplemente no lo cuenta.
+                        // pantallas para contarlo â€” simplemente no lo cuenta.
                         MotoCard(
                           onTap: () => context.push(Rutas.feedback),
                           child: const Row(
@@ -643,10 +619,10 @@ class _PerfilViewState extends State<_PerfilView> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Ayúdanos a mejorar',
+                                    Text('AyÃºdanos a mejorar',
                                         style: TextStyle(
                                             fontWeight: FontWeight.w700)),
-                                    Text('Envíanos una queja o una sugerencia',
+                                    Text('EnvÃ­anos una queja o una sugerencia',
                                         style: TextStyle(
                                             color: AppColors.inkMuted,
                                             fontSize: 12.5)),
@@ -660,7 +636,7 @@ class _PerfilViewState extends State<_PerfilView> {
                         ),
                         const SizedBox(height: AppSpacing.xl),
 
-                        // El nombre es identidad verificada: no se edita aquí.
+                        // El nombre es identidad verificada: no se edita aquÃ­.
                         _Campo(
                             label: 'Nombre',
                             controller: _nombre,
@@ -669,7 +645,7 @@ class _PerfilViewState extends State<_PerfilView> {
                         const SizedBox(height: AppSpacing.md),
 
                         // Correo y celular: credenciales de acceso. Ninguna se
-                        // edita en línea; cada una tiene su flujo verificado.
+                        // edita en lÃ­nea; cada una tiene su flujo verificado.
                         MotoCard(
                           child: Column(
                             children: [
@@ -699,14 +675,14 @@ class _PerfilViewState extends State<_PerfilView> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         const Text(
-                          'El nombre no se puede cambiar desde la app: es tu identidad verificada. Si necesitas corregirlo, contáctanos.',
+                          'El nombre no se puede cambiar desde la app: es tu identidad verificada. Si necesitas corregirlo, contÃ¡ctanos.',
                           style: TextStyle(
                               color: AppColors.inkMuted, fontSize: 12),
                         ),
 
                         if (conductor != null) ...[
                           const SizedBox(height: AppSpacing.xl),
-                          const Text('VEHÍCULO Y DOCUMENTOS',
+                          const Text('VEHÃCULO Y DOCUMENTOS',
                               style: TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
@@ -718,21 +694,63 @@ class _PerfilViewState extends State<_PerfilView> {
                               children: [
                                 _InfoFila(
                                     icon: Icons.two_wheeler_rounded,
-                                    label: 'Vehículo',
-                                    valor: conductor.vehiculo ?? '—'),
+                                    label: 'VehÃ­culo',
+                                    valor: conductor.vehiculo ?? 'â€”'),
                                 const Divider(height: AppSpacing.lg),
                                 _InfoFila(
                                     icon: Icons.pin_outlined,
                                     label: 'Placa',
-                                    valor: conductor.placa ?? '—'),
+                                    valor: conductor.placa ?? 'â€”'),
                               ],
                             ),
                           ),
                           const SizedBox(height: AppSpacing.md),
-                          _Documentos(
-                            conductor: conductor,
-                            vm: vm,
-                            onSubir: (doc) => _subirDocumento(vm, doc),
+                          // Los documentos viven en su propia pantalla: eran la
+                          // mitad de este perfil y aquÃ­ basta con saber si estÃ¡n.
+                          MotoCard(
+                            onTap: () async {
+                              await context.push(Rutas.documentos);
+                              // Al volver puede haber cambiado el estado de un
+                              // documento. Recargar es mÃ¡s barato que compartir
+                              // el view model entre dos rutas del shell.
+                              if (context.mounted) await vm.cargar();
+                            },
+                            child: Row(
+                              children: [
+                                Icon(
+                                  conductor.documentosFaltantes.isEmpty
+                                      ? Icons.verified_rounded
+                                      : Icons.assignment_late_outlined,
+                                  color: conductor.documentosFaltantes.isEmpty
+                                      ? AppColors.success
+                                      : AppColors.warning,
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Mis documentos',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w700)),
+                                      Text(
+                                        _resumenDocumentos(conductor),
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          color: conductor.documentosFaltantes
+                                                  .isEmpty
+                                              ? AppColors.inkMuted
+                                              : AppColors.warning,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right_rounded,
+                                    color: AppColors.inkMuted),
+                              ],
+                            ),
                           ),
                         ],
                         const SizedBox(height: AppSpacing.xl),
@@ -740,7 +758,7 @@ class _PerfilViewState extends State<_PerfilView> {
                           onPressed: () => _confirmarSalir(vm),
                           icon: const Icon(Icons.logout,
                               color: AppColors.danger),
-                          label: const Text('Cerrar sesión',
+                          label: const Text('Cerrar sesiÃ³n',
                               style: TextStyle(color: AppColors.danger)),
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -752,7 +770,7 @@ class _PerfilViewState extends State<_PerfilView> {
                               : () => _confirmarEliminarCuenta(vm),
                           child: Text(
                             vm.eliminandoCuenta
-                                ? 'Eliminando…'
+                                ? 'Eliminandoâ€¦'
                                 : 'Eliminar mi cuenta',
                             style: const TextStyle(
                                 color: AppColors.inkMuted, fontSize: 13),
@@ -764,11 +782,11 @@ class _PerfilViewState extends State<_PerfilView> {
                         const EnlacesLegales(),
                         const SizedBox(height: AppSpacing.sm),
                         const Center(
-                          child: Text('Hecho en Colombia 🇨🇴',
+                          child: Text('Hecho en Colombia ðŸ‡¨ðŸ‡´',
                               style: TextStyle(
                                   color: AppColors.inkMuted, fontSize: 12)),
                         ),
-                        // Versión + beta: es la pantalla donde alguien mira
+                        // VersiÃ³n + beta: es la pantalla donde alguien mira
                         // antes de reportar un problema.
                         const Center(child: PieVersion()),
                       ],
@@ -780,7 +798,7 @@ class _PerfilViewState extends State<_PerfilView> {
 }
 
 /// Avatar de perfil del conductor: foto real (si existe) o iniciales, con una
-/// insignia de cámara y overlay de carga mientras se sube.
+/// insignia de cÃ¡mara y overlay de carga mientras se sube.
 class _FotoPerfil extends StatelessWidget {
   const _FotoPerfil({
     required this.iniciales,
@@ -795,9 +813,9 @@ class _FotoPerfil extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // `InitialsAvatar` usa `foregroundImage`, así que las iniciales quedan
+        // `InitialsAvatar` usa `foregroundImage`, asÃ­ que las iniciales quedan
         // debajo como respaldo natural si la foto no carga. Con `backgroundImage`
-        // y sin child —como estaba— una URL vencida dejaba un círculo vacío.
+        // y sin child â€”como estabaâ€” una URL vencida dejaba un cÃ­rculo vacÃ­o.
         InitialsAvatar(initials: iniciales, imageUrl: fotoUrl, radius: 40),
         if (cargando)
           const CircleAvatar(
@@ -828,8 +846,8 @@ class _FotoPerfil extends StatelessWidget {
   }
 }
 
-/// Fila de una credencial de acceso (correo o celular): valor actual, si está
-/// verificada y el acceso a su flujo de cambio. Nunca se edita en línea.
+/// Fila de una credencial de acceso (correo o celular): valor actual, si estÃ¡
+/// verificada y el acceso a su flujo de cambio. Nunca se edita en lÃ­nea.
 class _CredencialTile extends StatelessWidget {
   const _CredencialTile({
     required this.etiqueta,
@@ -901,8 +919,8 @@ class _CredencialTile extends StatelessWidget {
             ],
           ),
         ),
-        // "Verificar" solo cuando el dato existe y está sin verificar: antes la
-        // única salida era "cambiarlo" por el mismo valor, que el backend
+        // "Verificar" solo cuando el dato existe y estÃ¡ sin verificar: antes la
+        // Ãºnica salida era "cambiarlo" por el mismo valor, que el backend
         // rechaza por unicidad.
         if (tiene && verificado == false && onVerificar != null)
           TextButton(
@@ -918,144 +936,77 @@ class _CredencialTile extends StatelessWidget {
   }
 }
 
-/// Los cuatro documentos de habilitación con su estado y la opción de subir o
-/// reemplazar cada uno. Mientras falte alguno, el admin no puede habilitar la
-/// cuenta: decirlo aquí evita esperas sin saber a qué.
-class _Documentos extends StatelessWidget {
-  const _Documentos({
-    required this.conductor,
-    required this.vm,
-    required this.onSubir,
-  });
+/// Estado de la cuenta y deuda, en la primera pantalla.
+///
+/// Es lo que el conductor viene a mirar: si puede recibir pedidos y cuánto debe.
+/// Antes estaba repartido entre esta pantalla, Inicio y Billetera, y la única
+/// forma de saber si estaba habilitado era intentar ponerse en línea.
+///
+/// El estado lleva color **y** texto: hay quien mira el celular al sol y quien
+/// no distingue el verde del naranja.
+class _CabeceraEstado extends StatelessWidget {
+  const _CabeceraEstado({required this.conductor});
 
   final Conductor conductor;
-  final PerfilViewModel vm;
-  final void Function(DocumentoConductor) onSubir;
 
   @override
   Widget build(BuildContext context) {
-    final faltantes = conductor.documentosFaltantes;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MotoCard(
-          child: Column(
-            children: [
-              for (var i = 0; i < DocumentoConductor.values.length; i++) ...[
-                if (i > 0) const Divider(height: AppSpacing.lg),
-                _FilaDocumento(
-                  doc: DocumentoConductor.values[i],
-                  url: conductor.urlDocumento(DocumentoConductor.values[i]),
-                  subiendo:
-                      vm.subiendoDocumento == DocumentoConductor.values[i],
-                  enFirme: conductor.documentosEnFirme,
-                  onSubir: () => onSubir(DocumentoConductor.values[i]),
-                ),
-              ],
-            ],
-          ),
+    final (texto, color, fondo, icono) = switch (conductor) {
+      _ when conductor.rechazado => (
+          'Cuenta rechazada',
+          AppColors.danger,
+          AppColors.dangerSurface,
+          Icons.block_rounded
         ),
-        if (conductor.documentosEnFirme) ...[
-          const SizedBox(height: AppSpacing.sm),
-          const Text(
-            'Tus documentos ya fueron verificados y no se pueden cambiar desde la '
-            'app. Si alguno quedó mal (borroso, vencido), pídele al administrador '
-            'que devuelva tu cuenta a revisión.',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
-          ),
-        ],
-        if (faltantes.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            conductor.habilitado
-                ? 'Te falta subir: ${faltantes.join(', ')}.'
-                : 'Para que te habiliten falta: ${faltantes.join(', ')}.',
-            style: const TextStyle(color: AppColors.warning, fontSize: 12.5),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _FilaDocumento extends StatelessWidget {
-  const _FilaDocumento({
-    required this.doc,
-    required this.url,
-    required this.subiendo,
-    required this.onSubir,
-    this.enFirme = false,
-  });
-
-  final DocumentoConductor doc;
-  final String? url;
-  final bool subiendo;
-  final VoidCallback onSubir;
-
-  /// Ya verificada por un administrador: no se puede reemplazar desde la app.
-  final bool enFirme;
-
-  @override
-  Widget build(BuildContext context) {
-    final tiene = url != null;
-    return Row(
-      children: [
-        SizedBox(
-          width: 44,
-          height: 44,
-          child: tiene
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                  child: Image.network(url!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.image_not_supported_outlined,
-                          color: AppColors.inkMuted)),
-                )
-              : Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.warningSurface,
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                  ),
-                  child: const Icon(Icons.photo_camera_outlined,
-                      size: 20, color: AppColors.warning),
-                ),
+      _ when conductor.bloqueadoPorDeuda => (
+          'Bloqueado por deuda',
+          AppColors.danger,
+          AppColors.dangerSurface,
+          Icons.lock_rounded
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      _ when conductor.enRevision => (
+          'En revisión',
+          AppColors.warning,
+          AppColors.warningSurface,
+          Icons.hourglass_top_rounded
+        ),
+      _ => (
+          'Habilitado',
+          AppColors.success,
+          AppColors.successSurface,
+          Icons.verified_rounded
+        ),
+    };
+
+    return MotoCard(
+      color: fondo,
+      borderColor: color,
+      child: Row(
+        children: [
+          Icon(icono, color: color, size: 20),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(texto,
+                style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(doc.titulo,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(
-                  enFirme
-                      ? 'Verificada'
-                      : tiene
-                          ? 'Subida'
-                          : 'Pendiente',
+              const Text('DEUDA',
                   style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: tiene ? AppColors.success : AppColors.warning)),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.inkMuted,
+                      letterSpacing: 0.4)),
+              Text(
+                Formato.moneda(conductor.deudaActual),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, color: AppColors.ink),
+              ),
             ],
           ),
-        ),
-        if (subiendo)
-          const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2))
-        // Verificada: sin botón. Uno que siempre responde 409 es peor que no
-        // tenerlo — el texto de arriba explica cómo pedir la corrección.
-        else if (!enFirme)
-          TextButton(
-            onPressed: onSubir,
-            child: Text(tiene ? 'Reemplazar' : 'Subir'),
-          )
-        else
-          const Icon(Icons.lock_outline, size: 18, color: AppColors.inkMuted),
-      ],
+        ],
+      ),
     );
   }
 }

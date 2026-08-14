@@ -640,6 +640,13 @@ class _FotoPerfilBanner extends StatelessWidget {
 }
 
 /// Aviso en Inicio cuando la cuenta está en revisión o fue rechazada.
+///
+/// **Cuando falta un documento, el aviso lleva a subirlo.** Antes decía "estamos
+/// revisando tus documentos" incluso si no había ninguno que revisar, y para
+/// corregirlo había que salir a Perfil y bajar hasta la fila correcta.
+///
+/// Con los cuatro subidos no hay botón: no hay nada que corregir, y uno que
+/// llevara a una lista completa sería una visita en vano.
 class _RevisionBanner extends StatelessWidget {
   const _RevisionBanner({required this.vm});
   final InicioViewModel vm;
@@ -647,42 +654,78 @@ class _RevisionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rechazado = vm.rechazado;
+    final faltantes = vm.conductor?.documentosFaltantes ?? const <String>[];
+    // Rechazado siempre ofrece la salida: aunque estén los cuatro, hay algo que
+    // reemplazar — es justo lo que significa que te rechacen.
+    final puedeCorregir = rechazado || faltantes.isNotEmpty;
+
     return MotoCard(
       color: rechazado ? AppColors.dangerSurface : AppColors.primarySurface,
       borderColor: rechazado ? AppColors.danger : AppColors.primary,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
-            color: rechazado ? AppColors.danger : AppColors.primary,
+          Row(
+            children: [
+              Icon(
+                rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
+                color: rechazado ? AppColors.danger : AppColors.primary,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _mensaje(rechazado, faltantes),
+                      style: const TextStyle(
+                        color: AppColors.inkMuted,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  rechazado
-                      ? (vm.motivoRechazo?.trim().isNotEmpty ?? false
-                            ? vm.motivoRechazo!
-                            : 'Tus documentos fueron rechazados. Contáctanos para corregirlos.')
-                      : 'Estamos revisando tus documentos. Te habilitaremos para recibir pedidos muy pronto.',
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+          if (puedeCorregir) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => context.push(Rutas.documentos),
+                icon: const Icon(Icons.upload_file_rounded, size: 18),
+                label: Text(
+                    faltantes.isEmpty ? 'Revisar documentos' : 'Subir documentos'),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  String _mensaje(bool rechazado, List<String> faltantes) {
+    if (rechazado) {
+      final motivo = vm.motivoRechazo?.trim() ?? '';
+      return motivo.isNotEmpty
+          ? motivo
+          : 'Tus documentos fueron rechazados. Vuelve a subirlos para que te revisemos.';
+    }
+    if (faltantes.isEmpty) {
+      return 'Estamos revisando tus documentos. Te habilitaremos para recibir '
+          'pedidos muy pronto.';
+    }
+    // Nombrar lo que falta: "en revisión" a secas deja esperando a quien todavía
+    // no ha aportado nada, y la espera nunca termina.
+    return faltantes.length == 1
+        ? 'Nos falta tu ${faltantes.first} para poder revisarte.'
+        : 'Nos faltan ${faltantes.length} documentos: ${faltantes.join(', ')}.';
   }
 }
 

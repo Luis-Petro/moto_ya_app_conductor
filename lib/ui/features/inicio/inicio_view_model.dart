@@ -40,9 +40,16 @@ enum ResultadoEnLinea {
 /// reporte de posición en línea, sondeo de ofertas y visibilidad del pedido
 /// activo en curso.
 class InicioViewModel extends ChangeNotifier {
-  InicioViewModel(this._conductores, this._pedidos, this._location, this._usuarios, this._ofertas,
-      this._municipios, this._permisos, this._tab)
-      : _reporter = LocationReporter() {
+  InicioViewModel(
+    this._conductores,
+    this._pedidos,
+    this._location,
+    this._usuarios,
+    this._ofertas,
+    this._municipios,
+    this._permisos,
+    this._tab,
+  ) : _reporter = LocationReporter() {
     _tab.addListener(_onTabActiva);
   }
 
@@ -133,6 +140,12 @@ class InicioViewModel extends ChangeNotifier {
 
   Future<void> cargar() async {
     cargando = true;
+    // El nombre y las iniciales que ya trajo el splash se siembran **antes** del
+    // primer notifyListeners: así el esqueleto de carga puede pintar el avatar y
+    // el nombre de verdad en el primer frame, en vez de dos siluetas grises. No
+    // cuesta una petición y es lo que hace que la pantalla se reconozca mientras
+    // llega el resto.
+    _sembrarIdentidadDeCache();
     notifyListeners();
     // Solo el perfil de conductor bloquea el primer render (gatea alta/estado);
     // usa la caché si el splash ya lo trajo. Todo lo demás llega en segundo
@@ -145,12 +158,16 @@ class InicioViewModel extends ChangeNotifier {
     unawaited(_resolverUbicacion().then((_) => _notificar()));
     unawaited(_cargarMetricas().then((_) => _notificar()));
     unawaited(_cargarUsuario().then((_) => _notificar()));
-    unawaited(_pedidos.pedidoActivo().then((p) {
-      pedidoActivo = p;
-      _notificar();
-    }));
+    unawaited(
+      _pedidos.pedidoActivo().then((p) {
+        pedidoActivo = p;
+        _notificar();
+      }),
+    );
     unawaited(cargarDemanda());
-    if (enLinea) _reporter.start(_onPosicion, background: true, inicial: ubicacion);
+    if (enLinea) {
+      _reporter.start(_onPosicion, background: true, inicial: ubicacion);
+    }
     // Canal STOMP personal de ofertas (tiempo real, sin depender de FCM).
     _ofertaSub ??= _ofertas.connect().listen(_onEventoOferta);
     _iniciarPoll();
@@ -184,9 +201,18 @@ class InicioViewModel extends ChangeNotifier {
       permisoUbicacionDenegado = false;
     } else {
       ubicacion = LocationService.fallbackCenter;
-      permisoUbicacionDenegado = res.outcome == LocationOutcome.denied ||
+      permisoUbicacionDenegado =
+          res.outcome == LocationOutcome.denied ||
           res.outcome == LocationOutcome.deniedForever;
     }
+  }
+
+  /// Nombre e iniciales del usuario ya guardado en la sesión, si los hay.
+  void _sembrarIdentidadDeCache() {
+    final u = _usuarios.enCache;
+    if (u == null) return;
+    nombre ??= u.primerNombre;
+    iniciales = u.iniciales;
   }
 
   Future<void> _cargarUsuario() async {
@@ -217,7 +243,10 @@ class InicioViewModel extends ChangeNotifier {
     for (final p in lista) {
       if (p.estado != EstadoPedido.entregado) continue;
       final f = p.entregadoEn?.toLocal();
-      if (f == null || f.year != hoy.year || f.month != hoy.month || f.day != hoy.day) {
+      if (f == null ||
+          f.year != hoy.year ||
+          f.month != hoy.month ||
+          f.day != hoy.day) {
         continue;
       }
       cuenta++;
@@ -332,7 +361,10 @@ class InicioViewModel extends ChangeNotifier {
     _poll?.cancel();
     _pollLento = _ofertas.conectado;
     _tick();
-    _poll = Timer.periodic(_pollLento ? _pollConStomp : _pollSinStomp, (_) => _tick());
+    _poll = Timer.periodic(
+      _pollLento ? _pollConStomp : _pollSinStomp,
+      (_) => _tick(),
+    );
   }
 
   /// Un tick del sondeo: refresca el pedido activo SIEMPRE (para dar visibilidad

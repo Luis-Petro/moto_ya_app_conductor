@@ -67,7 +67,11 @@ class _InicioView extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: vm.cargando
-            ? const SkeletonInicio()
+            ? SkeletonInicio(
+                nombre: vm.nombre,
+                iniciales: vm.iniciales,
+                fotoUrl: vm.fotoUrl,
+              )
             : RefreshIndicator(
                 onRefresh: vm.refrescar,
                 child: CustomScrollView(
@@ -701,7 +705,8 @@ class _RevisionBanner extends StatelessWidget {
                 onPressed: () => context.push(Rutas.documentos),
                 icon: const Icon(Icons.upload_file_rounded, size: 18),
                 label: Text(
-                    faltantes.isEmpty ? 'Revisar documentos' : 'Subir documentos'),
+                  faltantes.isEmpty ? 'Revisar documentos' : 'Subir documentos',
+                ),
               ),
             ),
           ],
@@ -816,71 +821,80 @@ class _ZonasDemanda extends StatelessWidget {
   /// contenido ya excede la pantalla.
   final double? alturaMapa;
 
+  /// El área del mapa.
+  ///
+  /// Antes esto era una variable calculada al principio del `build`, así que se
+  /// construía **siempre que `demanda != null`** — incluso cuando la rama de
+  /// "todavía no hay pedidos" la descartaba. Y ese es justo el caso en que
+  /// `LatLngBounds.fromPoints` recibía la lista vacía y lanzaba. Que sea un
+  /// método y se llame solo desde su rama es lo que lo hace imposible;
+  /// [encuadreDePuntos] es el cinturón.
+  Widget _mapa(DemandaZonas d) => ClipRRect(
+    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: FlutterMap(
+            options: MapOptions(
+              initialCameraFit: encuadreDePuntos([
+                for (final c in d.celdas) c.centro,
+                if (vm.ubicacion != null) vm.ubicacion!,
+              ]),
+              minZoom: zoomMinimoMapa,
+              maxZoom: zoomMaximoMapa,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+              ),
+            ),
+            children: [
+              osmTileLayer(),
+              // Las manchas de demanda dicen "por aquí se pide"; los
+              // lugares dicen dónde es "por aquí". Una mancha sobre
+              // calles sin nombre no le sirve para decidir dónde
+              // pararse a esperar.
+              const LugaresLayer(),
+              CircleLayer(
+                circles: [
+                  for (final c in d.celdas)
+                    CircleMarker(
+                      point: c.centro,
+                      // ~media celda de la rejilla del backend (0.005°).
+                      radius: 280,
+                      useRadiusInMeter: true,
+                      color: _color(c.nivel).withValues(alpha: 0.18),
+                      borderColor: _color(c.nivel).withValues(alpha: 0.35),
+                      borderStrokeWidth: 1,
+                    ),
+                ],
+              ),
+              if (vm.ubicacion != null)
+                MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
+              osmAttribution(),
+            ],
+          ),
+        ),
+        // La leyenda va encima del mapa, no debajo: como fila aparte se
+        // llevaba una línea entera de la pantalla y era justo la que
+        // quedaba cortada.
+        const Positioned(
+          left: AppSpacing.sm,
+          top: AppSpacing.sm,
+          child: _Leyenda(),
+        ),
+      ],
+    ),
+  );
+
+  /// Da al hijo el alto del área del mapa: todo lo que quede de pantalla cuando
+  /// no hay avisos arriba, o el alto fijo cuando sí los hay.
+  Widget _conAltoDeMapa(Widget hijo) => alturaMapa == null
+      ? Expanded(child: hijo)
+      : SizedBox(height: alturaMapa, child: hijo);
+
   @override
   Widget build(BuildContext context) {
     final d = vm.demanda;
-    final mapa = d == null
-        ? const SizedBox.shrink()
-        : ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCameraFit: CameraFit.bounds(
-                        bounds: LatLngBounds.fromPoints([
-                          for (final c in d.celdas) c.centro,
-                          if (vm.ubicacion != null) vm.ubicacion!,
-                        ]),
-                        padding: const EdgeInsets.all(28),
-                      ),
-                      minZoom: zoomMinimoMapa,
-                      maxZoom: zoomMaximoMapa,
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-                      ),
-                    ),
-                    children: [
-                      osmTileLayer(),
-                      // Las manchas de demanda dicen "por aquí se pide"; los
-                      // lugares dicen dónde es "por aquí". Una mancha sobre
-                      // calles sin nombre no le sirve para decidir dónde
-                      // pararse a esperar.
-                      const LugaresLayer(),
-                      CircleLayer(
-                        circles: [
-                          for (final c in d.celdas)
-                            CircleMarker(
-                              point: c.centro,
-                              // ~media celda de la rejilla del backend (0.005°).
-                              radius: 280,
-                              useRadiusInMeter: true,
-                              color: _color(c.nivel).withValues(alpha: 0.18),
-                              borderColor: _color(
-                                c.nivel,
-                              ).withValues(alpha: 0.35),
-                              borderStrokeWidth: 1,
-                            ),
-                        ],
-                      ),
-                      if (vm.ubicacion != null)
-                        MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
-                      osmAttribution(),
-                    ],
-                  ),
-                ),
-                // La leyenda va encima del mapa, no debajo: como fila aparte se
-                // llevaba una línea entera de la pantalla y era justo la que
-                // quedaba cortada.
-                const Positioned(
-                  left: AppSpacing.sm,
-                  top: AppSpacing.sm,
-                  child: _Leyenda(),
-                ),
-              ],
-            ),
-          );
+
     return Column(
       mainAxisSize: alturaMapa == null ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -916,23 +930,36 @@ class _ZonasDemanda extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (d == null && !vm.cargandoDemanda)
+        // La consulta de demanda es la más lenta del Inicio: el backend ensancha
+        // la ventana (2 h → 24 h → 7 d → 30 d → 1 año → todo) hasta juntar cinco
+        // pedidos. Sin esta rama, `demanda == null` con la consulta en vuelo no
+        // caía en ninguna de las tres de abajo y dejaba medio alto de pantalla en
+        // blanco — que es la mitad del reporte de "el home queda en blanco".
+        // Va condicionada a `d == null` a propósito: al refrescar con datos ya en
+        // pantalla, cambiar el mapa por un esqueleto sería un paso atrás (para eso
+        // está el indicador pequeño del encabezado).
+        if (d == null && vm.cargandoDemanda)
+          _conAltoDeMapa(
+            const Skeleton(
+              height: double.infinity,
+              radius: AppSpacing.radiusMd,
+            ),
+          )
+        else if (d == null)
           _AvisoDemanda(
             icono: Icons.cloud_off_outlined,
             texto: 'No pudimos cargar las zonas de demanda.',
             accion: vm.cargarDemanda,
           )
-        else if (d != null && !d.tieneDatos)
+        else if (!d.tieneDatos)
           const _AvisoDemanda(
             icono: Icons.query_stats_outlined,
             texto:
                 'Todavía no hay ningún pedido registrado en tu zona. En cuanto '
                 'entre el primero, aparece en el mapa.',
           )
-        else if (d != null)
-          alturaMapa == null
-              ? Expanded(child: mapa)
-              : SizedBox(height: alturaMapa, child: mapa),
+        else
+          _conAltoDeMapa(_mapa(d)),
       ],
     );
   }

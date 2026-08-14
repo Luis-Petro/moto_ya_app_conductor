@@ -4,6 +4,7 @@ import 'package:flutter_map_cache/flutter_map_cache.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../config/env.dart';
+import '../../../data/services/location_service.dart';
 import '../../../data/services/map_tile_cache.dart';
 import '../theme/app_colors.dart';
 
@@ -16,6 +17,34 @@ const double zoomMinimoMapa = 11;
 /// Zoom máximo de cualquier mapa de la app: el último nivel con tiles reales.
 /// Pasado este punto el mapa se quedaba en gris.
 const double zoomMaximoMapa = 19;
+
+/// Encuadre inicial que abarca [puntos], **con la lista vacía resuelta**.
+///
+/// `LatLngBounds.fromPoints` lanza si la lista viene vacía. Eso ocurrió de verdad
+/// en el mapa de demanda del Inicio (celdas vacías y ubicación aún sin resolver)
+/// y en release se vio como un **rectángulo gris mudo**: el `ErrorWidget` por
+/// defecto no escribe nada, así que el reporte llegó como "el home se queda en
+/// blanco" en vez de como una excepción.
+///
+/// Un mapa centrado en el municipio es un desenlace honesto; una excepción en
+/// medio del `build` no lo es.
+CameraFit encuadreDePuntos(
+  List<LatLng> puntos, {
+  EdgeInsets padding = const EdgeInsets.all(28),
+  LatLng respaldo = LocationService.fallbackCenter,
+  double zoomRespaldo = 14,
+}) {
+  if (puntos.isEmpty) {
+    return CameraFit.coordinates(
+      coordinates: [respaldo],
+      maxZoom: zoomRespaldo,
+    );
+  }
+  return CameraFit.bounds(
+    bounds: LatLngBounds.fromPoints(puntos),
+    padding: padding,
+  );
+}
 
 /// Capa de tiles configurable (ADR-008).
 ///

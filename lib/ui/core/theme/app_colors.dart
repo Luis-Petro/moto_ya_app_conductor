@@ -8,7 +8,9 @@ class AppColors {
   static const Color primary = Color(0xFFF2641E); // naranja Zumbeo (CTAs)
   static const Color primaryDark = Color(0xFFC94E12);
   static const Color primaryLight = Color(0xFFF59A5E);
-  static const Color primarySurface = Color(0xFFFCEDE4); // fondos suaves naranja
+  static const Color primarySurface = Color(
+    0xFFFCEDE4,
+  ); // fondos suaves naranja
 
   // Acento (azul marino del logo) — énfasis de precio / contraoferta
   static const Color accent = Color(0xFF17293D);
@@ -29,6 +31,16 @@ class AppColors {
   static const Color surface = Color(0xFFFFFFFF);
   static const Color background = Color(0xFFF7F8FA);
   static const Color mapPlaceholder = Color(0xFFDFE5EC);
+
+  /// Relleno de los bloques de carga (`Skeleton`).
+  ///
+  /// Tiene que ser bastante más oscuro que `line` o `mapPlaceholder` porque el
+  /// fondo ya es casi blanco y el bloque se pinta **con opacidad**: sobre
+  /// `background` da 1,42:1 en el punto más apagado de la animación y 1,84:1 a
+  /// opacidad plena. Con `line` (#E3E8EE) daba **1,06:1**, que es literalmente una
+  /// pantalla vacía; con `mapPlaceholder` da 1,19:1 incluso sin animar. Hay un
+  /// test que fija el suelo en 1,4:1 (`test/ui/skeleton_visible_test.dart`).
+  static const Color skeleton = Color(0xFFB3BAC5);
 
   static const Color star = Color(0xFFF5A623);
 }

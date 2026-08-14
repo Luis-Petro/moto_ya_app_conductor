@@ -55,7 +55,17 @@ class DispositivoService {
     return nuevo;
   }
 
-  /// "Xiaomi Redmi Note 12 · Android 13 · app 1.0.0".
+  /// "Xiaomi Redmi Note 12 | Android 13 | app 1.0.0".
+  ///
+  /// **Solo ASCII, y no es cosmético.** `dart:io` valida cada cabecera y lanza
+  /// `FormatException` ante cualquier byte fuera de 32–127 (`_isValueChar`). Eso
+  /// pasa dentro del adaptador de Dio, después del try/catch del interceptor, y
+  /// Dio lo envuelve en un `DioException`: la app dice "error de red" y la
+  /// petición **no sale del teléfono**. Con un `·` de separador —que parecía
+  /// inocente— fallaban todas las peticiones de las dos apps.
+  ///
+  /// Por eso el separador es `|` y el texto se saneia entero: el modelo lo
+  /// reporta el fabricante y puede traer acentos o caracteres de otro alfabeto.
   ///
   /// Si el sistema no responde, se devuelve lo que se sepa. Un fallo aquí no
   /// puede impedir una petición: esto es contexto de soporte, no una credencial.
@@ -81,11 +91,23 @@ class DispositivoService {
     } catch (e) {
       debugPrint('DispositivoService: no se pudo leer la versión ($e)');
     }
-    final texto = partes.where((p) => p.trim().isNotEmpty).join(' · ');
+    final texto = soloAscii(partes.where((p) => p.trim().isNotEmpty).join(separador));
     _descripcion = texto.length <= maxDescripcion
         ? texto
         : texto.substring(0, maxDescripcion);
     return _descripcion!;
+  }
+
+  /// Separador de las tres partes. ASCII a propósito (ver [descripcion]).
+  static const String separador = ' | ';
+
+  /// Deja solo caracteres imprimibles ASCII. Lo que no lo es se vuelve espacio,
+  /// nunca se borra en silencio: "Xiaomi Redmi" es peor que "Xiaomi  Redmi".
+  static String soloAscii(String texto) {
+    final limpio = String.fromCharCodes(
+      texto.runes.map((r) => (r >= 32 && r <= 126) ? r : 32),
+    );
+    return limpio.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   /// UUID v4 con el generador seguro de la plataforma. Se compone a mano para

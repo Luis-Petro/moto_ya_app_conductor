@@ -44,12 +44,21 @@ class ApiClient {
   final DispositivoService? _dispositivo;
 
   /// Nunca deja caer la petición: esto es contexto de soporte, no autenticación.
+  ///
+  /// El saneado va aquí además de en el servicio, y no es duplicado inútil:
+  /// `dart:io` rechaza cualquier byte fuera de ASCII en una cabecera y lo hace
+  /// **dentro del adaptador**, fuera del alcance de este try. El resultado es un
+  /// "error de red" con la petición sin salir del teléfono — es decir, la app
+  /// entera caída por un dato de soporte. Que ese valor sea imposible de
+  /// construir mal es más barato que volver a diagnosticarlo.
   Future<void> _adjuntarDispositivo(RequestOptions options) async {
     final dispositivo = _dispositivo;
     if (dispositivo == null) return;
     try {
-      options.headers['X-Dispositivo-Id'] = await dispositivo.id();
-      options.headers['X-Dispositivo'] = await dispositivo.descripcion();
+      options.headers['X-Dispositivo-Id'] =
+          DispositivoService.soloAscii(await dispositivo.id());
+      options.headers['X-Dispositivo'] =
+          DispositivoService.soloAscii(await dispositivo.descripcion());
     } catch (e) {
       debugPrint('ApiClient: sin cabeceras de dispositivo ($e)');
     }

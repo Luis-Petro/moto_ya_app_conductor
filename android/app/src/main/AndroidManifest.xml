@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- ConexiÃ³n a la API y servicios externos -->
+    <!-- Conexión a la API y servicios externos -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- UbicaciÃ³n: mapa de inicio, origen del pedido y conductores cerca -->
+    <!-- Ubicación: mapa de inicio, origen del pedido y conductores cerca -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- Servicio en primer plano: mantiene el GPS vivo con la app minimizada

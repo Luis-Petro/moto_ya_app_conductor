@@ -17,8 +17,9 @@ void main() {
   final router = File('lib/ui/router.dart').readAsStringSync();
 
   group('Perfil del conductor', () {
-    test('abre con el estado de la cuenta y la deuda', () {
-      expect(perfil, contains('_CabeceraEstado(conductor: conductor)'));
+    test('abre con el estado de la cuenta y el saldo', () {
+      expect(perfil, contains('_CabeceraEstado('));
+      expect(perfil, contains('conductor: conductor'));
 
       final cabecera = perfil.substring(perfil.indexOf('class _CabeceraEstado'));
       // Los cuatro estados, cada uno con su color: no basta con "no habilitado".
@@ -29,7 +30,55 @@ void main() {
       // Color y texto: hay quien mira el celular al sol.
       expect(cabecera, contains('AppColors.success'));
       expect(cabecera, contains('AppColors.danger'));
-      expect(cabecera, contains('Formato.moneda(conductor.deudaActual)'));
+    });
+
+    test('el saldo lleva a la Billetera', () {
+      // Es lo que el conductor quiere hacer justo después de leer lo que debe.
+      expect(perfil, contains('onVerSaldo: () => _irABilletera(context)'));
+      expect(perfil, contains('context.go(Rutas.billetera)'));
+      // `go` cambia la rama del shell; `TabActiva` avisa al view model de ese tab
+      // de que volvió a ser visible (el shell los conserva en un IndexedStack).
+      expect(perfil, contains('TabActiva.billetera'));
+    });
+
+    test('el nombre se presenta como dato, no como campo vacío', () {
+      // Un `TextField` con `enabled: false` pinta el valor gris sobre un borde
+      // apagado: a simple vista es un campo vacío que no se puede llenar.
+      expect(perfil, isNot(contains('class _Campo')));
+      expect(perfil, isNot(contains('enabled: editable')));
+      expect(perfil, contains('_FilaEnFirme('));
+      expect(perfil, contains('Icons.lock_outline_rounded'));
+      // Y la explicación va junto al dato, no al final del bloque.
+      final fila = perfil.substring(perfil.indexOf('class _FilaEnFirme'));
+      expect(fila, contains('final String? nota'));
+    });
+
+    test('las credenciales no se cortan a mitad de palabra', () {
+      // El correo competía por el ancho con dos TextButton en la misma fila y se
+      // partía en tres renglones.
+      final tile = perfil.substring(
+        perfil.indexOf('class _CredencialTile'),
+        perfil.indexOf('/// Estado de la cuenta y deuda'),
+      );
+      expect(tile, contains('maxLines: 1'));
+      expect(tile, contains('overflow: TextOverflow.ellipsis'));
+      // Las acciones bajan a su propia fila, debajo del valor.
+      expect(
+        tile.indexOf('overflow: TextOverflow.ellipsis'),
+        lessThan(tile.indexOf("Text(tiene ? 'Cambiar' : 'Agregar')")),
+      );
+    });
+
+    test('sin calificaciones no se presta un 5,0', () {
+      expect(perfil, contains("'Sin calificaciones aún'"));
+      expect(perfil, contains('(conductor.calificacion ?? 0) > 0'));
+    });
+
+    test('cerrar sesión no está duplicado con el perfil cargado', () {
+      // El icono de la barra se puso para el caso en que el perfil no carga y hay
+      // que poder salir. Con el perfil cargado, la salida es el botón del pie,
+      // que es el alcanzable con el pulgar.
+      expect(perfil, contains('if (vm.cargando || vm.usuario == null)'));
     });
 
     test('los documentos ya no se pintan en el perfil', () {

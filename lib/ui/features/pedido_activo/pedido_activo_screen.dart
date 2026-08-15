@@ -239,6 +239,7 @@ class _ActivoViewState extends State<_ActivoView> {
         body: ErrorRetry(
           message: vm.error ?? 'No pudimos cargar el pedido',
           onRetry: vm.cargar,
+          esRed: vm.errorEsRed,
         ),
       );
     }

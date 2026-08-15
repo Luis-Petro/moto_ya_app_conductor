@@ -26,6 +26,10 @@ class PedidoActivoViewModel extends ChangeNotifier {
   bool cargando = true;
   bool procesando = false;
   String? error;
+
+  /// Si el último error fue de red. La vista lo necesita para no decirle
+  /// "revisa tu internet" a quien recibió un rechazo del servidor.
+  bool errorEsRed = false;
   Pedido? pedido;
   LatLng? posicion;
 
@@ -77,7 +81,17 @@ class PedidoActivoViewModel extends ChangeNotifier {
     cargando = true;
     notifyListeners();
     final res = await _pedidos.detalle(pedidoId);
-    res.when(ok: (p) => pedido = p, err: (f) => error = f.message);
+    res.when(
+      ok: (p) {
+        pedido = p;
+        error = null;
+        errorEsRed = false;
+      },
+      err: (f) {
+        error = f.message;
+        errorEsRed = f.isNetwork;
+      },
+    );
     cargando = false;
     notifyListeners();
     if (pedido != null && !pedido!.estado.esFinal) {

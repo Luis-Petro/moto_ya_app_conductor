@@ -47,6 +47,10 @@ class PedidoEntranteViewModel extends ChangeNotifier {
   EstadoEntrante estado = EstadoEntrante.cargando;
   String? error;
 
+  /// Si el último error fue de red. La vista lo necesita para no decirle
+  /// "revisa tu internet" a quien recibió un rechazo del servidor.
+  bool errorEsRed = false;
+
   /// Aviso al cerrarse la oferta de forma remota (tomada/cancelada), para el
   /// encabezado. Null cuando simplemente expiró el tiempo.
   String? avisoCierre;
@@ -117,6 +121,7 @@ class PedidoEntranteViewModel extends ChangeNotifier {
           estado = EstadoEntrante.noDisponible;
         } else {
           error = f.message;
+          errorEsRed = f.isNetwork;
           estado = EstadoEntrante.error;
         }
       },

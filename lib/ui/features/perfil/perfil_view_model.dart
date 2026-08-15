@@ -29,6 +29,10 @@ class PerfilViewModel extends ChangeNotifier {
 
   bool cargando = true;
   String? error;
+
+  /// Si el último error fue de red. La vista lo necesita para no decirle
+  /// "revisa tu internet" a quien recibió un rechazo del servidor.
+  bool errorEsRed = false;
   Usuario? usuario;
 
   bool subiendoFoto = false;
@@ -75,7 +79,17 @@ class PerfilViewModel extends ChangeNotifier {
     }
     await _conductores.cargar(forzar: silencioso);
     final res = await _usuarios.perfil(forzar: true);
-    res.when(ok: (u) => usuario = u, err: (f) => error = f.message);
+    res.when(
+      ok: (u) {
+        usuario = u;
+        error = null;
+        errorEsRed = false;
+      },
+      err: (f) {
+        error = f.message;
+        errorEsRed = f.isNetwork;
+      },
+    );
     cargando = false;
     notifyListeners();
   }

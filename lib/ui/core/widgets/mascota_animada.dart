@@ -19,7 +19,17 @@ enum PoseMascota {
   actualizar('assets/images/mascota_actualizar.png', 'Hay una versión nueva'),
 
   /// Saludando. La cara amable de la marca cuando no pasa nada concreto.
-  saludo('assets/images/mascota_saludo.png', 'Zumbeo');
+  saludo('assets/images/mascota_saludo.png', 'Zumbeo'),
+
+  /// No hay red: mirando el teléfono sin señal. Quieta.
+  ///
+  /// Quieta a propósito, y no por falta de ganas: quien ve esta pantalla está
+  /// esperando a que algo cargue, y una mascota moviéndose ahí se lee como que
+  /// el intento sigue en marcha.
+  sinConexion(
+    'assets/images/mascota_sin_conexion.png',
+    'Sin conexión a internet',
+  );
 
   const PoseMascota(this.asset, this.descripcion);
 
@@ -47,7 +57,7 @@ enum PoseMascota {
 /// | espera | flota en vertical, 1,6 s, ida y vuelta |
 /// | celebra | entra con rebote (`elasticOut`, 600 ms) |
 /// | triste | micro-balanceo de 2°, lento |
-/// | actualizar / saludo | quietas |
+/// | actualizar / saludo / sinConexion | quietas |
 class MascotaAnimada extends StatefulWidget {
   const MascotaAnimada({super.key, required this.pose, this.alto = 140});
 

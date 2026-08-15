@@ -110,7 +110,9 @@ class _DocumentosViewState extends State<_DocumentosView> {
             : conductor == null
                 ? ErrorRetry(
                     message: vm.error ?? 'No pudimos cargar tus documentos',
-                    onRetry: vm.cargar)
+                    onRetry: vm.cargar,
+                    esRed: vm.errorEsRed,
+                  )
                 : RefreshIndicator(
                     onRefresh: vm.cargar,
                     child: ListView(

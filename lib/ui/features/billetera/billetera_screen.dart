@@ -110,6 +110,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
             ? ErrorRetry(
                 message: vm.error ?? 'No pudimos cargar tu billetera',
                 onRetry: vm.cargar,
+                esRed: vm.errorEsRed,
               )
             : RefreshIndicator(
                 onRefresh: vm.cargar,

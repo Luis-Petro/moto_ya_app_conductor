@@ -83,8 +83,10 @@ class _EntranteView extends StatelessWidget {
       return Scaffold(
         body: SafeArea(
           child: ErrorRetry(
-              message: vm.error ?? 'No pudimos cargar el pedido',
-              onRetry: vm.cargar),
+            message: vm.error ?? 'No pudimos cargar el pedido',
+            onRetry: vm.cargar,
+            esRed: vm.errorEsRed,
+          ),
         ),
       );
     }

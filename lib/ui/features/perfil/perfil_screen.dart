@@ -576,6 +576,7 @@ class _PerfilViewState extends State<_PerfilView> {
             ? ErrorRetry(
                 message: vm.error ?? 'No pudimos cargar tu perfil',
                 onRetry: vm.cargar,
+                esRed: vm.errorEsRed,
               )
             : RefreshIndicator(
                 onRefresh: vm.cargar,
@@ -1229,15 +1230,17 @@ class _InfoFila extends StatelessWidget {
   }
 }
 
-/// Prueba del tono de pedido, con su diagnóstico.
+/// Prueba del tono de pedido.
 ///
 /// Lanza **el mismo aviso** que una oferta real: mismo canal, mismo sonido, misma
 /// construcción. Si sonara otra cosa, comprobaría un camino que nadie usa — que
 /// es exactamente cómo el aviso de pago al administrador estuvo semanas dándose
 /// por bueno mientras no llegaba.
 ///
-/// Y si no suena, muestra el motivo leído de Android: el permiso, el canal, el
-/// sonido del canal. Sin eso, "no me suena" no tiene por dónde empezar.
+/// **En pantalla solo va el mensaje al conductor.** El diagnóstico que devuelve
+/// `probarTono()` —permiso, canal, importancia, sonido del canal— se sigue
+/// recogiendo y sale por el log: es lo único que convierte "no me suena" en una
+/// causa concreta, pero el conductor no es quien lo va a leer.
 class _ProbarTono extends StatefulWidget {
   const _ProbarTono();
 
@@ -1251,6 +1254,12 @@ class _ProbarTonoState extends State<_ProbarTono> {
   Future<void> _probar() async {
     setState(() => _probando = true);
     final estado = await locator<NotificacionLocalService>().probarTono();
+    // El diagnóstico se sigue recogiendo, pero va al log y no a la pantalla.
+    // Es lo que convierte "no me suena" —permiso denegado, canal inexistente,
+    // canal mudo, canal silenciado a mano o teléfono en vibración, todos
+    // idénticos desde fuera— en una causa concreta. Quitarlo de la vista no
+    // podía significar perderlo.
+    debugPrint('[prueba de tono] $estado');
     if (!mounted) return;
     setState(() => _probando = false);
     await showDialog<void>(
@@ -1260,57 +1269,15 @@ class _ProbarTonoState extends State<_ProbarTono> {
       useRootNavigator: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Prueba de sonido'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
-                'Si no sonó, revisa que el teléfono no esté en vibración: el '
-                'tono sale por el volumen de llamada.',
-                style: TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              // El diagnóstico se queda, pero plegado.
-              //
-              // Es lo que convierte "no me suena" en una causa concreta: el
-              // permiso, el canal, si el canal quedó mudo. Lo que sobraba no era
-              // la información, era que estuviera de entrada y en crudo — la
-              // primera pantalla que abre un conductor al probar su sonido no
-              // puede ser un volcado técnico.
-              Theme(
-                data: Theme.of(
-                  ctx,
-                ).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  title: const Text(
-                    'Ver detalle técnico',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.inkMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: EdgeInsets.zero,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        estado,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.inkMuted,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        // Solo lo que le sirve al conductor. El detalle técnico estuvo aquí,
+        // plegado tras un "Ver detalle técnico", y sobraba igual: un
+        // desplegable es una invitación a abrirlo, entender menos y desconfiar
+        // más de una app que acaba de funcionar. Vive en el log.
+        content: const Text(
+          'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
+          'Si no sonó, revisa que el teléfono no esté en vibración: el '
+          'tono sale por el volumen de llamada.',
+          style: TextStyle(fontSize: 13),
         ),
         actions: [
           TextButton(

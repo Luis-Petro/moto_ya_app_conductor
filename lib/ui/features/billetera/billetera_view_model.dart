@@ -24,6 +24,10 @@ class BilleteraViewModel extends ChangeNotifier {
   bool cargando = true;
   bool pagando = false;
   String? error;
+
+  /// Si el último error fue de red. La vista lo necesita para no decirle
+  /// "revisa tu internet" a quien recibió un rechazo del servidor.
+  bool errorEsRed = false;
   String? aviso;
   Billetera? billetera;
 
@@ -99,10 +103,21 @@ class BilleteraViewModel extends ChangeNotifier {
     if (!silencioso) {
       cargando = true;
       error = null;
+      errorEsRed = false;
       notifyListeners();
     }
     final res = await _billetera.saldo(forzar: true);
-    res.when(ok: (b) => billetera = b, err: (f) => error = f.message);
+    res.when(
+      ok: (b) {
+        billetera = b;
+        error = null;
+        errorEsRed = false;
+      },
+      err: (f) {
+        error = f.message;
+        errorEsRed = f.isNetwork;
+      },
+    );
     final resPagos = await _billetera.pagos();
     pagos = resPagos.valueOrNull ?? pagos;
     final resMovimientos = await _billetera.movimientos();

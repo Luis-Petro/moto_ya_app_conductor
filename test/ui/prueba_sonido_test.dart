@@ -40,15 +40,39 @@ void main() {
     expect(src, contains("4 => 'alta'"));
   });
 
-  test('el diagnóstico va plegado, no de entrada', () {
+  test('el diagnóstico no está en pantalla, ni siquiera plegado', () {
+    // Antes este test exigía lo contrario: que el volcado estuviera detrás de
+    // un "Ver detalle técnico". Plegarlo no bastaba — un desplegable con ese
+    // nombre es una invitación a abrirlo, entender menos y desconfiar más de
+    // una app que acaba de funcionar. Ahora el diálogo solo le habla al
+    // conductor.
     final src = File(perfil).readAsStringSync();
 
-    expect(src, contains('Ver detalle técnico'));
     expect(
       src,
-      contains('ExpansionTile'),
-      reason: 'El detalle técnico tiene que estar detrás de una acción '
-          'explícita, no ser lo primero que se lee al probar el sonido.',
+      isNot(contains("Text('Ver detalle técnico'")),
+      reason: 'El diálogo de la prueba de sonido no puede ofrecer el volcado '
+          'técnico, ni plegado tras una acción.',
+    );
+    expect(
+      src,
+      isNot(contains('ExpansionTile')),
+      reason: 'No queda ningún desplegable en el diálogo de la prueba.',
+    );
+  });
+
+  test('el diagnóstico se sigue recogiendo y sale por el log', () {
+    // Quitarlo de la vista no puede significar perderlo: es lo único que
+    // convierte "no me suena" —permiso denegado, canal inexistente, canal
+    // mudo, canal silenciado a mano o teléfono en vibración, indistinguibles
+    // desde fuera— en una causa concreta.
+    final src = File(perfil).readAsStringSync();
+
+    expect(src, contains('probarTono()'));
+    expect(
+      src,
+      contains("debugPrint('[prueba de tono]"),
+      reason: 'El estado del canal tiene que quedar en el log de la app.',
     );
   });
 }

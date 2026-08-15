@@ -118,10 +118,34 @@ void main() {
       );
     });
 
-    test('el handler de background sigue avisando con la app cerrada', () {
+    test('el handler de background no pinta nada: lo hace el SDK de FCM', () {
+      // La oferta se mandó un tiempo como mensaje solo de datos para poder
+      // construir aquí el aviso a pantalla completa. Salió mal: un mensaje de
+      // datos necesita que este isolate despierte, y en los teléfonos de gama
+      // media que son el parque real muchas veces no despierta — ni
+      // notificación, ni sonido, ni error. Sonar siempre vale más que sonar a
+      // pantalla completa a veces.
       expect(
         File('lib/data/services/push_service.dart').readAsStringSync(),
-        contains('mostrarOferta('),
+        isNot(contains('mostrarOferta(')),
+        reason: 'El handler de background vuelve a pintar el aviso. Si el '
+            'backend manda bloque de notificación, saldrían dos.',
+      );
+    });
+
+    test('hay una forma de probar el tono sin esperar un pedido', () {
+      // "No me suena" no se puede investigar: permiso, canal, sonido del canal,
+      // canal silenciado a mano y teléfono en vibración se ven todos igual desde
+      // fuera. Y la prueba manda EL MISMO aviso que una oferta real, porque una
+      // comprobación que difiere del camino real certifica el camino equivocado.
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      expect(src, contains('Future<String> probarTono()'));
+      expect(src, contains('mostrarOferta('));
+      expect(src, contains('Future<String> diagnostico()'));
+      expect(
+        File('lib/ui/features/perfil/perfil_screen.dart').readAsStringSync(),
+        contains('probarTono()'),
       );
     });
 

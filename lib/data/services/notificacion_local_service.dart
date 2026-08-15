@@ -65,9 +65,60 @@ class NotificacionLocalService {
         onDidReceiveNotificationResponse: _alTocar,
       );
       _listo = true;
-    } catch (_) {
-      // Sin canal de aviso local, pero sin romper el arranque.
+    } catch (e) {
+      // Sin canal de aviso local, pero sin romper el arranque. Lo que NO puede
+      // pasar es que se caiga en silencio: un aviso que no suena y no deja rastro
+      // ya costó dos diagnósticos equivocados.
+      debugPrint('NotificacionLocal: no se pudo inicializar el plugin: $e');
     }
+  }
+
+  /// Estado real del aviso, leído de Android, no de lo que creemos haber hecho.
+  ///
+  /// Existe porque "no suena" se puede deber a media docena de cosas —permiso
+  /// denegado, canal inexistente, canal creado sin sonido, canal silenciado por
+  /// el usuario, teléfono en vibración— y desde fuera todas se ven igual. Esto
+  /// las separa en una línea de log.
+  Future<String> diagnostico() async {
+    if (!Platform.isAndroid) return 'Diagnóstico solo disponible en Android.';
+    await inicializar();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (android == null) return 'El plugin de notificaciones no está disponible.';
+    final lineas = <String>[];
+    try {
+      final permitido = await android.areNotificationsEnabled();
+      lineas.add('Permiso de notificaciones: ${permitido == true ? 'sí' : 'NO'}');
+    } catch (e) {
+      lineas.add('Permiso de notificaciones: no se pudo consultar ($e)');
+    }
+    try {
+      final canales = await android.getNotificationChannels() ?? [];
+      AndroidNotificationChannel? oferta;
+      for (final c in canales) {
+        if (c.id == CanalesNotificacion.oferta) oferta = c;
+      }
+      if (oferta == null) {
+        lineas.add(
+          'Canal ${CanalesNotificacion.oferta}: NO EXISTE. '
+          'Lo crea ZumbeoApplication al arrancar el proceso.',
+        );
+      } else {
+        lineas
+          ..add('Canal ${oferta.id}: existe')
+          ..add('  importancia: ${oferta.importance.value}')
+          ..add('  sonido: ${oferta.sound ?? 'NINGUNO (canal mudo)'}')
+          ..add('  origen del sonido: ${oferta.audioAttributesUsage.name}');
+      }
+      lineas.add('Canales creados: ${canales.map((c) => c.id).join(', ')}');
+    } catch (e) {
+      lineas.add('No se pudieron leer los canales: $e');
+    }
+    final texto = lineas.join('\n');
+    debugPrint('NotificacionLocal · diagnóstico:\n$texto');
+    return texto;
   }
 
   /// Si la app se abrió **desde** el aviso, el toque ya ocurrió antes de que
@@ -84,7 +135,9 @@ class NotificacionLocalService {
 
   void _alTocar(NotificationResponse? respuesta) {
     final pedidoId = int.tryParse(respuesta?.payload ?? '');
-    if (pedidoId != null) onOfertaTocada?.call(pedidoId);
+    // El id negativo es el de la prueba de tono: no hay pedido al que llevar, y
+    // navegar a uno inexistente sería peor que no hacer nada.
+    if (pedidoId != null && pedidoId > 0) onOfertaTocada?.call(pedidoId);
   }
 
   /// Pide el permiso de pantalla completa de Android 14+.
@@ -128,8 +181,15 @@ class NotificacionLocalService {
     Duration? vigencia,
   }) async {
     await inicializar();
-    if (!_listo) return;
-    if (await _yaEstaAvisado(pedidoId)) return;
+    if (!_listo) {
+      debugPrint('NotificacionLocal: aviso del pedido $pedidoId descartado, '
+          'el plugin no está listo.');
+      return;
+    }
+    if (await _yaEstaAvisado(pedidoId)) {
+      debugPrint('NotificacionLocal: el pedido $pedidoId ya tiene aviso vivo.');
+      return;
+    }
     final android = AndroidNotificationDetails(
       CanalesNotificacion.oferta,
       'Pedidos entrantes',
@@ -160,8 +220,38 @@ class NotificacionLocalService {
         ),
         payload: pedidoId.toString(),
       );
-    } catch (_) {/* mejor sin aviso que con la app caída */}
+      debugPrint('NotificacionLocal: aviso lanzado para el pedido $pedidoId '
+          'en el canal ${CanalesNotificacion.oferta}.');
+    } catch (e) {
+      // Mejor sin aviso que con la app caída, pero nunca sin rastro.
+      debugPrint('NotificacionLocal: falló el aviso del pedido $pedidoId: $e');
+    }
   }
+
+  /// Lanza el **mismo aviso** que una oferta real, con datos de ejemplo.
+  ///
+  /// Es la única forma de comprobar el tono sin esperar a que entre un pedido. Y
+  /// manda exactamente lo que manda el aviso real —mismo canal, mismo sonido,
+  /// misma construcción— porque una comprobación que difiere del camino real
+  /// acaba certificando el camino equivocado; eso ya costó semanas con el aviso
+  /// de pago al administrador.
+  ///
+  /// Devuelve el diagnóstico del canal, que es lo que dice **por qué** no suena
+  /// cuando no suena.
+  Future<String> probarTono() async {
+    final estado = await diagnostico();
+    await mostrarOferta(
+      pedidoId: _pedidoDePrueba,
+      titulo: 'Prueba de sonido',
+      cuerpo: 'Así suena un pedido nuevo.',
+      vigencia: const Duration(seconds: 30),
+    );
+    return estado;
+  }
+
+  /// Id reservado para la prueba: no puede chocar con un pedido real ni dejar al
+  /// conductor con un aviso que lleva a un pedido que no existe.
+  static const _pedidoDePrueba = -1;
 
   /// ¿Ya hay un aviso vivo para ese pedido?
   ///
@@ -176,8 +266,17 @@ class NotificacionLocalService {
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.getActiveNotifications();
-      return activas?.any((n) => n.id == _idDe(pedidoId)) ?? false;
+      if (activas == null) return false;
+      // La etiqueta con la que el SDK de FCM publica el mismo aviso. Sin
+      // comprobarla, un teléfono donde el push SÍ funciona recibiría dos avisos
+      // del mismo pedido: el del sistema y el nuestro.
+      final etiquetaFcm = 'PEDIDO_NUEVO:$pedidoId';
+      return activas.any(
+        (n) => n.id == _idDe(pedidoId) || n.tag == etiquetaFcm,
+      );
     } catch (_) {
+      // Ante la duda, avisar: perder una oferta por creerla duplicada es mucho
+      // peor que sonar dos veces.
       return false;
     }
   }

@@ -4,7 +4,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../config/env.dart';
-import 'notificacion_local_service.dart';
 
 /// Notificación de negocio normalizada para navegación interna.
 class PushMensaje {
@@ -50,25 +49,22 @@ class PushMensaje {
 
 /// Handler de mensajes en background (debe ser top-level).
 ///
-/// Corre en un isolate propio, sin la app ni la DI montadas, así que solo puede
-/// depender de lo que construya él mismo.
+/// **No pinta nada, a propósito.** Todos los avisos —la oferta incluida— llevan
+/// bloque de notificación, así que los publica el SDK de FCM sobre el canal que
+/// declara el backend, sin ejecutar una línea nuestra.
 ///
-/// Para todo lo que no sea una oferta no hace nada: el mensaje trae bloque de
-/// notificación y la pinta el sistema. La **oferta** llega como mensaje de datos
-/// —una notificación a pantalla completa no se puede pedir desde el payload de
-/// FCM— y es aquí donde se construye. Y solo aquí: con la app en primer plano el
-/// mensaje entra por `onMessage` y la oferta se presenta dentro de la app, así
-/// que este camino no puede duplicarla.
+/// La oferta se mandó un tiempo como mensaje solo de datos para poder construir
+/// aquí el aviso a pantalla completa. Salió mal: un mensaje de datos necesita que
+/// **este isolate despierte**, y en los teléfonos de gama media que son el parque
+/// real muchas veces no despierta — ni notificación, ni sonido, ni error. Sonar
+/// siempre vale más que sonar a pantalla completa a veces.
+///
+/// La pantalla completa se conserva por el otro camino: con la app viva, la
+/// oferta llega además por STOMP o por el sondeo y ahí sí la construye el Inicio.
 @pragma('vm:entry-point')
 Future<void> _backgroundHandler(RemoteMessage message) async {
-  final aviso = PushMensaje.fromRemote(message);
-  if (aviso.tipo != PushMensaje.tipoOferta || aviso.pedidoId == null) return;
-  await NotificacionLocalService().mostrarOferta(
-    pedidoId: aviso.pedidoId!,
-    titulo: aviso.titulo ?? '¡Nuevo pedido!',
-    cuerpo: aviso.cuerpo ?? 'Tienes un pedido cercano.',
-    vigencia: aviso.vigencia,
-  );
+  // Sin lógica: el sistema ya mostró la notificación. El toque se atiende al
+  // reabrir la app vía getInitialMessage / onMessageOpenedApp.
 }
 
 /// Integración con Firebase Cloud Messaging. Es defensiva: si FCM no está

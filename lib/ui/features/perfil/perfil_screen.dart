@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
+import '../../../data/services/notificacion_local_service.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/conductor.dart';
 import '../../core/format/formato.dart';
@@ -715,6 +716,17 @@ class _PerfilViewState extends State<_PerfilView> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Comprobar el tono sin esperar a que entre un pedido.
+                    //
+                    // "No me suena" es un reporte que no se puede investigar: el
+                    // permiso, el canal, el sonido del canal, el canal silenciado
+                    // a mano y el teléfono en vibración se ven todos igual desde
+                    // fuera. Esto lo hace comprobable en un toque, y lanza EL
+                    // MISMO aviso que un pedido real — una prueba que difiere del
+                    // camino real acaba certificando el camino equivocado.
+                    const _ProbarTono(),
                     const SizedBox(height: AppSpacing.xl),
 
                     // Nombre, correo y celular en la misma tarjeta.
@@ -1213,6 +1225,107 @@ class _InfoFila extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Prueba del tono de pedido, con su diagnóstico.
+///
+/// Lanza **el mismo aviso** que una oferta real: mismo canal, mismo sonido, misma
+/// construcción. Si sonara otra cosa, comprobaría un camino que nadie usa — que
+/// es exactamente cómo el aviso de pago al administrador estuvo semanas dándose
+/// por bueno mientras no llegaba.
+///
+/// Y si no suena, muestra el motivo leído de Android: el permiso, el canal, el
+/// sonido del canal. Sin eso, "no me suena" no tiene por dónde empezar.
+class _ProbarTono extends StatefulWidget {
+  const _ProbarTono();
+
+  @override
+  State<_ProbarTono> createState() => _ProbarTonoState();
+}
+
+class _ProbarTonoState extends State<_ProbarTono> {
+  bool _probando = false;
+
+  Future<void> _probar() async {
+    setState(() => _probando = true);
+    final estado = await locator<NotificacionLocalService>().probarTono();
+    if (!mounted) return;
+    setState(() => _probando = false);
+    await showDialog<void>(
+      context: context,
+      // Dentro de un tab del shell: con el navegador raíz el velo tapa la
+      // pantalla entera y se ve negro (gotcha de go_router + StatefulShellRoute).
+      useRootNavigator: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Prueba de sonido'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
+                'Si no sonó, revisa que el teléfono no esté en vibración: el '
+                'tono sale por el volumen de llamada.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                estado,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.inkMuted,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      onTap: _probando ? null : _probar,
+      child: Row(
+        children: [
+          const Icon(Icons.volume_up_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Probar el sonido de un pedido',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'Suena igual que una oferta de verdad',
+                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          if (_probando)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            const Icon(Icons.play_arrow_rounded, color: AppColors.primary),
+        ],
+      ),
     );
   }
 }

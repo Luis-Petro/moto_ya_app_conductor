@@ -482,6 +482,7 @@ class InicioViewModel extends ChangeNotifier {
         final nueva = lista.isEmpty ? null : lista.first;
         if (nueva?.pedidoId != ofertaActual?.pedidoId) {
           ofertaActual = nueva;
+          if (nueva != null) _sonarOferta(nueva);
           _notificar();
         }
       }
@@ -491,6 +492,31 @@ class InicioViewModel extends ChangeNotifier {
     }
     // Ajusta el ritmo del sondeo si el canal STOMP cambió de estado (subió/cayó).
     if (_pollLento != _ofertas.conectado) _iniciarPoll();
+  }
+
+  /// Hace sonar una oferta recién detectada.
+  ///
+  /// **Esta es la vía por la que el conductor se entera de verdad.** El push de
+  /// FCM depende de una credencial de servidor que puede estar mal sin que nada
+  /// falle a la vista; STOMP y el sondeo funcionan siempre. Mientras el aviso
+  /// sonoro colgó solo del push, la app estuvo muda: la oferta aparecía en
+  /// pantalla y ya, y con el teléfono en el bolsillo eso es no enterarse.
+  ///
+  /// No duplica con el push: el aviso es idempotente por pedido contra las
+  /// notificaciones activas del sistema.
+  void _sonarOferta(Oferta oferta) {
+    final pedido = oferta.pedido;
+    final segundos = oferta.segundosRestantes;
+    unawaited(
+      _avisos.mostrarOferta(
+        pedidoId: oferta.pedidoId,
+        titulo: '¡Nuevo pedido cerca!',
+        cuerpo: pedidoActivo != null
+            ? 'Otro pedido, de camino al tuyo. ${pedido.categoria.label}.'
+            : '${pedido.categoria.label}. Responde con tu tarifa.',
+        vigencia: segundos > 0 ? Duration(seconds: segundos) : null,
+      ),
+    );
   }
 
   /// Compara id **y estado**: un pedido que avanza de ACEPTADO a EN_CAMINO tiene

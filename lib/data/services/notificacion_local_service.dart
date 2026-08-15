@@ -110,6 +110,17 @@ class NotificacionLocalService {
   /// ningún evento de cierre (los de "venció" y "ya lo tomó otro" viajan por
   /// STOMP, que necesita la app viva), así que sin él el aviso se quedaría en la
   /// bandeja ofreciendo un pedido que ya no existe.
+  ///
+  /// **Lo llama quien DETECTA la oferta, venga por donde venga**: el handler de
+  /// background con la app cerrada, y el Inicio cuando la trae STOMP o el sondeo.
+  /// Atarlo solo a FCM fue el error que dejó la app muda: el push depende de una
+  /// credencial que nadie había comprobado, mientras que STOMP y el sondeo
+  /// funcionan siempre — y por ese camino no sonaba nada.
+  ///
+  /// Es idempotente por pedido: si ya hay un aviso vivo para ese pedido no vuelve
+  /// a sonar. La comprobación va contra las notificaciones **activas del sistema**
+  /// y no contra una variable, porque el handler de background corre en otro
+  /// isolate y no comparte memoria con la app.
   Future<void> mostrarOferta({
     required int pedidoId,
     required String titulo,
@@ -118,6 +129,7 @@ class NotificacionLocalService {
   }) async {
     await inicializar();
     if (!_listo) return;
+    if (await _yaEstaAvisado(pedidoId)) return;
     final android = AndroidNotificationDetails(
       CanalesNotificacion.oferta,
       'Pedidos entrantes',
@@ -149,6 +161,25 @@ class NotificacionLocalService {
         payload: pedidoId.toString(),
       );
     } catch (_) {/* mejor sin aviso que con la app caída */}
+  }
+
+  /// ¿Ya hay un aviso vivo para ese pedido?
+  ///
+  /// Ante la duda responde **que no**: perder un aviso por creerlo duplicado es
+  /// mucho peor que sonar dos veces. Por eso cualquier fallo de la consulta se
+  /// resuelve avisando.
+  Future<bool> _yaEstaAvisado(int pedidoId) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final activas = await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.getActiveNotifications();
+      return activas?.any((n) => n.id == _idDe(pedidoId)) ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Retira el aviso de una oferta (venció, la tomó otro o el pedido se canceló).

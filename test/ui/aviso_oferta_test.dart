@@ -99,31 +99,40 @@ void main() {
     });
   });
 
-  group('La oferta solo se pinta con la app cerrada', () {
-    test('nadie más que el handler de background muestra el aviso', () {
-      // Con la app en primer plano la oferta se presenta dentro de la app
-      // (`onMensajeForeground` navega a la tarjeta). Si otra pantalla llamara
-      // además a `mostrarOferta`, el conductor vería la oferta dos veces: una en
-      // la app y otra encima, tapándola.
-      final infractores = Directory('lib')
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.dart'))
-          .where((f) => f.readAsStringSync().contains('mostrarOferta('))
-          .map((f) => f.path.replaceAll(r'\', '/'))
-          .where(
-            (ruta) =>
-                !ruta.endsWith('lib/data/services/push_service.dart') &&
-                !ruta.endsWith('lib/data/services/notificacion_local_service.dart'),
-          )
-          .toList();
-
+  group('El aviso suena venga la oferta por donde venga', () {
+    test('el sondeo y STOMP también hacen sonar la oferta, no solo el push', () {
+      // Esta es la regresión que dejó la app muda. El aviso colgaba solo del
+      // handler de FCM, y el push depende de una credencial de servidor que
+      // puede estar mal sin que nada falle a la vista. STOMP y el sondeo
+      // funcionan siempre — y por ese camino no sonaba nada: la oferta aparecía
+      // en la pantalla y ya. Con el teléfono en el bolsillo, eso es no
+      // enterarse.
+      final vm = File('lib/ui/features/inicio/inicio_view_model.dart')
+          .readAsStringSync();
       expect(
-        infractores,
-        isEmpty,
-        reason: 'El aviso a pantalla completa solo lo construye el handler de '
-            'background. Con la app abierta la oferta se presenta dentro.',
+        vm,
+        contains('_sonarOferta'),
+        reason: 'El Inicio dejó de avisar al detectar una oferta. Si el push '
+            'no llega —y no hay nada que garantice que llega— la app se queda '
+            'muda.',
       );
+    });
+
+    test('el handler de background sigue avisando con la app cerrada', () {
+      expect(
+        File('lib/data/services/push_service.dart').readAsStringSync(),
+        contains('mostrarOferta('),
+      );
+    });
+
+    test('el aviso no se duplica: es idempotente por pedido', () {
+      // Push y sondeo pueden detectar la misma oferta. La comprobación va contra
+      // las notificaciones ACTIVAS del sistema y no contra una variable, porque
+      // el handler de background corre en otro isolate y no comparte memoria.
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      expect(src, contains('getActiveNotifications'));
+      expect(src, contains('_yaEstaAvisado'));
     });
   });
 

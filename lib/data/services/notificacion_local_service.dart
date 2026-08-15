@@ -11,9 +11,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 class CanalesNotificacion {
   const CanalesNotificacion._();
 
-  /// Ofertas de pedido. Suena por el flujo de audio de **timbre**, no por el de
-  /// notificación: un conductor en moto y con casco no oye el segundo.
-  static const oferta = 'motoya_oferta_v1';
+  /// Ofertas de pedido. Suena con el tono propio (`res/raw/notisound.ogg`) por el
+  /// flujo de audio de **timbre**, no por el de notificación: un conductor en
+  /// moto y con casco no oye el segundo.
+  ///
+  /// `_v2` porque el tono cambió. Un canal congela su sonido en la primera
+  /// creación, así que el tono nuevo solo llega con un id nuevo.
+  static const oferta = 'motoya_oferta_v2';
 
   /// El resto de los avisos. Va aparte a propósito: con un canal único, silenciar
   /// los avisos generales silenciaría también los pedidos.

@@ -80,4 +80,19 @@ class PedidoRepository {
     }
     return null;
   }
+
+  /// TODOS los pedidos en curso del conductor, del más antiguo al más reciente.
+  ///
+  /// Un fallo devuelve `null`, no una lista vacía: son cosas distintas y
+  /// confundirlas hace que un corte de red se vea como "ya no tienes pedidos" y
+  /// borre de la pantalla un pedido que el conductor está haciendo.
+  Future<List<Pedido>?> pedidosActivos() async {
+    final res = await _service.activos();
+    return res.when(
+      ok: (lista) => lista
+          .where((p) => p.estado.estaActivo && p.tieneConductor)
+          .toList(growable: false),
+      err: (_) => null,
+    );
+  }
 }

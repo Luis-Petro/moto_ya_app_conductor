@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/models/lugar.dart';
 import '../models/api_mappers.dart';
 import 'api_client.dart';
@@ -50,7 +52,13 @@ class LugarService {
   /// Nunca falla hacia la UI: sin catálogo el mapa sigue sirviendo, solo va sin
   /// marcadores. Un error tampoco se cachea, para que la pantalla siguiente
   /// reintente.
-  Future<List<Lugar>> catalogoDeMapa(int municipioId) {
+  ///
+  /// **Devuelve `null` cuando falló**, y una lista vacía cuando el municipio no
+  /// tiene lugares. Antes las dos cosas eran la misma lista vacía, y por eso un
+  /// fallo de red, un 400 por municipio inválido y un catálogo genuinamente sin
+  /// nada se veían exactamente igual: un mapa sin marcadores y ni una pista de
+  /// por qué. Quien llama decide si reintenta.
+  Future<List<Lugar>?> catalogoDeMapa(int municipioId) {
     final cacheado = _cache[municipioId];
     if (cacheado != null && cacheado.fresco) {
       return Future.value(cacheado.lugares);
@@ -61,19 +69,34 @@ class LugarService {
         .whenComplete(() => _enVuelo.remove(municipioId));
   }
 
-  Future<List<Lugar>> _traerCatalogo(int municipioId) async {
+  Future<List<Lugar>?> _traerCatalogo(int municipioId) async {
     final res = await paraMapa(municipioId: municipioId);
     return res.when(
       ok: (lugares) {
         _cache[municipioId] = _CatalogoCacheado(lugares);
+        if (lugares.isEmpty) {
+          debugPrint(
+            'LugarService: el municipio $municipioId no tiene lugares activos. '
+            'Los mapas saldrán sin marcadores; se cargan desde el panel.',
+          );
+        }
         return lugares;
       },
-      err: (_) => _cache[municipioId]?.lugares ?? const <Lugar>[],
+      err: (f) {
+        // En release el conductor no ve nada: un mapa sin marcadores sigue
+        // siendo un mapa. Pero que esto se pueda romper sin dejar rastro es lo
+        // que hizo que "a veces carga y a veces no" no tuviera por dónde empezar.
+        debugPrint(
+          'LugarService: no se pudo traer el catálogo del municipio $municipioId '
+          '(${f.statusCode} ${f.message}). No se cachea el fallo.',
+        );
+        return _cache[municipioId]?.lugares;
+      },
     );
   }
 
   final Map<int, _CatalogoCacheado> _cache = {};
-  final Map<int, Future<List<Lugar>>> _enVuelo = {};
+  final Map<int, Future<List<Lugar>?>> _enVuelo = {};
 
   /// Propone un lugar nuevo. Queda pendiente de revisión del administrador
   /// antes de aparecerle a los clientes.

@@ -16,6 +16,7 @@ import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/demanda_zonas.dart';
+import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
@@ -91,7 +92,7 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
         vm.enRevision ||
         vm.rechazado ||
         !vm.tieneFotoPerfil ||
-        vm.pedidoActivo != null ||
+        vm.pedidosActivos.isNotEmpty ||
         vm.ofertaActual != null ||
         vm.sinVisibilidad ||
         vm.bateria == PermisoBateria.denegado;
@@ -142,12 +143,21 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
                             const _BateriaBanner(),
                             const SizedBox(height: AppSpacing.md),
                           ],
-                          if (vm.pedidoActivo != null) ...[
-                            _ActivoBanner(vm: vm),
+                          // Una tarjeta por pedido en curso. Con el pedido
+                          // encadenado puede llevar más de uno, y el conductor
+                          // tiene que poder saltar de uno a otro sin buscarlos
+                          // en el historial.
+                          for (final p in vm.pedidosActivos) ...[
+                            _ActivoBanner(vm: vm, pedido: p),
                             const SizedBox(height: AppSpacing.md),
                           ],
-                          if (vm.ofertaActual != null &&
-                              vm.pedidoActivo == null) ...[
+                          // La oferta se muestra AUNQUE ya lleve un pedido. Es
+                          // el punto entero del pedido encadenado: si el backend
+                          // se la ofreció es porque no quedaba nadie libre y él
+                          // va a quedar libre cerca de la nueva recogida.
+                          // Ocultarla aquí hacía que esa oferta se venciera sin
+                          // que nadie la viera nunca.
+                          if (vm.ofertaActual != null) ...[
                             _OfertaBanner(vm: vm),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -256,12 +266,20 @@ class _Header extends StatelessWidget {
 }
 
 class _ActivoBanner extends StatelessWidget {
-  const _ActivoBanner({required this.vm});
+  const _ActivoBanner({required this.vm, required this.pedido});
   final InicioViewModel vm;
+  final Pedido pedido;
 
   @override
   Widget build(BuildContext context) {
-    final p = vm.pedidoActivo!;
+    final p = pedido;
+    // Con dos pedidos encima, "Pedido en curso" repetido no dice cuál es cuál.
+    // El orden no es cosmético: el primero es el que tomó antes y el que
+    // normalmente va más adelantado.
+    final posicion = vm.pedidosActivos.indexOf(p) + 1;
+    final titulo = vm.llevaVariosPedidos
+        ? 'Pedido $posicion de ${vm.pedidosActivos.length}'
+        : 'Pedido en curso';
     return MotoCard(
       color: AppColors.accent,
       onTap: () async {
@@ -276,9 +294,9 @@ class _ActivoBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Pedido en curso',
-                  style: TextStyle(
+                Text(
+                  titulo,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
@@ -309,6 +327,10 @@ class _OfertaBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final oferta = vm.ofertaActual!;
     final pedido = oferta.pedido;
+    // Llegar una oferta con un pedido encima es una situación distinta y hay que
+    // nombrarla: el conductor tiene que entender que se le suma, no que sustituye
+    // al que lleva. Y que puede decir que no sin consecuencias, como siempre.
+    final encadenado = vm.pedidoActivo != null;
     return MotoCard(
       color: AppColors.primarySurface,
       borderColor: AppColors.primary,
@@ -333,9 +355,11 @@ class _OfertaBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '¡Nuevo pedido cerca!',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                Text(
+                  encadenado
+                      ? 'Otro pedido, de camino al tuyo'
+                      : '¡Nuevo pedido cerca!',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 Text(
                   '${pedido.categoria.label} · sugerido ${Formato.moneda(pedido.tarifaSugerida)}',
@@ -344,6 +368,14 @@ class _OfertaBanner extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
+                if (encadenado)
+                  const Text(
+                    'Se suma al que llevas. Puedes decir que no.',
+                    style: TextStyle(
+                      color: AppColors.inkMuted,
+                      fontSize: 11.5,
+                    ),
+                  ),
               ],
             ),
           ),

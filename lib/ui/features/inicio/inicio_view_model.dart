@@ -91,9 +91,23 @@ class InicioViewModel extends ChangeNotifier {
   /// Oferta dirigida vigente para el conductor (con la ventana del servidor).
   Oferta? ofertaActual;
 
-  /// Pedido en curso asignado al conductor (ACEPTADO/EN_COMPRA/EN_CAMINO): se
-  /// muestra siempre para que pueda continuar el flujo aunque no llegue push.
-  Pedido? pedidoActivo;
+  /// Pedidos en curso asignados al conductor (ACEPTADO/EN_COMPRA/EN_CAMINO), del
+  /// más antiguo al más reciente. Se muestran siempre para que pueda continuar el
+  /// flujo aunque no llegue push.
+  ///
+  /// Es una **lista** porque con el pedido encadenado puede llevar más de uno:
+  /// cuando no queda ningún conductor libre y el que va a quedar libre cerca de
+  /// la nueva recogida es él. Mientras esto fue un solo pedido, aceptar el
+  /// segundo lo hacía desaparecer de la pantalla.
+  List<Pedido> pedidosActivos = const [];
+
+  /// El pedido en curso principal: el que tomó primero, que normalmente es el
+  /// que va más adelantado.
+  Pedido? get pedidoActivo =>
+      pedidosActivos.isEmpty ? null : pedidosActivos.first;
+
+  /// Lleva más de un pedido a la vez.
+  bool get llevaVariosPedidos => pedidosActivos.length > 1;
 
   /// Demanda reciente por zonas (la calcula el backend). Null mientras carga o
   /// si la consulta falló; con `celdas` vacía significa "no hay datos", que es
@@ -178,8 +192,8 @@ class InicioViewModel extends ChangeNotifier {
     unawaited(_cargarMetricas().then((_) => _notificar()));
     unawaited(_cargarUsuario().then((_) => _notificar()));
     unawaited(
-      _pedidos.pedidoActivo().then((p) {
-        pedidoActivo = p;
+      _pedidos.pedidosActivos().then((lista) {
+        if (lista != null) pedidosActivos = lista;
         _notificar();
       }),
     );
@@ -405,6 +419,13 @@ class InicioViewModel extends ChangeNotifier {
     // deja de ser visible exactamente igual que si no tuviera señal.
     final res = await _conductores.reportarUbicacion(punto);
     if (res.isSuccess) _reporter.marcarReporteOk();
+    // La posición se retransmite a TODOS los pedidos en curso, no solo al que
+    // tenga abierto. Con dos pedidos encima, el cliente del que no está en
+    // pantalla vería el marcador congelado y un ETA que no avanza — que es
+    // exactamente lo que le hace llamar para preguntar si va en camino.
+    for (final p in pedidosActivos) {
+      unawaited(_pedidos.reportarPosicion(p.id, punto));
+    }
     _notificar();
   }
 
@@ -447,9 +468,11 @@ class InicioViewModel extends ChangeNotifier {
   /// Un tick del sondeo: refresca el pedido activo SIEMPRE (para dar visibilidad
   /// del pedido en curso) y las ofertas solo si está en línea y sin bloqueo.
   Future<void> _tick() async {
-    final activo = await _pedidos.pedidoActivo();
-    if (activo?.id != pedidoActivo?.id) {
-      pedidoActivo = activo;
+    // Un fallo devuelve null y se ignora: borrar de la pantalla un pedido que el
+    // conductor está haciendo porque se cayó un tick es peor que no refrescar.
+    final activos = await _pedidos.pedidosActivos();
+    if (activos != null && !_mismaLista(activos, pedidosActivos)) {
+      pedidosActivos = activos;
       _notificar();
     }
     if (enLinea && !bloqueadoPorDeuda) {
@@ -468,6 +491,16 @@ class InicioViewModel extends ChangeNotifier {
     }
     // Ajusta el ritmo del sondeo si el canal STOMP cambió de estado (subió/cayó).
     if (_pollLento != _ofertas.conectado) _iniciarPoll();
+  }
+
+  /// Compara id **y estado**: un pedido que avanza de ACEPTADO a EN_CAMINO tiene
+  /// el mismo id y la tarjeta tiene que repintarse igual.
+  static bool _mismaLista(List<Pedido> a, List<Pedido> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id || a[i].estado != b[i].estado) return false;
+    }
+    return true;
   }
 
   /// Trae la demanda por zonas del backend. Un fallo deja `demanda` en null y

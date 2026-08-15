@@ -57,6 +57,10 @@ class LugaresLayer extends StatefulWidget {
 class _LugaresLayerState extends State<LugaresLayer> {
   List<Lugar> _lugares = const [];
 
+  /// Reintentos gastados. Uno basta: si el catálogo no llega a la segunda, no va
+  /// a llegar por insistir dentro de la misma pantalla.
+  int _reintentos = 0;
+
   @override
   void initState() {
     super.initState();
@@ -66,15 +70,43 @@ class _LugaresLayerState extends State<LugaresLayer> {
   @override
   void didUpdateWidget(covariant LugaresLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.municipioId != oldWidget.municipioId) _cargar();
+    if (widget.municipioId != oldWidget.municipioId) {
+      _reintentos = 0;
+      _cargar();
+    }
   }
 
   Future<void> _cargar() async {
     final municipioId =
         widget.municipioId ?? locator<UsuarioRepository>().enCache?.municipioId;
-    if (municipioId == null) return;
+    if (municipioId == null) {
+      // El municipio todavía no ha llegado. Volver a mirar en un momento es lo
+      // que evita el caso mudo: montarse antes que el municipio y no enterarse
+      // nunca de que ya está, porque `didUpdateWidget` solo se dispara si el
+      // valor que llega por parámetro cambia — y en las pantallas que lo toman
+      // de la caché del usuario ese parámetro es null siempre. En el Inicio del
+      // conductor el perfil se pide con `unawaited`, así que esa carrera se
+      // pierde a diario: es el "a veces carga y a veces no".
+      if (_reintentos == 0) {
+        _reintentos++;
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (mounted) await _cargar();
+      }
+      return;
+    }
     final lugares = await locator<LugarService>().catalogoDeMapa(municipioId);
-    if (!mounted || lugares.isEmpty) return;
+    if (!mounted) return;
+    if (lugares == null) {
+      // Falló. Un reintento y se deja estar: el mapa sin marcadores sigue
+      // sirviendo, y el motivo ya quedó en el log del servicio.
+      if (_reintentos < 2) {
+        _reintentos++;
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (mounted) await _cargar();
+      }
+      return;
+    }
+    if (lugares.isEmpty) return;
     setState(() => _lugares = lugares);
   }
 

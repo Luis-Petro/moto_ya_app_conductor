@@ -73,15 +73,29 @@ void main() {
       expect(kt, contains(CanalesNotificacion.avisos));
     });
 
-    test('los ids llevan versión y el canal anterior se borra', () {
+    test('los ids llevan versión y los canales anteriores se borran', () {
       // Un NotificationChannel congela importancia y sonido en su PRIMERA
       // creación. Sin versión en el id, cambiar el tono sería imposible en los
-      // teléfonos que ya tienen la app instalada.
-      expect(CanalesNotificacion.oferta, endsWith('_v1'));
-      expect(CanalesNotificacion.avisos, endsWith('_v1'));
+      // teléfonos que ya tienen la app instalada — y el de ofertas ya la usó:
+      // pasó a `_v2` al cambiar el tono del sistema por el propio.
+      expect(CanalesNotificacion.oferta, matches(r'_v\d+$'));
+      expect(CanalesNotificacion.avisos, matches(r'_v\d+$'));
       final kt = File(application).readAsStringSync();
       expect(kt, contains('deleteNotificationChannel'));
+      expect(kt, contains('motoya_oferta_v1'));
       expect(kt, contains('motoya_alta_importancia_v2'));
+    });
+
+    test('el canal de ofertas suena con el tono propio, que existe', () {
+      final kt = File(application).readAsStringSync();
+      expect(kt, contains('raw/notisound'));
+      // El recurso tiene que estar de verdad: un canal cuyo sonido no resuelve
+      // es un canal MUDO, y el conductor perdería pedidos sin que nada fallara.
+      expect(
+        File('android/app/src/main/res/raw/notisound.ogg').existsSync(),
+        isTrue,
+        reason: 'Falta el tono de oferta en res/raw.',
+      );
     });
   });
 

@@ -80,22 +80,28 @@ class ZumbeoApplication : Application() {
     /**
      * ÚNICO punto donde se decide el sonido de una oferta.
      *
-     * Hoy es el tono de llamada del sistema: dura más y es más audible que el de
-     * notificación, y se reproduce una sola vez porque lo pide una notificación,
-     * no una llamada. Para poner un tono propio basta devolver aquí
-     * `Uri.parse("android.resource://$packageName/raw/<archivo>")`.
+     * Es `res/raw/notisound.ogg`, el tono propio de Zumbeo. Para cambiarlo basta
+     * apuntar aquí a otro recurso — pero hay que SUBIR ADEMÁS el id del canal:
+     * el sonido de un canal ya creado no se puede cambiar y los teléfonos que ya
+     * lo tienen se quedarían con el anterior sin que nada lo delate. El id va por
+     * `_v2` justamente por eso, al pasar del tono del sistema a este.
      *
-     * Al hacerlo hay que SUBIR el id del canal a `_v2`: el sonido de un canal ya
-     * creado no se puede cambiar y los teléfonos que ya lo tienen se quedarían
-     * con el anterior sin que nada lo delate.
+     * El respaldo al tono de llamada del sistema no es decorativo: si el recurso
+     * faltara, un canal con sonido nulo es un canal MUDO, y el conductor perdería
+     * pedidos sin que nada fallara a la vista.
      */
     private fun sonidoDeOferta(): Uri =
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        runCatching { Uri.parse("android.resource://$packageName/raw/notisound") }
+            .getOrNull()
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ?: Settings.System.DEFAULT_NOTIFICATION_URI
 
     companion object {
-        /** Canal de las ofertas. Debe coincidir con el channelId del backend. */
-        const val CANAL_OFERTAS = "motoya_oferta_v1"
+        /**
+         * Canal de las ofertas. Debe coincidir con el channelId del backend.
+         * `_v2` = el tono propio; `_v1` nació con el tono de llamada del sistema.
+         */
+        const val CANAL_OFERTAS = "motoya_oferta_v2"
 
         /**
          * Canal del resto de avisos. Debe coincidir con el
@@ -104,6 +110,7 @@ class ZumbeoApplication : Application() {
         const val CANAL_AVISOS = "motoya_avisos_v1"
 
         private val CANALES_ANTIGUOS = listOf(
+            "motoya_oferta_v1",
             "motoya_alta_importancia_v2",
             "motoya_alta_importancia",
         )

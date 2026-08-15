@@ -54,6 +54,19 @@ class PedidoService {
     );
   }
 
+  /// TODOS los pedidos en curso del conductor (`/pedidos/activos`), del más
+  /// antiguo al más reciente.
+  ///
+  /// Con el pedido encadenado encendido puede llevar más de uno, y `/activo`
+  /// devuelve solo el más reciente: el segundo quedaba invisible justo después
+  /// de aceptarlo. Sigue siendo ligero — como mucho dos o tres pedidos.
+  Future<Result<List<Pedido>>> activos() {
+    return _api.get<List<Pedido>>(
+      '/pedidos/activos',
+      parse: ApiMappers.pedidos,
+    );
+  }
+
   /// Envía una propuesta: sin `valor` (o igual a la sugerida) acepta; con un
   /// `valor` distinto es contraoferta (design D4).
   Future<Result<PropuestaTarifa>> proponer(int pedidoId, {double? valor}) {

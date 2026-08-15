@@ -7,7 +7,21 @@ import '../../../data/services/ofertas_service.dart';
 import '../../../domain/models/oferta.dart';
 import '../../../domain/models/pedido.dart';
 
-enum EstadoEntrante { cargando, disponible, expirado, error }
+enum EstadoEntrante {
+  cargando,
+  disponible,
+
+  /// La oferta se abrió pero ya no se puede responder (venció el reloj, o el
+  /// pedido se cerró estando la tarjeta abierta). El pedido sigue a la vista.
+  expirado,
+
+  /// El pedido ya no es suyo y el backend no lo deja ni verlo: otro conductor lo
+  /// tomó o el cliente lo canceló. Estado **terminal**: no hay nada que
+  /// reintentar y no hay pedido que pintar.
+  noDisponible,
+
+  error,
+}
 
 /// Estado de la tarjeta de pedido entrante: detalle, temporizador de respuesta
 /// (con la ventana real del servidor) y desglose económico con recálculo por
@@ -95,12 +109,31 @@ class PedidoEntranteViewModel extends ChangeNotifier {
         }
       },
       err: (f) {
-        error = f.message;
-        estado = EstadoEntrante.error;
+        // 403 = "no participas en este pedido": lo tomó otro conductor o el
+        // cliente lo canceló. 404 = ya no existe. En los dos casos la respuesta
+        // va a ser la misma todas las veces, así que no se ofrece reintentar:
+        // un botón que no puede funcionar enseña a desconfiar de los botones.
+        if (f.statusCode == 403 || f.statusCode == 404) {
+          estado = EstadoEntrante.noDisponible;
+        } else {
+          error = f.message;
+          estado = EstadoEntrante.error;
+        }
       },
     );
     notifyListeners();
   }
+
+  /// Por qué esta oferta ya no está.
+  ///
+  /// Si la app llegó a recibir el evento por STOMP, se nombra la causa. Abriendo
+  /// en frío desde la notificación no hay evento previo y el 403 **no distingue**
+  /// entre "la tomó otro" y "el cliente canceló": se dicen las dos. Escoger una
+  /// haría que el conductor sacara conclusiones sobre su velocidad de respuesta
+  /// a partir de un dato inventado.
+  String get motivoNoDisponible =>
+      avisoCierre ??
+      'Puede que otro conductor la tomara o que el cliente cancelara el pedido.';
 
   /// Segundos que le quedan a la oferta de este pedido según el servidor, o
   /// null si ya no figura entre las ofertas vigentes del conductor.
@@ -133,7 +166,11 @@ class PedidoEntranteViewModel extends ChangeNotifier {
     _eventoSub = _ofertas.connect().listen((e) {
       if (e.pedidoId != pedidoId || !e.tipo.cierraOferta) return;
       _timer?.cancel();
-      estado = EstadoEntrante.expirado;
+      // Si el detalle ya vino denegado no hay pedido que pintar: el evento solo
+      // aporta el motivo, y pasar a `expirado` dejaría la pantalla sin datos.
+      if (estado != EstadoEntrante.noDisponible) {
+        estado = EstadoEntrante.expirado;
+      }
       avisoCierre = switch (e.tipo) {
         TipoEventoOferta.tomado => 'El pedido fue tomado por otro conductor',
         TipoEventoOferta.cancelado => 'El cliente canceló el pedido',

@@ -185,6 +185,12 @@ class ApiClient {
   }
 
   Failure _failureFromDio(DioException e) {
+    // El servidor contestó (hoy, un 5xx: `validateStatus` deja pasar el 4xx sin
+    // lanzar). Eso no es un fallo de red y no puede perder su código: la pantalla
+    // decide qué ofrecer a partir de él.
+    final res = e.response;
+    if (res != null) return _failureFromResponse(res);
+
     final isTimeout =
         e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
@@ -201,9 +207,12 @@ class ApiClient {
         kind: FailureKind.network,
       );
     }
-    return Failure(
-      _extractMessage(e.response?.data) ?? 'Error de red.',
-      statusCode: e.response?.statusCode,
+    // Sin respuesta y sin tipo reconocible (`unknown`: DNS, TLS, la red que se
+    // cae a mitad). "Error de red." es cierto y no le dice nada a nadie; era el
+    // texto de la pantalla que un conductor reportó como "no me deja abrir el
+    // pedido".
+    return const Failure(
+      'No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
       kind: FailureKind.network,
     );
   }

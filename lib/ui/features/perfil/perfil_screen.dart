@@ -1271,13 +1271,42 @@ class _ProbarTonoState extends State<_ProbarTono> {
                 'tono sale por el volumen de llamada.',
                 style: TextStyle(fontSize: 13),
               ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                estado,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.inkMuted,
-                  fontFamily: 'monospace',
+              const SizedBox(height: AppSpacing.sm),
+              // El diagnóstico se queda, pero plegado.
+              //
+              // Es lo que convierte "no me suena" en una causa concreta: el
+              // permiso, el canal, si el canal quedó mudo. Lo que sobraba no era
+              // la información, era que estuviera de entrada y en crudo — la
+              // primera pantalla que abre un conductor al probar su sonido no
+              // puede ser un volcado técnico.
+              Theme(
+                data: Theme.of(
+                  ctx,
+                ).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  title: const Text(
+                    'Ver detalle técnico',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        estado,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.inkMuted,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

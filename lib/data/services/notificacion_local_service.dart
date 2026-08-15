@@ -158,8 +158,8 @@ class NotificacionLocalService {
       } else {
         lineas
           ..add('Canal ${oferta.id}: existe')
-          ..add('  importancia: ${oferta.importance.value}')
-          ..add('  sonido: ${oferta.sound ?? 'NINGUNO (canal mudo)'}')
+          ..add('  importancia: ${_importancia(oferta.importance)}')
+          ..add('  sonido: ${_sonido(oferta.sound)}')
           ..add('  origen del sonido: ${oferta.audioAttributesUsage.name}');
       }
       lineas.add('Canales creados: ${canales.map((c) => c.id).join(', ')}');
@@ -173,6 +173,34 @@ class NotificacionLocalService {
     final texto = lineas.join('\n');
     debugPrint('NotificacionLocal · diagnóstico:\n$texto');
     return texto;
+  }
+
+  /// El sonido del canal, dicho en castellano.
+  ///
+  /// `AndroidNotificationSound` no tiene `toString()` propio, así que
+  /// interpolarlo imprimía `Instance of 'RawResourceAndroidNotificationSound'`
+  /// — texto de depuración de Dart, en la pantalla de un conductor. Y encima
+  /// ocultaba el único dato que importa: **qué** tono quedó configurado.
+  static String _sonido(AndroidNotificationSound? sonido) => switch (sonido) {
+    null => 'NINGUNO (canal mudo)',
+    RawResourceAndroidNotificationSound r => 'propio (${r.sound})',
+    UriAndroidNotificationSound u => 'por URI (${u.sound})',
+    _ => 'del sistema',
+  };
+
+  /// La importancia, con su nombre además del número: "4" no le dice nada a
+  /// quien lee esto por teléfono, y este diagnóstico se lee por teléfono.
+  static String _importancia(Importance importancia) {
+    final nombre = switch (importancia.value) {
+      5 => 'máxima',
+      4 => 'alta',
+      3 => 'media',
+      2 => 'baja',
+      1 => 'mínima',
+      0 => 'NINGUNA (el canal no avisa)',
+      _ => 'sin definir',
+    };
+    return '${importancia.value} ($nombre)';
   }
 
   /// Si la app se abrió **desde** el aviso, el toque ya ocurrió antes de que

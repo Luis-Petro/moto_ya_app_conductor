@@ -27,6 +27,7 @@ import '../../core/widgets/brand.dart';
 import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/primary_button.dart';
 import '../../core/widgets/skeleton.dart';
 import 'inicio_view_model.dart';
 
@@ -85,6 +86,22 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<InicioViewModel>();
+
+    // Avisos de **puesta a punto de la cuenta**, en el orden en que estorban
+    // para trabajar: sin habilitar no hay nada más que hacer; sin foto no se
+    // puede uno poner en línea; sin visibilidad no llegan ofertas; la batería
+    // solo se lleva las que entran con la app cerrada.
+    //
+    // Aquí NO entran el pedido en curso ni la oferta —tienen reloj corriendo y
+    // no pueden depender de que alguien deslice— ni el interruptor En línea,
+    // que es el control de la pantalla y va siempre en el mismo sitio.
+    final avisos = <Widget>[
+      if (vm.enRevision || vm.rechazado) _RevisionBanner(vm: vm),
+      if (!vm.tieneFotoPerfil) const _FotoPerfilBanner(),
+      if (vm.sinVisibilidad) const _SinVisibilidadBanner(),
+      if (vm.bateria == PermisoBateria.denegado) const _BateriaBanner(),
+    ];
+
     // Los avisos (revisión, foto, pedido activo, oferta) son transitorios pero
     // empujan: con alguno en pantalla el mapa ya no puede quedarse con "lo que
     // sobre" —sobraría casi nada— y pasa a un alto fijo con scroll.
@@ -124,23 +141,16 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
                           const SizedBox(height: AppSpacing.md),
                           // Aviso de versión nueva (descartable, nunca bloquea).
                           const BannerVersion(),
-                          if (vm.enRevision || vm.rechazado) ...[
-                            _RevisionBanner(vm: vm),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                          if (!vm.tieneFotoPerfil) ...[
-                            const _FotoPerfilBanner(),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                          // Va antes que el pedido activo y la oferta: si el
-                          // conductor no está siendo visible, lo primero que
-                          // necesita saber es eso.
-                          if (vm.sinVisibilidad) ...[
-                            const _SinVisibilidadBanner(),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                          if (vm.bateria == PermisoBateria.denegado) ...[
-                            const _BateriaBanner(),
+                          // Los avisos de puesta a punto de la cuenta van en
+                          // una sola fila deslizable. Apilados eran cinco
+                          // bloques del mismo naranja antes de llegar a nada, y
+                          // el conductor nuevo —que es justo quien los tiene
+                          // todos— no leía ninguno.
+                          //
+                          // El orden es por lo que bloquea cada uno, no por
+                          // cómo estaban escritos en la pantalla.
+                          if (avisos.isNotEmpty) ...[
+                            _AvisosCarrusel(avisos: avisos),
                             const SizedBox(height: AppSpacing.md),
                           ],
                           // Una tarjeta por pedido en curso. Con el pedido
@@ -259,6 +269,96 @@ class _Header extends StatelessWidget {
           onPressed: vm.refrescar,
           tooltip: 'Actualizar',
           icon: const Icon(Icons.refresh_rounded, color: AppColors.inkMuted),
+        ),
+      ],
+    );
+  }
+}
+
+/// Los avisos de configuración, en una sola fila deslizable.
+///
+/// Apilados, un conductor nuevo veía tres o cuatro bloques del mismo naranja
+/// —todos necesarios, todos compitiendo— y el mapa de demanda quedaba fuera de
+/// la pantalla. En fila se lee uno cada vez y la pantalla vuelve a caber.
+///
+/// Tres reglas que no son cosméticas:
+/// - **Con un solo aviso no hay carrusel**: una tarjeta a lo ancho, como antes.
+///   Un carrusel de una página es un carrusel roto.
+/// - **No avanza solo.** Cada tarjeta tiene una acción a un toque; una que se
+///   mueve sola se pulsa por error.
+/// - **Dice cuántos hay.** Con puntos a secas y cuatro tarjetas casi idénticas,
+///   nadie sabe si ya las vio todas.
+class _AvisosCarrusel extends StatefulWidget {
+  const _AvisosCarrusel({required this.avisos});
+
+  final List<Widget> avisos;
+
+  @override
+  State<_AvisosCarrusel> createState() => _AvisosCarruselState();
+}
+
+class _AvisosCarruselState extends State<_AvisosCarrusel> {
+  /// Alto de una tarjeta compacta (título + dos líneas + acción). Fijo porque
+  /// un PageView necesita saber cuánto mide; las tarjetas están redactadas para
+  /// este alto y lo que no cabe vive en la pantalla que abren.
+  static const _alto = 132.0;
+
+  final _controlador = PageController(viewportFraction: 0.92);
+  int _pagina = 0;
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final avisos = widget.avisos;
+    if (avisos.length == 1) return avisos.single;
+
+    // Al resolverse un aviso la lista encoge y la página actual puede quedar
+    // fuera: sin esto el contador diría "4 de 3".
+    final actual = _pagina.clamp(0, avisos.length - 1);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: _alto,
+          child: PageView.builder(
+            controller: _controlador,
+            itemCount: avisos.length,
+            onPageChanged: (i) => setState(() => _pagina = i),
+            itemBuilder: (_, i) => Padding(
+              // La tarjeta siguiente asoma por el borde: es lo que hace que
+              // alguien deslice sin que nadie se lo explique.
+              padding: EdgeInsets.only(
+                right: i == avisos.length - 1 ? 0 : AppSpacing.sm,
+              ),
+              child: avisos[i],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < avisos.length; i++)
+              Container(
+                width: i == actual ? 18 : 6,
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: i == actual ? AppColors.primary : AppColors.line,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              '${actual + 1} de ${avisos.length}',
+              style: const TextStyle(color: AppColors.inkMuted, fontSize: 12),
+            ),
+          ],
         ),
       ],
     );
@@ -686,20 +786,10 @@ class _FotoPerfilBanner extends StatelessWidget {
           const Icon(Icons.account_circle_outlined, color: AppColors.primary),
           const SizedBox(width: AppSpacing.md),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ponte una foto de perfil',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Es obligatoria para ponerte en línea: el cliente ve tu cara '
-                  'antes de aceptar tu tarifa, y con foto te aceptan más.',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
-                ),
-              ],
+            child: _TextoAviso(
+              titulo: 'Ponte una foto de perfil',
+              detalle: 'Obligatoria para ponerte en línea: es la cara que ve '
+                  'el cliente al elegir.',
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -736,20 +826,10 @@ class _SinVisibilidadBanner extends StatelessWidget {
           const Icon(Icons.location_disabled_rounded, color: AppColors.danger),
           const SizedBox(width: AppSpacing.md),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'No estás recibiendo pedidos',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Llevas un rato sin poder enviar tu ubicación, así que no '
-                  'apareces cerca de los pedidos. Revisa el GPS y los datos.',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
-                ),
-              ],
+            child: _TextoAviso(
+              titulo: 'No estás recibiendo pedidos',
+              detalle: 'Llevas un rato sin enviar tu ubicación. Revisa el GPS '
+                  'y los datos.',
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -771,49 +851,109 @@ class _SinVisibilidadBanner extends StatelessWidget {
 class _BateriaBanner extends StatelessWidget {
   const _BateriaBanner();
 
+  /// La explicación completa, en la hoja que abre la tarjeta.
+  ///
+  /// En la tarjeta ocupaba dos párrafos —el aviso más largo del Inicio— y aquí
+  /// no se puede recortar: lo de "Inicio automático" es la instrucción que más
+  /// falta ha hecho en el piloto, y cada marca la esconde en una pantalla
+  /// distinta sin API pública para abrirla. Lo único que se puede hacer es
+  /// decirle dónde mirar.
+  Future<void> _explicar(BuildContext context, InicioViewModel vm) async {
+    final permitir = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Te pueden faltar pedidos con la app cerrada',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Tu teléfono puede cerrar Zumbeo para ahorrar batería. Elige '
+                '"Permitir" para que los avisos de pedido te lleguen aunque no '
+                'tengas la app abierta.',
+                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'Si tienes Xiaomi, Huawei, Oppo o Realme, busca además "Inicio '
+                'automático" en los ajustes y actívalo para Zumbeo.',
+                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              PrimaryButton(
+                label: 'Permitir',
+                icon: Icons.battery_saver_rounded,
+                onPressed: () => Navigator.pop(ctx, true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (permitir == true) await vm.pedirExencionBateria();
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<InicioViewModel>();
     return MotoCard(
       color: AppColors.primarySurface,
       borderColor: AppColors.primary,
-      onTap: vm.pedirExencionBateria,
+      onTap: () => _explicar(context, vm),
       child: Row(
         children: [
           const Icon(Icons.battery_alert_rounded, color: AppColors.primary),
           const SizedBox(width: AppSpacing.md),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Te pueden faltar pedidos con la app cerrada',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Tu teléfono puede cerrar Zumbeo para ahorrar batería. Toca '
-                  'aquí y elige "Permitir" para que los avisos te lleguen '
-                  'aunque no tengas la app abierta.',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
-                ),
-                SizedBox(height: AppSpacing.xs),
-                // Xiaomi, Huawei, Oppo y Realme tienen además su propia lista de
-                // arranque automático, en una pantalla distinta en cada marca y
-                // sin ninguna API pública para abrirla. Lo mejor que se puede
-                // hacer es decirle dónde mirar.
-                Text(
-                  'Si tienes Xiaomi, Huawei, Oppo o Realme, busca además '
-                  '"Inicio automático" en los ajustes y actívalo para Zumbeo.',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 11.5),
-                ),
-              ],
+            child: _TextoAviso(
+              titulo: 'Te pueden faltar pedidos con la app cerrada',
+              detalle: 'Tu teléfono puede cerrar Zumbeo para ahorrar batería. '
+                  'Toca para permitirlo.',
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
           const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
         ],
       ),
+    );
+  }
+}
+
+/// Título y detalle de una tarjeta de aviso, redactados para el alto fijo del
+/// carrusel: el detalle se corta a dos líneas en vez de estirar la tarjeta y
+/// desbordar. Lo que no cabe vive en la pantalla que abre el aviso.
+class _TextoAviso extends StatelessWidget {
+  const _TextoAviso({required this.titulo, required this.detalle});
+
+  final String titulo;
+  final String detalle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          titulo,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          detalle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+        ),
+      ],
     );
   }
 }
@@ -841,48 +981,27 @@ class _RevisionBanner extends StatelessWidget {
     return MotoCard(
       color: rechazado ? AppColors.dangerSurface : AppColors.primarySurface,
       borderColor: rechazado ? AppColors.danger : AppColors.primary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      // La acción entera es la tarjeta, no un botón debajo: en el carrusel el
+      // alto es fijo y una fila de botón no cabe. Sigue siendo un toque.
+      onTap: puedeCorregir ? () => context.push(Rutas.documentos) : null,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(
-                rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
-                color: rechazado ? AppColors.danger : AppColors.primary,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _mensaje(rechazado, faltantes),
-                      style: const TextStyle(
-                        color: AppColors.inkMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Icon(
+            rechazado ? Icons.error_outline : Icons.hourglass_top_rounded,
+            color: rechazado ? AppColors.danger : AppColors.primary,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: _TextoAviso(
+              titulo: rechazado ? 'Cuenta rechazada' : 'Cuenta en revisión',
+              detalle: _mensaje(rechazado, faltantes),
+            ),
           ),
           if (puedeCorregir) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => context.push(Rutas.documentos),
-                icon: const Icon(Icons.upload_file_rounded, size: 18),
-                label: Text(
-                  faltantes.isEmpty ? 'Revisar documentos' : 'Subir documentos',
-                ),
-              ),
+            const SizedBox(width: AppSpacing.sm),
+            Icon(
+              Icons.upload_file_rounded,
+              color: rechazado ? AppColors.danger : AppColors.primary,
             ),
           ],
         ],

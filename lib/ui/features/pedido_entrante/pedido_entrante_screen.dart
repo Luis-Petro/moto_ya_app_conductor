@@ -10,8 +10,10 @@ import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/mascota_animada.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
+import '../../router.dart';
 import 'pedido_entrante_view_model.dart';
 
 class PedidoEntranteScreen extends StatelessWidget {
@@ -74,6 +76,9 @@ class _EntranteView extends StatelessWidget {
     if (vm.estado == EstadoEntrante.cargando) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    if (vm.estado == EstadoEntrante.noDisponible) {
+      return _OfertaCerrada(motivo: vm.motivoNoDisponible);
+    }
     if (vm.estado == EstadoEntrante.error) {
       return Scaffold(
         body: SafeArea(
@@ -118,6 +123,64 @@ class _EntranteView extends StatelessWidget {
                 onRechazar: _rechazar,
                 expirado: expirado),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// La oferta ya no está: el pedido lo tomó otro o el cliente lo canceló.
+///
+/// Es un final, no un fallo. Antes caía en la misma pantalla que un error de
+/// red —nube tachada y "Reintentar"—, y ese botón no podía funcionar: el 403 iba
+/// a ser 403 todas las veces. Aquí hay una salida sola, y lleva al Inicio, que
+/// es donde están sus pedidos y sus ofertas vivas.
+class _OfertaCerrada extends StatelessWidget {
+  const _OfertaCerrada({required this.motivo});
+
+  final String motivo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const MascotaAnimada(pose: PoseMascota.triste, alto: 150),
+                const SizedBox(height: AppSpacing.lg),
+                const Text(
+                  'Esta oferta ya no está disponible',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  motivo,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.inkMuted),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                SizedBox(
+                  width: 240,
+                  child: PrimaryButton(
+                    label: 'Volver al inicio',
+                    icon: Icons.home_rounded,
+                    // `go` y no `pop`: abierta desde una notificación con la app
+                    // cerrada no hay nada debajo a lo que volver.
+                    onPressed: () => context.go(Rutas.inicio),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

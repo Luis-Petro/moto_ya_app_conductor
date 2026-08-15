@@ -8,6 +8,7 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 
 /**
  * Application propia para crear los canales de notificación lo antes posible
@@ -90,18 +91,38 @@ class ZumbeoApplication : Application() {
      * faltara, un canal con sonido nulo es un canal MUDO, y el conductor perdería
      * pedidos sin que nada fallara a la vista.
      */
-    private fun sonidoDeOferta(): Uri =
-        runCatching { Uri.parse("android.resource://$packageName/raw/notisound") }
-            .getOrNull()
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ?: Settings.System.DEFAULT_NOTIFICATION_URI
+    private fun sonidoDeOferta(): Uri {
+        // Por ID de recurso y no por la ruta "…/raw/notisound": el id lo resuelve
+        // el compilador, así que un nombre mal escrito no compila. Con la ruta,
+        // un error de dedo produce una URI perfectamente formada que no apunta a
+        // nada, y Android cae al tono de fábrica sin decir nada.
+        val id = resources.getIdentifier(SONIDO_OFERTA, "raw", packageName)
+        if (id == 0) {
+            Log.e(TAG, "Falta res/raw/$SONIDO_OFERTA: el canal usará el tono del sistema")
+            return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: Settings.System.DEFAULT_NOTIFICATION_URI
+        }
+        return Uri.parse("$SCHEME_ANDROID_RESOURCE://$packageName/$id")
+    }
 
     companion object {
         /**
-         * Canal de las ofertas. Debe coincidir con el channelId del backend.
-         * `_v2` = el tono propio; `_v1` nació con el tono de llamada del sistema.
+         * Canal de las ofertas. Debe coincidir con el channelId del backend y con
+         * `CanalesNotificacion.oferta` de Dart.
+         *
+         * Historia del sufijo, que es la historia de la regla: `_v1` nació con el
+         * tono de llamada del sistema; `_v2` trajo el tono propio pero quedó
+         * congelado con el de fábrica en los teléfonos donde el plugin de Flutter
+         * creó el canal antes que esta clase; `_v3` lo declara igual por las dos
+         * vías. Cambiar el sonido SIEMPRE obliga a subir el id.
          */
-        const val CANAL_OFERTAS = "motoya_oferta_v2"
+        const val CANAL_OFERTAS = "motoya_oferta_v3"
+
+        /** Recurso del tono en res/raw, sin extensión. */
+        private const val SONIDO_OFERTA = "notisound"
+
+        private const val SCHEME_ANDROID_RESOURCE = "android.resource"
+        private const val TAG = "ZumbeoApplication"
 
         /**
          * Canal del resto de avisos. Debe coincidir con el
@@ -110,6 +131,7 @@ class ZumbeoApplication : Application() {
         const val CANAL_AVISOS = "motoya_avisos_v1"
 
         private val CANALES_ANTIGUOS = listOf(
+            "motoya_oferta_v2",
             "motoya_oferta_v1",
             "motoya_alta_importancia_v2",
             "motoya_alta_importancia",

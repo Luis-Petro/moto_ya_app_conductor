@@ -82,20 +82,52 @@ void main() {
       expect(CanalesNotificacion.avisos, matches(r'_v\d+$'));
       final kt = File(application).readAsStringSync();
       expect(kt, contains('deleteNotificationChannel'));
+      // Los tres anteriores se borran para no dejarlos huérfanos en los Ajustes,
+      // y porque el `_v2` quedó congelado con el tono equivocado.
+      expect(kt, contains('motoya_oferta_v2'));
       expect(kt, contains('motoya_oferta_v1'));
       expect(kt, contains('motoya_alta_importancia_v2'));
     });
 
-    test('el canal de ofertas suena con el tono propio, que existe', () {
-      final kt = File(application).readAsStringSync();
-      expect(kt, contains('raw/notisound'));
-      // El recurso tiene que estar de verdad: un canal cuyo sonido no resuelve
-      // es un canal MUDO, y el conductor perdería pedidos sin que nada fallara.
+    test('el tono existe de verdad en res/raw', () {
+      // Un canal cuyo sonido no resuelve no da error: Android cae al tono de
+      // fábrica y el conductor deja de reconocer sus pedidos.
       expect(
-        File('android/app/src/main/res/raw/notisound.ogg').existsSync(),
+        File('android/app/src/main/res/raw/'
+                '${CanalesNotificacion.tonoOferta}.ogg')
+            .existsSync(),
         isTrue,
         reason: 'Falta el tono de oferta en res/raw.',
       );
+    });
+
+    test('Kotlin y Dart declaran el MISMO canal y el MISMO tono', () {
+      // Aquí estuvo el fallo que costó tres rondas. El canal lo crean dos sitios
+      // —esta clase al arrancar el proceso y el plugin de Flutter en el primer
+      // `show()`— y gana el que llegue primero, congelando el sonido para
+      // siempre. Mientras uno declaraba el tono y el otro no, el resultado
+      // dependía del orden de arranque: llegaba la notificación de llamada, pero
+      // con el tono de fábrica.
+      final kt = File(application).readAsStringSync();
+      expect(
+        kt,
+        contains('"${CanalesNotificacion.oferta}"'),
+        reason: 'El canal de Kotlin y el de Dart divergieron.',
+      );
+      expect(
+        kt,
+        contains('"${CanalesNotificacion.tonoOferta}"'),
+        reason: 'El tono de Kotlin y el de Dart divergieron.',
+      );
+    });
+
+    test('el tono se declara también en la notificación, no solo en el canal', () {
+      // Porque `show()` crea el canal si no existe, usando estos datos.
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      expect(src, contains('RawResourceAndroidNotificationSound'));
+      expect(src, contains('AudioAttributesUsage.notificationRingtone'));
+      expect(src, contains('createNotificationChannel'));
     });
   });
 

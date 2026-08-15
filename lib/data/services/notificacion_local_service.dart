@@ -15,13 +15,21 @@ class CanalesNotificacion {
   /// flujo de audio de **timbre**, no por el de notificación: un conductor en
   /// moto y con casco no oye el segundo.
   ///
-  /// `_v2` porque el tono cambió. Un canal congela su sonido en la primera
-  /// creación, así que el tono nuevo solo llega con un id nuevo.
-  static const oferta = 'motoya_oferta_v2';
+  /// **`_v3` porque `_v2` quedó congelado con el tono por defecto.** Un canal fija
+  /// su sonido en la primera creación y las llamadas posteriores se ignoran en
+  /// silencio, así que en los teléfonos que ya lo tenían el tono propio no podía
+  /// entrar de ninguna forma. Cada vez que cambie el sonido hay que subir el id;
+  /// no hay alternativa y no avisa nada.
+  static const oferta = 'motoya_oferta_v3';
 
   /// El resto de los avisos. Va aparte a propósito: con un canal único, silenciar
   /// los avisos generales silenciaría también los pedidos.
   static const avisos = 'motoya_avisos_v1';
+
+  /// Nombre del recurso del tono en `res/raw`, **sin extensión**, que es como lo
+  /// nombra Android. Tiene que coincidir con `ZumbeoApplication.kt` y con
+  /// `PushNotificationService.SONIDO_OFERTA` del backend.
+  static const tonoOferta = 'notisound';
 }
 
 /// Construye en el dispositivo el aviso de una oferta entrante.
@@ -64,12 +72,52 @@ class NotificacionLocalService {
         ),
         onDidReceiveNotificationResponse: _alTocar,
       );
+      await _crearCanalDeOfertas();
       _listo = true;
     } catch (e) {
       // Sin canal de aviso local, pero sin romper el arranque. Lo que NO puede
       // pasar es que se caiga en silencio: un aviso que no suena y no deja rastro
       // ya costó dos diagnósticos equivocados.
       debugPrint('NotificacionLocal: no se pudo inicializar el plugin: $e');
+    }
+  }
+
+  /// Crea el canal de ofertas **con su tono**, también desde Dart.
+  ///
+  /// Ya lo crea `ZumbeoApplication.kt` al arrancar el proceso, y aun así hace
+  /// falta aquí. El motivo es el que dejó la app sonando con el tono por defecto:
+  /// **`show()` crea el canal si no existe, usando lo que traiga
+  /// `AndroidNotificationDetails`** — y ahí no iba ningún sonido, así que quedaba
+  /// el de fábrica. Gana el que llegue primero, y el que llegue primero congela
+  /// el sonido para siempre.
+  ///
+  /// Con las dos vías declarando lo mismo, deja de importar cuál gane. Es la
+  /// única forma de que no dependa del orden de arranque.
+  Future<void> _crearCanalDeOfertas() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(
+            const AndroidNotificationChannel(
+              CanalesNotificacion.oferta,
+              'Pedidos entrantes',
+              description:
+                  'El aviso de un pedido disponible. Suena con el volumen de llamada.',
+              importance: Importance.max,
+              sound: RawResourceAndroidNotificationSound(
+                CanalesNotificacion.tonoOferta,
+              ),
+              // Por el flujo de audio de TIMBRE, no por el de notificación, que
+              // en la mayoría de los teléfonos está muy por debajo.
+              audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+              enableVibration: true,
+            ),
+          );
+    } catch (e) {
+      debugPrint('NotificacionLocal: no se pudo crear el canal de ofertas: $e');
     }
   }
 
@@ -198,6 +246,14 @@ class NotificacionLocalService {
       importance: Importance.max,
       priority: Priority.high,
       category: AndroidNotificationCategory.call,
+      // El tono va TAMBIÉN aquí, no solo en el canal. `show()` crea el canal si
+      // no existe usando justo estos datos, y mientras aquí no hubo sonido, el
+      // canal nacía con el de fábrica y quedaba congelado así para siempre. Fue
+      // lo que hizo que llegara la notificación de llamada pero sin nuestro tono.
+      sound: const RawResourceAndroidNotificationSound(
+        CanalesNotificacion.tonoOferta,
+      ),
+      audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
       // Despierta la pantalla bloqueada como una llamada entrante. Sigue siendo
       // descartable: no bloquea el teléfono ni impide usar otra app.
       fullScreenIntent: true,

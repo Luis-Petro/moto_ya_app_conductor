@@ -76,6 +76,17 @@ class PushService {
   void Function(PushMensaje)? onMensajeForeground;
   void Function(PushMensaje)? onMensajeAbierto;
 
+  /// FCM emitió un token nuevo y hay que volver a declararlo en el backend.
+  ///
+  /// Rota solo: al reinstalar la app, al borrar sus datos y cada cierto tiempo.
+  /// El backend rechaza el viejo con "token inválido" y lo borra —correctamente—,
+  /// así que sin escuchar esto el conductor se queda sin push hasta que vuelva a
+  /// iniciar sesión, y un conductor no vuelve a entrar en semanas.
+  void Function(String token)? onTokenRefrescado;
+
+  /// Último token conocido, para el diagnóstico del Perfil.
+  String? tokenActual;
+
   Future<void> inicializar() async {
     if (!_activo) return;
     try {
@@ -87,18 +98,28 @@ class PushService {
       FirebaseMessaging.onMessageOpenedApp.listen((m) {
         onMensajeAbierto?.call(PushMensaje.fromRemote(m));
       });
+      FirebaseMessaging.instance.onTokenRefresh.listen((token) {
+        tokenActual = token;
+        debugPrint('Push: FCM emitió un token nuevo, se vuelve a declarar.');
+        onTokenRefrescado?.call(token);
+      });
       final inicial = await FirebaseMessaging.instance.getInitialMessage();
       if (inicial != null) {
         onMensajeAbierto?.call(PushMensaje.fromRemote(inicial));
       }
-    } catch (_) {/* FCM no configurado: ignorar */}
+    } catch (e) {
+      debugPrint('Push: FCM no se pudo inicializar: $e');
+    }
   }
 
   Future<String?> obtenerToken() async {
     if (!_activo) return null;
     try {
-      return await FirebaseMessaging.instance.getToken();
-    } catch (_) {
+      final token = await FirebaseMessaging.instance.getToken();
+      tokenActual = token;
+      return token;
+    } catch (e) {
+      debugPrint('Push: no se pudo obtener el token de FCM: $e');
       return null;
     }
   }

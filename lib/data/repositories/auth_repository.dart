@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../domain/models/rol.dart';
@@ -18,7 +20,19 @@ class AuthRepository extends ChangeNotifier {
     this._session,
     this._notificaciones,
     this._push,
-  );
+  ) {
+    // FCM rota el token por su cuenta: al reinstalar la app, al borrar datos y
+    // cada cierto tiempo. Cuando eso pasa, el que tiene el backend deja de
+    // servir; lo rechaza con "token inválido" y lo borra, y el conductor se
+    // queda sin push **sin que nada se lo diga**. Registrarlo solo al iniciar
+    // sesión no bastaba: un conductor no vuelve a entrar en semanas.
+    _push.onTokenRefrescado = (token) {
+      if (!estaAutenticado) return;
+      unawaited(
+        _notificaciones.registrarToken(token, plataforma: _push.plataforma),
+      );
+    };
+  }
 
   final AuthService _auth;
   final SocialAuthService _social;
@@ -45,6 +59,10 @@ class AuthRepository extends ChangeNotifier {
     }
     _inicializado = true;
     notifyListeners();
+    // Con la sesión ya cargada, vuelve a declarar el token. Es lo que recupera al
+    // conductor cuyo token caducó mientras no entraba: al backend le llegó un
+    // "no registrado", lo borró, y sin esto no habría vuelto a tener ninguno.
+    if (_sesion != null) unawaited(registrarTokenPush());
   }
 
   /// Crea la cuenta (correo + contraseña + cédula + teléfono) **sin** iniciar

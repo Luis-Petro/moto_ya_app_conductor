@@ -164,6 +164,10 @@ class NotificacionLocalService {
     } catch (e) {
       lineas.add('No se pudieron leer los canales: $e');
     }
+    try {
+      final permiso = await android.canScheduleExactNotifications();
+      lineas.add('Avisos exactos: ${permiso == true ? 'sí' : 'no'}');
+    } catch (_) {/* no todas las versiones lo exponen */}
     final texto = lineas.join('\n');
     debugPrint('NotificacionLocal · diagnóstico:\n$texto');
     return texto;
@@ -296,6 +300,15 @@ class NotificacionLocalService {
   /// cuando no suena.
   Future<String> probarTono() async {
     final estado = await diagnostico();
+    // Retira el aviso de la prueba anterior ANTES de lanzar el nuevo.
+    //
+    // Sin esto el botón solo suena la primera vez: el aviso sigue vivo 30
+    // segundos y el guardado anti-duplicados descarta el siguiente en silencio.
+    // Quien está probando un sonido aprieta tres veces seguidas, y las dos
+    // últimas parecían no hacer nada — que es exactamente el síntoma que se
+    // estaba intentando diagnosticar.
+    await retirarOferta(_pedidoDePrueba);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     await mostrarOferta(
       pedidoId: _pedidoDePrueba,
       titulo: 'Prueba de sonido',

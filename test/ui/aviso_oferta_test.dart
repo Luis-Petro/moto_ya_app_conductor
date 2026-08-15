@@ -82,11 +82,28 @@ void main() {
       expect(CanalesNotificacion.avisos, matches(r'_v\d+$'));
       final kt = File(application).readAsStringSync();
       expect(kt, contains('deleteNotificationChannel'));
-      // Los tres anteriores se borran para no dejarlos huérfanos en los Ajustes,
-      // y porque el `_v2` quedó congelado con el tono equivocado.
-      expect(kt, contains('motoya_oferta_v2'));
-      expect(kt, contains('motoya_oferta_v1'));
-      expect(kt, contains('motoya_alta_importancia_v2'));
+      // Los anteriores se borran para no dejarlos huérfanos en los Ajustes.
+      for (final viejo in [
+        'motoya_oferta_v3',
+        'motoya_oferta_v2',
+        'motoya_oferta_v1',
+        'motoya_alta_importancia_v2',
+      ]) {
+        expect(kt, contains(viejo), reason: 'Dejó de borrarse $viejo');
+      }
+    });
+
+    test('el patrón de vibración es el mismo en Kotlin y en Dart', () {
+      // Un canal congela sonido, importancia Y VIBRACIÓN en su primera creación,
+      // y lo crean las dos vías. Si declaran patrones distintos, el que gane
+      // decide — y el resultado vuelve a depender del orden de arranque.
+      const patron = '0, 600, 300, 600, 300, 900';
+      expect(File(application).readAsStringSync(), contains(patron));
+      expect(
+        File('lib/data/services/notificacion_local_service.dart')
+            .readAsStringSync(),
+        contains(patron),
+      );
     });
 
     test('el tono existe de verdad en res/raw', () {
@@ -179,6 +196,34 @@ void main() {
         File('lib/ui/features/perfil/perfil_screen.dart').readAsStringSync(),
         contains('probarTono()'),
       );
+    });
+
+    test('el aviso insiste dentro de la ventana y para al cerrarse la oferta', () {
+      // Se repite, no se alarga: un motor no baja el volumen del tono, lo
+      // enmascara, y si no atraviesa en los primeros segundos tampoco lo hará al
+      // décimo. Lo que cambia el resultado es cuántas oportunidades tiene,
+      // porque una moto para en los semáforos.
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      expect(src, contains('_insistencias'));
+      // Y para en seco al retirarse la oferta: sonar por un pedido que ya tomó
+      // otro enseña al conductor a desconfiar del aviso.
+      expect(src, contains('_cancelarInsistencias'));
+      expect(
+        src,
+        contains('if (vigencia != null && cuando >= vigencia) continue;'),
+        reason: 'Una insistencia programada después de que la oferta venza '
+            'suena por un pedido que ya no existe.',
+      );
+    });
+
+    test('la prueba de tono suena aunque se apriete dos veces seguidas', () {
+      // El aviso vive 30 s y el guardado anti-duplicados descartaba en silencio
+      // el segundo toque. Quien prueba un sonido aprieta tres veces seguidas.
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      final prueba = src.substring(src.indexOf('Future<String> probarTono()'));
+      expect(prueba.contains('retirarOferta(_pedidoDePrueba)'), isTrue);
     });
 
     test('el aviso no se duplica: es idempotente por pedido', () {

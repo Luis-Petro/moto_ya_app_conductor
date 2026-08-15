@@ -51,6 +51,11 @@ class ZumbeoApplication : Application() {
         ).apply {
             description = "El aviso de un pedido disponible. Suena con el volumen de llamada."
             enableVibration(true)
+            // Para un teléfono en el bolsillo de una chaqueta, la vibración pesa
+            // más que el tono. La del sistema es un pulso corto que se confunde
+            // con cualquier mensaje; esta es larga y con ritmo propio. Debe
+            // coincidir con `_patronVibracion` de notificacion_local_service.dart.
+            vibrationPattern = longArrayOf(0, 600, 300, 600, 300, 900)
             setShowBadge(true)
             // La pieza que resuelve el problema real: USAGE_NOTIFICATION_RINGTONE
             // hace que el sonido salga por el flujo de audio de TIMBRE y no por el
@@ -113,10 +118,14 @@ class ZumbeoApplication : Application() {
          * Historia del sufijo, que es la historia de la regla: `_v1` nació con el
          * tono de llamada del sistema; `_v2` trajo el tono propio pero quedó
          * congelado con el de fábrica en los teléfonos donde el plugin de Flutter
-         * creó el canal antes que esta clase; `_v3` lo declara igual por las dos
-         * vías. Cambiar el sonido SIEMPRE obliga a subir el id.
+         * creó el canal antes que esta clase; `_v3` lo declaró igual por las dos
+         * vías; `_v4` estrena el patrón de vibración propio.
+         *
+         * Un canal congela sonido, importancia **y vibración** en su primera
+         * creación: cambiar cualquiera de las tres obliga a subir el id, y no
+         * avisa nada si se olvida.
          */
-        const val CANAL_OFERTAS = "motoya_oferta_v3"
+        const val CANAL_OFERTAS = "motoya_oferta_v4"
 
         /** Recurso del tono en res/raw, sin extensión. */
         private const val SONIDO_OFERTA = "notisound"
@@ -131,6 +140,7 @@ class ZumbeoApplication : Application() {
         const val CANAL_AVISOS = "motoya_avisos_v1"
 
         private val CANALES_ANTIGUOS = listOf(
+            "motoya_oferta_v3",
             "motoya_oferta_v2",
             "motoya_oferta_v1",
             "motoya_alta_importancia_v2",

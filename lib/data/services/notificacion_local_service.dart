@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -15,12 +16,12 @@ class CanalesNotificacion {
   /// flujo de audio de **timbre**, no por el de notificación: un conductor en
   /// moto y con casco no oye el segundo.
   ///
-  /// **`_v3` porque `_v2` quedó congelado con el tono por defecto.** Un canal fija
-  /// su sonido en la primera creación y las llamadas posteriores se ignoran en
-  /// silencio, así que en los teléfonos que ya lo tenían el tono propio no podía
-  /// entrar de ninguna forma. Cada vez que cambie el sonido hay que subir el id;
-  /// no hay alternativa y no avisa nada.
-  static const oferta = 'motoya_oferta_v3';
+  /// **`_v4` por el patrón de vibración propio.** Un canal fija su sonido, su
+  /// importancia **y su vibración** en la primera creación, y las llamadas
+  /// posteriores se ignoran en silencio: cualquiera de esas tres cosas que cambie
+  /// obliga a un id nuevo. `_v1` traía el tono del sistema, `_v2` quedó congelado
+  /// con el de fábrica, `_v3` estrenó el tono propio.
+  static const oferta = 'motoya_oferta_v4';
 
   /// El resto de los avisos. Va aparte a propósito: con un canal único, silenciar
   /// los avisos generales silenciaría también los pedidos.
@@ -101,7 +102,7 @@ class NotificacionLocalService {
             AndroidFlutterLocalNotificationsPlugin
           >()
           ?.createNotificationChannel(
-            const AndroidNotificationChannel(
+            AndroidNotificationChannel(
               CanalesNotificacion.oferta,
               'Pedidos entrantes',
               description:
@@ -114,6 +115,7 @@ class NotificacionLocalService {
               // en la mayoría de los teléfonos está muy por debajo.
               audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
               enableVibration: true,
+              vibrationPattern: _patronVibracion,
             ),
           );
     } catch (e) {
@@ -242,6 +244,18 @@ class NotificacionLocalService {
       debugPrint('NotificacionLocal: el pedido $pedidoId ya tiene aviso vivo.');
       return;
     }
+    await _publicar(pedidoId, titulo, cuerpo, vigencia);
+    _programarInsistencias(pedidoId, titulo, cuerpo, vigencia);
+  }
+
+  /// Publica el aviso. **Sin el guardado anti-duplicados**, porque las
+  /// insistencias son republicaciones deliberadas del mismo aviso.
+  Future<void> _publicar(
+    int pedidoId,
+    String titulo,
+    String cuerpo,
+    Duration? vigencia,
+  ) async {
     final android = AndroidNotificationDetails(
       CanalesNotificacion.oferta,
       'Pedidos entrantes',
@@ -258,6 +272,10 @@ class NotificacionLocalService {
         CanalesNotificacion.tonoOferta,
       ),
       audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+      // Para un teléfono en el bolsillo de una chaqueta, la vibración pesa más
+      // que el tono. La del sistema es un pulso corto y genérico que se confunde
+      // con cualquier mensaje; esta es larga y con ritmo propio.
+      vibrationPattern: _patronVibracion,
       // Despierta la pantalla bloqueada como una llamada entrante. Sigue siendo
       // descartable: no bloquea el teléfono ni impide usar otra app.
       fullScreenIntent: true,
@@ -285,6 +303,60 @@ class NotificacionLocalService {
     } catch (e) {
       // Mejor sin aviso que con la app caída, pero nunca sin rastro.
       debugPrint('NotificacionLocal: falló el aviso del pedido $pedidoId: $e');
+    }
+  }
+
+  /// Cuándo se repite el aviso de una oferta sin responder.
+  ///
+  /// **Se repite, no se alarga.** Un motor y el viento no bajan el volumen del
+  /// tono: lo enmascaran, y si no atraviesa en los primeros segundos tampoco va a
+  /// atravesar al décimo. Lo que cambia el resultado es cuántas oportunidades
+  /// tiene, porque una moto no hace ruido constante — para en un semáforo, baja
+  /// al reducir, se detiene en una esquina.
+  ///
+  /// Tres toques y no un bucle: el riesgo de un aviso insistente no es molestar,
+  /// es que el conductor **silencie el canal de ofertas** en los ajustes. Ahí
+  /// pierde todos los pedidos y no hay código que lo recupere.
+  static const _insistencias = [Duration(seconds: 20), Duration(seconds: 40)];
+
+  /// Vibración larga y con ritmo propio: espera, largo, corto, largo, corto,
+  /// muy largo. En milisegundos, alternando silencio y vibración.
+  static final _patronVibracion = Int64List.fromList(
+    [0, 600, 300, 600, 300, 900],
+  );
+
+  final Map<int, List<Timer>> _insistiendo = {};
+
+  void _programarInsistencias(
+    int pedidoId,
+    String titulo,
+    String cuerpo,
+    Duration? vigencia,
+  ) {
+    _cancelarInsistencias(pedidoId);
+    final timers = <Timer>[];
+    for (final cuando in _insistencias) {
+      // Nunca después de que la oferta venza: sonar por un pedido que ya no
+      // existe enseña al conductor a desconfiar del aviso, que es la única cosa
+      // que no se puede permitir que aprenda.
+      if (vigencia != null && cuando >= vigencia) continue;
+      timers.add(
+        Timer(cuando, () async {
+          // Si el aviso ya no está en la bandeja, es que lo atendió o se retiró.
+          if (!await _yaEstaAvisado(pedidoId)) {
+            _cancelarInsistencias(pedidoId);
+            return;
+          }
+          await _publicar(pedidoId, titulo, cuerpo, vigencia);
+        }),
+      );
+    }
+    if (timers.isNotEmpty) _insistiendo[pedidoId] = timers;
+  }
+
+  void _cancelarInsistencias(int pedidoId) {
+    for (final t in _insistiendo.remove(pedidoId) ?? const <Timer>[]) {
+      t.cancel();
     }
   }
 
@@ -352,6 +424,10 @@ class NotificacionLocalService {
 
   /// Retira el aviso de una oferta (venció, la tomó otro o el pedido se canceló).
   Future<void> retirarOferta(int pedidoId) async {
+    // Lo primero, siempre: si la oferta se cerró, lo peor que puede pasar es que
+    // el teléfono vuelva a sonar veinte segundos después por un pedido que ya
+    // tomó otro.
+    _cancelarInsistencias(pedidoId);
     if (!_soportado) return;
     try {
       await _plugin.cancel(_idDe(pedidoId));

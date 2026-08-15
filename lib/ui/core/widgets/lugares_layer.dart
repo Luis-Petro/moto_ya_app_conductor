@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
@@ -57,9 +59,28 @@ class LugaresLayer extends StatefulWidget {
 class _LugaresLayerState extends State<LugaresLayer> {
   List<Lugar> _lugares = const [];
 
-  /// Reintentos gastados. Uno basta: si el catálogo no llega a la segunda, no va
-  /// a llegar por insistir dentro de la misma pantalla.
-  int _reintentos = 0;
+  /// Esperas entre reintentos, escalonadas.
+  ///
+  /// Antes era **un solo reintento a los 2 segundos**, y eso no es un arreglo:
+  /// es una moneda al aire. Si el perfil del usuario tardaba 2,5 segundos —una
+  /// red de municipio, un arranque en frío, un teléfono lento—, la capa se
+  /// rendía para siempre y el mapa salía sin un solo marcador, sin error y sin
+  /// nada que reintentar. En el Inicio del conductor el perfil se pide con
+  /// `unawaited`, así que esa carrera se pierde a diario: es el "a veces carga
+  /// y a veces no".
+  ///
+  /// Escalonado y acotado: mira durante unos quince segundos y para. Si en ese
+  /// tiempo no llegó, insistir no va a traerlo.
+  static const _esperas = [
+    Duration(seconds: 1),
+    Duration(seconds: 2),
+    Duration(seconds: 3),
+    Duration(seconds: 4),
+    Duration(seconds: 5),
+  ];
+
+  int _intento = 0;
+  Timer? _reintento;
 
   @override
   void initState() {
@@ -71,42 +92,52 @@ class _LugaresLayerState extends State<LugaresLayer> {
   void didUpdateWidget(covariant LugaresLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.municipioId != oldWidget.municipioId) {
-      _reintentos = 0;
+      _intento = 0;
       _cargar();
     }
+  }
+
+  @override
+  void dispose() {
+    _reintento?.cancel();
+    super.dispose();
+  }
+
+  /// Programa otro intento, si quedan. Con un `Timer` cancelable y no con un
+  /// `await` suelto: al salir de la pantalla, el `await` seguía vivo y volvía
+  /// sobre un `State` ya desmontado.
+  void _reintentar() {
+    if (_intento >= _esperas.length) return;
+    final espera = _esperas[_intento];
+    _intento++;
+    _reintento?.cancel();
+    _reintento = Timer(espera, () {
+      if (mounted) _cargar();
+    });
   }
 
   Future<void> _cargar() async {
     final municipioId =
         widget.municipioId ?? locator<UsuarioRepository>().enCache?.municipioId;
     if (municipioId == null) {
-      // El municipio todavía no ha llegado. Volver a mirar en un momento es lo
-      // que evita el caso mudo: montarse antes que el municipio y no enterarse
-      // nunca de que ya está, porque `didUpdateWidget` solo se dispara si el
-      // valor que llega por parámetro cambia — y en las pantallas que lo toman
-      // de la caché del usuario ese parámetro es null siempre. En el Inicio del
-      // conductor el perfil se pide con `unawaited`, así que esa carrera se
-      // pierde a diario: es el "a veces carga y a veces no".
-      if (_reintentos == 0) {
-        _reintentos++;
-        await Future<void>.delayed(const Duration(seconds: 2));
-        if (mounted) await _cargar();
-      }
+      // El municipio todavía no ha llegado. Volver a mirar es lo que evita el
+      // caso mudo: montarse antes que el municipio y no enterarse nunca de que
+      // ya está, porque `didUpdateWidget` solo se dispara si el valor que llega
+      // por parámetro cambia — y en las pantallas que lo toman de la caché del
+      // usuario ese parámetro es null siempre.
+      _reintentar();
       return;
     }
     final lugares = await locator<LugarService>().catalogoDeMapa(municipioId);
     if (!mounted) return;
     if (lugares == null) {
-      // Falló. Un reintento y se deja estar: el mapa sin marcadores sigue
-      // sirviendo, y el motivo ya quedó en el log del servicio.
-      if (_reintentos < 2) {
-        _reintentos++;
-        await Future<void>.delayed(const Duration(seconds: 2));
-        if (mounted) await _cargar();
-      }
+      // Falló la consulta. Se reintenta con la misma escalera; el motivo ya
+      // quedó en el log del servicio y el mapa sin marcadores sigue sirviendo.
+      _reintentar();
       return;
     }
     if (lugares.isEmpty) return;
+    _reintento?.cancel();
     setState(() => _lugares = lugares);
   }
 

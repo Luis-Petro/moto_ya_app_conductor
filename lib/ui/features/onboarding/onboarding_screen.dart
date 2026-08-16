@@ -28,11 +28,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _pagina = 0;
 
   static const _slides = [
-    _Slide('assets/images/onboarding_1.png', 'Gana dinero en tu municipio',
+    _Slide('assets/images/onboarding_1.webp', 'Gana dinero en tu municipio',
         'Recibe pedidos cercanos y decide cuándo conectarte. Sin suscripción inicial.'),
-    _Slide('assets/images/onboarding_2.png', 'Tú pones tu tarifa',
+    _Slide('assets/images/onboarding_2.webp', 'Tú pones tu tarifa',
         'Acepta la tarifa sugerida o propón la tuya. Ves tu ganancia neta antes de aceptar.'),
-    _Slide('assets/images/onboarding_3.png', 'Cobra y liquida fácil',
+    _Slide('assets/images/onboarding_3.webp', 'Cobra y liquida fácil',
         'Solo pagas el 15% de comisión sobre el servicio. Liquídala con Nequi o Bre-B.'),
   ];
 

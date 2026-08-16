@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 /// Ruta del logo de marca (lockup: moto + "Zumbeo · Tu domicilio, ya.").
-const String kLogoAsset = 'assets/images/logo.png';
+const String kLogoAsset = 'assets/images/logo.webp';
 
 /// Ruta de la mascota de marca, cuerpo completo y fondo transparente.
 const String kMascotaAsset = 'assets/images/mascota.png';

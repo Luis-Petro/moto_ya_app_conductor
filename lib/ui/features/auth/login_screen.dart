@@ -10,6 +10,7 @@ import '../../core/widgets/brand.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
+import '../../core/theme/app_text.dart';
 import 'otp_screen.dart';
 import 'login_view_model.dart';
 
@@ -125,12 +126,11 @@ class _LoginViewState extends State<_LoginView> {
                       const SizedBox(height: AppSpacing.lg),
                       const Center(child: BrandMascota(height: 130)),
                       const SizedBox(height: AppSpacing.md),
-                      const Text('Hola de nuevo 👋',
-                          style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.w800)),
+                      const Text('Hola de nuevo 👋', style: AppText.display),
                       const SizedBox(height: AppSpacing.xs),
-                      const Text('Ingresa para recibir pedidos en Zumbeo.',
-                          style: TextStyle(color: AppColors.inkMuted)),
+                      Text('Ingresa para recibir pedidos en Zumbeo.',
+                          style: AppText.body
+                              .copyWith(color: AppColors.inkMuted)),
                       const SizedBox(height: AppSpacing.lg),
 
                       const _Label('Correo'),
@@ -251,13 +251,12 @@ class _RecuperarSheetState extends State<_RecuperarSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Recuperar contraseña',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const Text('Recuperar contraseña', style: AppText.title),
           const SizedBox(height: AppSpacing.xs),
-          const Text(
+          Text(
             'Te enviamos un enlace al correo de tu cuenta para crear una '
             'contraseña nueva.',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+            style: AppText.body.copyWith(color: AppColors.inkMuted),
           ),
           const SizedBox(height: AppSpacing.lg),
           TextField(
@@ -274,7 +273,7 @@ class _RecuperarSheetState extends State<_RecuperarSheet> {
               padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(_error!,
                   style:
-                      const TextStyle(color: AppColors.danger, fontSize: 12)),
+                      AppText.caption.copyWith(color: AppColors.dangerInk)),
             ),
           const SizedBox(height: AppSpacing.lg),
           PrimaryButton(label: 'Enviar enlace', onPressed: _enviar),
@@ -293,8 +292,7 @@ class _Divisor extends StatelessWidget {
         Expanded(child: Divider()),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text('¿sin contraseña a la mano?',
-              style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+          child: Text('¿sin contraseña a la mano?', style: AppText.caption),
         ),
         Expanded(child: Divider()),
       ],
@@ -310,11 +308,9 @@ class _Label extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(text.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkMuted,
-              letterSpacing: 0.4)),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.label),
     );
   }
 }
@@ -357,8 +353,7 @@ class _CelularSheetState extends State<_CelularSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Ingresa con tu celular',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const Text('Ingresa con tu celular', style: AppText.title),
           const SizedBox(height: AppSpacing.lg),
           PhoneField(controller: _telefono),
           if (_error != null)
@@ -366,7 +361,7 @@ class _CelularSheetState extends State<_CelularSheet> {
               padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(_error!,
                   style:
-                      const TextStyle(color: AppColors.danger, fontSize: 12)),
+                      AppText.caption.copyWith(color: AppColors.dangerInk)),
             ),
           const SizedBox(height: AppSpacing.lg),
           PrimaryButton(label: 'Enviar código', onPressed: _enviar),

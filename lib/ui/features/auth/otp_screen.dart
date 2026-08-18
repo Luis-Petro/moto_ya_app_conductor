@@ -11,6 +11,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/encabezado.dart';
 import 'otp_view_model.dart';
 
 /// Argumentos de la pantalla de verificación OTP.
@@ -111,7 +113,10 @@ class _OtpViewState extends State<_OtpView> {
     final vm = context.watch<OtpViewModel>();
     final completo = _controller.text.length == _largo;
     return Scaffold(
-      appBar: AppBar(),
+      // Retroceso explícito: a esta pantalla se llega desde el registro y desde
+      // el login por celular, y `AppBar()` sola solo pinta la flecha si hay algo
+      // que desapilar. Quien se equivocó de número quedaba encerrado.
+      appBar: encabezado(null, onAtras: () => context.go(Rutas.login)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -124,13 +129,11 @@ class _OtpViewState extends State<_OtpView> {
                 child: Icon(Icons.sms_outlined, color: AppColors.primary),
               ),
               const SizedBox(height: AppSpacing.lg),
-              const Text('Verifica tu celular',
-                  style:
-                      TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+              const Text('Verifica tu celular', style: AppText.display),
               const SizedBox(height: AppSpacing.sm),
               Text('Enviamos un código de 4 dígitos al\n$_telefonoVisible',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.inkMuted)),
+                  style: AppText.body.copyWith(color: AppColors.inkMuted)),
               const SizedBox(height: AppSpacing.xl),
               _CajasCodigo(controller: _controller, largo: _largo, onChanged: () {
                 setState(() {});
@@ -141,15 +144,16 @@ class _OtpViewState extends State<_OtpView> {
                 Text(
                   'El código no es correcto. Revísalo e inténtalo de nuevo.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: AppColors.danger, fontWeight: FontWeight.w600),
+                  style: AppText.body.copyWith(
+                      color: AppColors.dangerInk,
+                      fontWeight: AppText.medio),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
               if (_segundos > 0)
                 Text(
                   'Reenviar código en 0:${_segundos.toString().padLeft(2, '0')}',
-                  style: const TextStyle(color: AppColors.inkMuted),
+                  style: AppText.body.copyWith(color: AppColors.inkMuted),
                 )
               else
                 TextButton(
@@ -207,9 +211,10 @@ class _CajasCodigo extends StatelessWidget {
                   width: activo ? 1.8 : 1,
                 ),
               ),
-              child: Text(lleno ? texto[i] : '',
-                  style: const TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.w700)),
+              // `money` por las figuras tabulares: son cuatro dígitos en cajas
+              // de ancho fijo y con figuras proporcionales el 1 quedaba
+              // descentrado en su caja y los demás no.
+              child: Text(lleno ? texto[i] : '', style: AppText.money),
             );
           }),
         ),

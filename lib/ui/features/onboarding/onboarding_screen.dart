@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
+import '../../core/theme/app_text.dart';
 import '../splash/splash_screen.dart';
 
 class _Slide {
@@ -91,17 +92,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         const SizedBox(height: AppSpacing.xl),
                         Text(s.titulo,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink)),
+                            style: AppText.display),
                         const SizedBox(height: AppSpacing.md),
                         Text(s.descripcion,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: AppColors.inkMuted,
-                                fontSize: 15,
-                                height: 1.4)),
+                            style: AppText.body
+                                .copyWith(color: AppColors.inkMuted)),
                       ],
                     ),
                   );

@@ -41,20 +41,14 @@ void main() {
   /// pedido, y por último historial/dinero/perfil.
   const exentosTipografia = <String>{
     'alta_conductor/alta_conductor_screen.dart',
-    'auth/login_screen.dart',
-    'auth/otp_screen.dart',
-    'auth/perfil_acceso_screen.dart',
-    'auth/registro_screen.dart',
     'billetera/billetera_screen.dart',
     'feedback/feedback_screen.dart',
     'historial/historial_screen.dart',
-    'onboarding/onboarding_screen.dart',
     'pedido_activo/pedido_activo_screen.dart',
     'pedido_detalle/pedido_detalle_screen.dart',
     'pedido_entrante/pedido_entrante_screen.dart',
     'perfil/documentos_screen.dart',
     'perfil/perfil_screen.dart',
-    'splash/splash_screen.dart',
   };
 
   /// Pantallas que todavía declaran algún color de Material. Queda el

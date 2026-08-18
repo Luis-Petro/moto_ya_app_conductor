@@ -5,6 +5,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/encabezado.dart';
 
 /// Selección de perfil. Esta app es para el rol CONDUCTOR ("Quiero ganar dinero").
 class PerfilAccesoScreen extends StatefulWidget {
@@ -22,13 +24,7 @@ class _PerfilAccesoScreenState extends State<PerfilAccesoScreen> {
     return Scaffold(
       // Se llega aquí con `go` (sin pila): la flecha va explícita para no dejar
       // una barra vacía que no lleva a ninguna parte.
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(Rutas.login),
-          tooltip: 'Atrás',
-        ),
-      ),
+      appBar: encabezado(null, onAtras: () => context.go(Rutas.login)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -37,14 +33,11 @@ class _PerfilAccesoScreenState extends State<PerfilAccesoScreen> {
             children: [
               const Text(
                 '¿Cómo quieres usar Zumbeo?',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink),
+                style: AppText.display,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const Text('Puedes cambiar de perfil cuando quieras.',
-                  style: TextStyle(color: AppColors.inkMuted)),
+              Text('Puedes cambiar de perfil cuando quieras.',
+                  style: AppText.body.copyWith(color: AppColors.inkMuted)),
               const SizedBox(height: AppSpacing.xl),
               _OpcionPerfil(
                 icon: Icons.two_wheeler_rounded,
@@ -137,12 +130,12 @@ class _OpcionPerfil extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(titulo,
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w700)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.subtitle
+                          .copyWith(fontWeight: AppText.fuerte)),
                   const SizedBox(height: 2),
-                  Text(descripcion,
-                      style: const TextStyle(
-                          color: AppColors.inkMuted, fontSize: 13)),
+                  Text(descripcion, style: AppText.caption),
                 ],
               ),
             ),

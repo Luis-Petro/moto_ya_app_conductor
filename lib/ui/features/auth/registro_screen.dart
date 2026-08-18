@@ -11,6 +11,8 @@ import '../../core/widgets/legal.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/encabezado.dart';
 import 'otp_screen.dart';
 import 'registro_view_model.dart';
 
@@ -132,26 +134,15 @@ class _RegistroViewState extends State<_RegistroView> {
         if (!didPop) _volver();
       },
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _volver,
-            tooltip: 'Atrás',
-          ),
-          title: const Text('Crear cuenta'),
-        ),
+        appBar: encabezado('Crear cuenta', onAtras: _volver),
         body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.xl),
           children: [
-            const Text('Crea tu cuenta',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink)),
+            const Text('Crea tu cuenta', style: AppText.display),
             const SizedBox(height: AppSpacing.xs),
-            const Text('Como conductor · gana con los domicilios de tu municipio',
-                style: TextStyle(color: AppColors.inkMuted)),
+            Text('Como conductor · gana con los domicilios de tu municipio',
+                style: AppText.body.copyWith(color: AppColors.inkMuted)),
             const SizedBox(height: AppSpacing.xl),
             const _Label('Nombres'),
             TextField(
@@ -193,8 +184,11 @@ class _RegistroViewState extends State<_RegistroView> {
               Padding(
                 padding: const EdgeInsets.only(top: 6, left: 4),
                 child: Text(_errTelefono!,
-                    style:
-                        const TextStyle(color: AppColors.danger, fontSize: 12)),
+                    // `dangerInk` y no `danger`: el rojo de relleno sobre
+                    // blanco da 3,91:1 y este es justo el texto que hay que
+                    // leer para poder corregir el campo.
+                    style: AppText.caption
+                        .copyWith(color: AppColors.dangerInk)),
               ),
             const SizedBox(height: AppSpacing.md),
             const _Label('Correo'),
@@ -268,12 +262,12 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
+      // Una etiqueta de campo cabe siempre en un renglón: si crece con la
+      // escala del sistema, se recorta antes que empujar el campo.
       child: Text(text.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkMuted,
-              letterSpacing: 0.4)),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.label),
     );
   }
 }

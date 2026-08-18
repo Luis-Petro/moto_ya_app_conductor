@@ -134,24 +134,23 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
+  # Plus Jakarta Sans, subseteada al rango latino con `tools/subsetear-fuente.py`
+  # (raíz del monorepo, se ejecuta a mano). Es la misma familia y los mismos tres
+  # pesos que empaqueta `app_cliente`: las dos apps son la misma marca y una
+  # divergencia tipográfica se ve al ponerlas lado a lado.
   #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  # Sin esto el tema resolvía a la fuente del fabricante y la app se veía distinta
+  # en cada teléfono. Los tres pesos son los que viajan: pedir uno intermedio
+  # obliga a Flutter a sintetizarlo y el resultado se ve sucio en pantallas densas.
+  # El peso de la carpeta lo vigila `test/assets/presupuesto_fuentes_test.dart`.
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
 

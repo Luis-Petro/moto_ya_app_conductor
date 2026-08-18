@@ -1103,13 +1103,21 @@ class _ProbarTonoState extends State<_ProbarTono> {
 
   Future<void> _probar() async {
     setState(() => _probando = true);
-    final estado = await locator<NotificacionLocalService>().probarTono();
+    final avisos = locator<NotificacionLocalService>();
+    final estado = await avisos.probarTono();
     // El diagnóstico se sigue recogiendo, pero va al log y no a la pantalla.
     // Es lo que convierte "no me suena" —permiso denegado, canal inexistente,
     // canal mudo, canal silenciado a mano o teléfono en vibración, todos
     // idénticos desde fuera— en una causa concreta. Quitarlo de la vista no
     // podía significar perderlo.
     debugPrint('[prueba de tono] $estado');
+    // La excepción a "el detalle técnico vive en el log": cuando Android está
+    // silenciando los pedidos, el conductor SÍ tiene que enterarse, porque es lo
+    // único que él puede arreglar y nosotros no. No molestar, el canal apagado a
+    // mano o la app restringida en segundo plano no los puede tocar la app: solo
+    // se pueden nombrar y dejar abierta la pantalla donde se resuelven.
+    final sistema = await avisos.estadoDelSistema();
+    final motivo = sistema.motivoDeSilencio;
     if (!mounted) return;
     setState(() => _probando = false);
     await showDialog<void>(
@@ -1118,18 +1126,29 @@ class _ProbarTonoState extends State<_ProbarTono> {
       // pantalla entera y se ve negro (gotcha de go_router + StatefulShellRoute).
       useRootNavigator: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Prueba de sonido'),
+        title: Text(motivo == null ? 'Prueba de sonido' : 'Tus pedidos no suenan'),
         // Solo lo que le sirve al conductor. El detalle técnico estuvo aquí,
         // plegado tras un "Ver detalle técnico", y sobraba igual: un
         // desplegable es una invitación a abrirlo, entender menos y desconfiar
         // más de una app que acaba de funcionar. Vive en el log.
-        content: const Text(
-          'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
-          'Si no sonó, revisa que el teléfono no esté en vibración: el '
-          'tono sale por el volumen de llamada.',
+        content: Text(
+          motivo == null
+              ? 'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
+                    'Si no sonó, revisa que el teléfono no esté en vibración: el '
+                    'tono sale por el volumen de llamada.'
+              : '$motivo\n\nEs un ajuste del teléfono, no de Zumbeo: solo lo '
+                    'puedes cambiar tú desde los ajustes del aviso.',
           style: AppText.body,
         ),
         actions: [
+          if (motivo != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                avisos.abrirAjustesDelCanal();
+              },
+              child: const Text('Abrir ajustes'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cerrar'),

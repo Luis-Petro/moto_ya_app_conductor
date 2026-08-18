@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Ids de los canales de notificación de la app conductor.
@@ -31,6 +32,116 @@ class CanalesNotificacion {
   /// nombra Android. Tiene que coincidir con `ZumbeoApplication.kt` y con
   /// `PushNotificationService.SONIDO_OFERTA` del backend.
   static const tonoOferta = 'notisound';
+}
+
+/// Lo que **Android** piensa de nuestros avisos, no lo que la app cree haber
+/// configurado.
+///
+/// Existe porque el diagnóstico que teníamos solo sabía mirarse a sí mismo:
+/// comprobaba que el canal existiera, con su tono y su importancia, y eso seguía
+/// siendo cierto todas las veces que el conductor no oyó el pedido. Las causas
+/// que de verdad silencian un teléfono —No molestar, el canal apagado a mano, la
+/// app restringida en segundo plano— viven en los servicios del sistema y **no
+/// las expone ningún plugin de Flutter**: las lee `MainActivity` y llegan aquí.
+class EstadoAvisos {
+  const EstadoAvisos({
+    this.filtroDeInterrupciones = 'desconocido',
+    this.puedeSaltarNoMolestar = false,
+    this.canalExiste = true,
+    this.canalSilenciado = false,
+    this.avisosActivados = true,
+    this.restringidaEnSegundoPlano = false,
+    this.exentaDeOptimizacionDeBateria = true,
+    this.disponible = false,
+  });
+
+  /// Modo No molestar / dormir / conducción, ya traducido: `todo`,
+  /// `solo prioritarias`, `solo alarmas`, `silencio total`.
+  final String filtroDeInterrupciones;
+
+  /// Si el canal de ofertas está autorizado a sonar dentro de No molestar. Solo
+  /// lo concede el conductor desde los Ajustes; ningún permiso de la app lo da.
+  final bool puedeSaltarNoMolestar;
+  final bool canalExiste;
+
+  /// Importancia 0: el conductor apagó el canal a mano. Reversible en dos
+  /// toques, pero solo si alguien se lo dice.
+  final bool canalSilenciado;
+  final bool avisosActivados;
+  final bool restringidaEnSegundoPlano;
+  final bool exentaDeOptimizacionDeBateria;
+
+  /// `false` fuera de Android o si la capa del fabricante no respondió. Sin esto
+  /// los valores por defecto se leerían como "todo en orden", que es la
+  /// respuesta más peligrosa que puede dar un diagnóstico.
+  final bool disponible;
+
+  bool get enNoMolestar =>
+      filtroDeInterrupciones != 'todo' &&
+      filtroDeInterrupciones != 'desconocido';
+
+  /// El motivo por el que este teléfono **no** va a sonar, si lo hay, en el
+  /// orden en que hay que resolverlos. Null = nada lo impide.
+  String? get motivoDeSilencio {
+    if (!disponible) return null;
+    if (!avisosActivados) {
+      return 'Las notificaciones de Zumbeo están desactivadas en los ajustes '
+          'del teléfono.';
+    }
+    if (canalSilenciado) {
+      return 'El aviso de "Pedidos entrantes" está silenciado en los ajustes '
+          'del teléfono.';
+    }
+    if (!canalExiste) {
+      return 'El aviso de pedidos aún no está creado. Cierra la app por '
+          'completo y vuelve a abrirla.';
+    }
+    if (enNoMolestar && !puedeSaltarNoMolestar) {
+      return 'Tu teléfono está en modo No molestar '
+          '($filtroDeInterrupciones), así que silencia los pedidos. Puedes '
+          'permitir que "Pedidos entrantes" suene igualmente.';
+    }
+    if (restringidaEnSegundoPlano) {
+      return 'Android tiene restringida a Zumbeo en segundo plano: con la app '
+          'cerrada no le entrega los pedidos.';
+    }
+    return null;
+  }
+
+  /// Sin bloquear nada: la app funciona, pero con la app cerrada se pueden
+  /// perder ofertas. Se dice aparte porque no es un silencio, es un riesgo.
+  bool get puedePerderAvisosConLaAppCerrada =>
+      disponible && !exentaDeOptimizacionDeBateria;
+
+  static EstadoAvisos desdeMapa(Map<Object?, Object?> mapa) {
+    bool leer(String clave, bool porDefecto) =>
+        mapa[clave] is bool ? mapa[clave]! as bool : porDefecto;
+    return EstadoAvisos(
+      filtroDeInterrupciones:
+          mapa['filtroDeInterrupciones'] as String? ?? 'desconocido',
+      puedeSaltarNoMolestar: leer('puedeSaltarNoMolestar', false),
+      canalExiste: leer('canalExiste', true),
+      canalSilenciado: leer('canalSilenciado', false),
+      avisosActivados: leer('avisosActivados', true),
+      restringidaEnSegundoPlano: leer('restringidaEnSegundoPlano', false),
+      exentaDeOptimizacionDeBateria: leer(
+        'exentaDeOptimizacionDeBateria',
+        true,
+      ),
+      disponible: true,
+    );
+  }
+
+  @override
+  String toString() =>
+      'No molestar: $filtroDeInterrupciones (el canal lo salta: '
+      '${puedeSaltarNoMolestar ? 'sí' : 'no'})\n'
+      'Avisos activados: ${avisosActivados ? 'sí' : 'NO'}\n'
+      'Canal silenciado a mano: ${canalSilenciado ? 'SÍ' : 'no'}\n'
+      'Restringida en segundo plano: '
+      '${restringidaEnSegundoPlano ? 'SÍ' : 'no'}\n'
+      'Exenta de optimización de batería: '
+      '${exentaDeOptimizacionDeBateria ? 'sí' : 'NO'}';
 }
 
 /// Construye en el dispositivo el aviso de una oferta entrante.
@@ -107,7 +218,12 @@ class NotificacionLocalService {
               'Pedidos entrantes',
               description:
                   'El aviso de un pedido disponible. Suena con el volumen de llamada.',
-              importance: Importance.max,
+              // `high` (4) y no `max` (5): tiene que ser LA MISMA que declara
+              // `ZumbeoApplication.kt`, porque el canal lo crean las dos vías y
+              // gana la que llegue primero. `IMPORTANCE_MAX` además está
+              // documentado por Android como "sin uso" y se trata como alta, así
+              // que la divergencia no daba nada a cambio del riesgo.
+              importance: Importance.high,
               sound: RawResourceAndroidNotificationSound(
                 CanalesNotificacion.tonoOferta,
               ),
@@ -120,6 +236,44 @@ class NotificacionLocalService {
           );
     } catch (e) {
       debugPrint('NotificacionLocal: no se pudo crear el canal de ofertas: $e');
+    }
+  }
+
+  /// Puente con `MainActivity`. El nombre tiene que coincidir carácter por
+  /// carácter con `MainActivity.CANAL_METODOS`.
+  static const _canalDePlataforma = MethodChannel('zumbeo/avisos');
+
+  /// Lo que Android piensa de nuestros avisos: No molestar, canal apagado a
+  /// mano, app restringida en segundo plano, exención de batería.
+  ///
+  /// Ante cualquier fallo devuelve un estado **no disponible** en vez de uno
+  /// vacío: un diagnóstico que se inventa un "todo en orden" es peor que no
+  /// tenerlo, porque cierra la investigación por el camino equivocado.
+  Future<EstadoAvisos> estadoDelSistema() async {
+    if (!_soportado || !Platform.isAndroid) return const EstadoAvisos();
+    try {
+      final mapa = await _canalDePlataforma
+          .invokeMapMethod<Object?, Object?>('estadoDeLosAvisos');
+      if (mapa == null) return const EstadoAvisos();
+      return EstadoAvisos.desdeMapa(mapa);
+    } catch (e) {
+      debugPrint('NotificacionLocal: no se pudo leer el estado del sistema: $e');
+      return const EstadoAvisos();
+    }
+  }
+
+  /// Abre los ajustes **del canal de ofertas**, no los de la app.
+  ///
+  /// Subir la importancia, reactivar el sonido o permitir saltarse No molestar
+  /// son cosas que solo puede hacer el conductor: Android no deja que una app se
+  /// las conceda a sí misma. Lo único que podemos hacer es dejarle la pantalla
+  /// abierta en el sitio, en vez de decirle "ve a Ajustes y busca".
+  Future<void> abrirAjustesDelCanal() async {
+    if (!_soportado || !Platform.isAndroid) return;
+    try {
+      await _canalDePlataforma.invokeMethod<void>('abrirAjustesDelCanal');
+    } catch (e) {
+      debugPrint('NotificacionLocal: no se pudieron abrir los ajustes: $e');
     }
   }
 
@@ -170,6 +324,14 @@ class NotificacionLocalService {
       final permiso = await android.canScheduleExactNotifications();
       lineas.add('Avisos exactos: ${permiso == true ? 'sí' : 'no'}');
     } catch (_) {/* no todas las versiones lo exponen */}
+    // Lo que decide de verdad si el teléfono suena, y que ningún plugin expone.
+    // Sin estas líneas el diagnóstico solo se miraba a sí mismo: "canal existe,
+    // con tono, importancia alta" seguía siendo cierto en cada teléfono en el
+    // que el conductor no oyó el pedido.
+    final sistema = await estadoDelSistema();
+    lineas.add(sistema.disponible
+        ? sistema.toString()
+        : 'Estado del sistema: no disponible.');
     final texto = lineas.join('\n');
     debugPrint('NotificacionLocal · diagnóstico:\n$texto');
     return texto;

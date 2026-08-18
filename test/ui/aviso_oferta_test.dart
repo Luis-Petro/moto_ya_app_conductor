@@ -138,6 +138,20 @@ void main() {
       );
     });
 
+    test('Kotlin y Dart declaran la MISMA importancia', () {
+      // Misma trampa que el tono y que la vibración: el canal lo crean las dos
+      // vías y gana la que llegue primero, congelando la importancia para
+      // siempre. Mientras Kotlin decía IMPORTANCE_HIGH (4) y Dart Importance.max
+      // (5), el valor final dependía del orden de arranque del teléfono.
+      expect(File(application).readAsStringSync(), contains('IMPORTANCE_HIGH'));
+      expect(
+        File('lib/data/services/notificacion_local_service.dart')
+            .readAsStringSync(),
+        contains('importance: Importance.high'),
+        reason: 'La importancia de Dart divergió de la de Kotlin.',
+      );
+    });
+
     test('el tono se declara también en la notificación, no solo en el canal', () {
       // Porque `show()` crea el canal si no existe, usando estos datos.
       final src = File('lib/data/services/notificacion_local_service.dart')
@@ -234,6 +248,118 @@ void main() {
           .readAsStringSync();
       expect(src, contains('getActiveNotifications'));
       expect(src, contains('_yaEstaAvisado'));
+    });
+  });
+
+  group('Por qué NO suena: lo que solo sabe Android', () {
+    const actividad =
+        'android/app/src/main/kotlin/com/zumbeo/conductor/MainActivity.kt';
+
+    test('el diagnóstico pregunta al sistema, no solo a sí mismo', () {
+      // El diagnóstico anterior solo se miraba a sí mismo: "el canal existe, con
+      // su tono y su importancia alta" seguía siendo cierto en TODOS los
+      // teléfonos en los que el conductor no oyó el pedido. Las causas reales
+      // —No molestar, el canal apagado a mano, la app restringida en segundo
+      // plano— viven en los servicios de Android y no las expone ningún plugin.
+      final kt = File(actividad).readAsStringSync();
+      expect(kt, contains('currentInterruptionFilter'));
+      expect(kt, contains('canBypassDnd'));
+      expect(kt, contains('isBackgroundRestricted'));
+      expect(kt, contains('isIgnoringBatteryOptimizations'));
+      expect(kt, contains('areNotificationsEnabled'));
+
+      final src = File('lib/data/services/notificacion_local_service.dart')
+          .readAsStringSync();
+      expect(src, contains('estadoDelSistema()'));
+      expect(
+        src.substring(src.indexOf('Future<String> diagnostico()')),
+        contains('estadoDelSistema()'),
+        reason: 'El diagnóstico dejó de leer el estado real del sistema.',
+      );
+    });
+
+    test('el nombre del canal de métodos es el mismo en Kotlin y en Dart', () {
+      // Un nombre que no coincide no da error: `invokeMethod` lanza
+      // MissingPluginException, la app lo traga y el diagnóstico vuelve a decir
+      // "todo en orden" — que es justo el fallo que se estaba resolviendo.
+      const canal = 'zumbeo/avisos';
+      expect(File(actividad).readAsStringSync(), contains('"$canal"'));
+      expect(
+        File('lib/data/services/notificacion_local_service.dart')
+            .readAsStringSync(),
+        contains("MethodChannel('$canal')"),
+      );
+    });
+
+    test('un estado no disponible NO se lee como "todo en orden"', () {
+      // Fuera de Android, o si la capa del fabricante no responde, el estado
+      // llega vacío. Si los valores por defecto contaran como diagnóstico, la
+      // app afirmaría que nada silencia los pedidos justo cuando no tiene ni
+      // idea — la respuesta más peligrosa que puede dar.
+      const sinDatos = EstadoAvisos();
+      expect(sinDatos.disponible, isFalse);
+      expect(sinDatos.motivoDeSilencio, isNull);
+      expect(sinDatos.puedePerderAvisosConLaAppCerrada, isFalse);
+    });
+
+    test('cada causa de silencio se nombra, y el orden es el de resolución', () {
+      // "No me suena" tiene media docena de causas idénticas desde fuera. Cada
+      // una tiene su frase porque cada una se arregla en un sitio distinto.
+      expect(
+        const EstadoAvisos(disponible: true, avisosActivados: false)
+            .motivoDeSilencio,
+        contains('desactivadas'),
+      );
+      expect(
+        const EstadoAvisos(disponible: true, canalSilenciado: true)
+            .motivoDeSilencio,
+        contains('silenciado'),
+      );
+      expect(
+        const EstadoAvisos(
+          disponible: true,
+          filtroDeInterrupciones: 'solo prioritarias',
+        ).motivoDeSilencio,
+        contains('No molestar'),
+      );
+      expect(
+        const EstadoAvisos(disponible: true, restringidaEnSegundoPlano: true)
+            .motivoDeSilencio,
+        contains('segundo plano'),
+      );
+    });
+
+    test('No molestar no se denuncia si el canal está autorizado a saltárselo', () {
+      // Solo lo concede el conductor desde los Ajustes; ningún permiso de la app
+      // lo da. Cuando lo ha concedido, avisarle de No molestar sería mandarlo a
+      // arreglar algo que ya está arreglado.
+      expect(
+        const EstadoAvisos(
+          disponible: true,
+          filtroDeInterrupciones: 'solo prioritarias',
+          puedeSaltarNoMolestar: true,
+        ).motivoDeSilencio,
+        isNull,
+      );
+    });
+
+    test('con todo en orden no se inventa un problema', () {
+      expect(const EstadoAvisos(disponible: true).motivoDeSilencio, isNull);
+    });
+
+    test('la app puede llevar al conductor a los ajustes DEL CANAL', () {
+      // No a los de la app: la diferencia entre una pantalla ya abierta en el
+      // sitio y "ve a Ajustes, busca Zumbeo, entra en notificaciones, busca
+      // Pedidos entrantes". Subir la importancia o permitir saltarse No molestar
+      // solo lo puede hacer él — Android no deja que una app se lo conceda.
+      expect(
+        File(actividad).readAsStringSync(),
+        contains('ACTION_CHANNEL_NOTIFICATION_SETTINGS'),
+      );
+      expect(
+        File('lib/ui/features/perfil/perfil_screen.dart').readAsStringSync(),
+        contains('abrirAjustesDelCanal()'),
+      );
     });
   });
 

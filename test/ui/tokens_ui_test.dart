@@ -48,7 +48,6 @@ void main() {
     'billetera/billetera_screen.dart',
     'feedback/feedback_screen.dart',
     'historial/historial_screen.dart',
-    'inicio/inicio_screen.dart',
     'onboarding/onboarding_screen.dart',
     'pedido_activo/pedido_activo_screen.dart',
     'pedido_detalle/pedido_detalle_screen.dart',
@@ -58,12 +57,9 @@ void main() {
     'splash/splash_screen.dart',
   };
 
-  /// Pantallas que todavía declaran algún color de Material. Solo dos:
-  /// el `white70` del Inicio y el `black45` del perfil.
-  const exentosColor = <String>{
-    'inicio/inicio_screen.dart',
-    'perfil/perfil_screen.dart',
-  };
+  /// Pantallas que todavía declaran algún color de Material. Queda el
+  /// `black45` del perfil; el del Inicio ya salió.
+  const exentosColor = <String>{'perfil/perfil_screen.dart'};
 
   List<File> pantallas() => Directory('lib/ui/features')
       .listSync(recursive: true)

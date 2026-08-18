@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../router.dart';
@@ -20,10 +19,14 @@ import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_elevation.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/banner_version.dart';
 import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/elegir_foto_sheet.dart';
+import '../../core/widgets/estado_badge.dart';
 import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
@@ -225,10 +228,9 @@ class _Header extends StatelessWidget {
             children: [
               Text(
                 vm.nombre ?? 'Conductor',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
               ),
               Row(
                 children: [
@@ -240,20 +242,14 @@ class _Header extends StatelessWidget {
                   const SizedBox(width: 2),
                   Text(
                     rating != null ? rating.toStringAsFixed(1) : '—',
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 13,
-                    ),
+                    style: AppText.caption,
                   ),
                   if (vm.municipioNombre != null)
                     Flexible(
                       child: Text(
                         ' · ${vm.municipioNombre}',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 13,
-                        ),
+                        style: AppText.caption,
                       ),
                     ),
                 ],
@@ -298,10 +294,24 @@ class _AvisosCarrusel extends StatefulWidget {
 }
 
 class _AvisosCarruselState extends State<_AvisosCarrusel> {
-  /// Alto de una tarjeta compacta (título + dos líneas + acción). Fijo porque
-  /// un PageView necesita saber cuánto mide; las tarjetas están redactadas para
-  /// este alto y lo que no cabe vive en la pantalla que abren.
-  static const _alto = 132.0;
+  /// Alto de diseño de una tarjeta compacta (título + dos líneas + acción), a
+  /// escala de texto 1. Las tarjetas están redactadas para este alto y lo que no
+  /// cabe vive en la pantalla que abren.
+  static const _altoBase = 132.0;
+
+  /// La parte del alto que **no** depende del texto: el relleno de `MotoCard`.
+  /// Escalarla también engordaría la tarjeta sin que haga falta.
+  static const _altoNoEscalable = 2 * AppSpacing.lg;
+
+  /// Alto real de la tarjeta, derivado de la escala de texto del sistema.
+  ///
+  /// Era una constante, y ese es el desborde clásico: un `PageView` necesita
+  /// saber cuánto mide su página, así que con la escala al 130 % el texto de la
+  /// tarjeta crecía y la fila no. A escala 1 devuelve exactamente [_altoBase],
+  /// así que no cambia nada para quien no toca el tamaño de letra.
+  static double _alto(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(_altoBase - _altoNoEscalable) +
+      _altoNoEscalable;
 
   final _controlador = PageController(viewportFraction: 0.92);
   int _pagina = 0;
@@ -324,7 +334,7 @@ class _AvisosCarruselState extends State<_AvisosCarrusel> {
     return Column(
       children: [
         SizedBox(
-          height: _alto,
+          height: _alto(context),
           child: PageView.builder(
             controller: _controlador,
             itemCount: avisos.length,
@@ -354,10 +364,7 @@ class _AvisosCarruselState extends State<_AvisosCarrusel> {
                 ),
               ),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              '${actual + 1} de ${avisos.length}',
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 12),
-            ),
+            Text('${actual + 1} de ${avisos.length}', style: AppText.caption),
           ],
         ),
       ],
@@ -396,21 +403,47 @@ class _ActivoBanner extends StatelessWidget {
               children: [
                 Text(
                   titulo,
-                  style: const TextStyle(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: AppText.fuerte,
                   ),
                 ),
-                Text(
-                  '${p.categoria.label} · ${p.estado.label}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        p.categoria.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        // Token propio y no un blanco translúcido del framework:
+                        // sobre el navy hacía falta un secundario y no había
+                        // ninguno declarado, así que cada pantalla inventaba el
+                        // suyo y la regla de "ningún color suelto" no se podía
+                        // aplicar sin excepciones.
+                        style: AppText.caption.copyWith(
+                          color: AppColors.onAccentMuted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    // El mismo distintivo que el historial y el detalle. Antes
+                    // el estado era texto suelto aquí y una pastilla allá, y no
+                    // coincidían.
+                    EstadoBadge(estado: p.estado),
+                  ],
                 ),
               ],
             ),
           ),
-          const Text(
+          Text(
             'Continuar',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: AppText.caption.copyWith(
+              color: Colors.white,
+              fontWeight: AppText.fuerte,
+            ),
           ),
           const Icon(Icons.chevron_right_rounded, color: Colors.white),
         ],
@@ -459,22 +492,32 @@ class _OfertaBanner extends StatelessWidget {
                   encadenado
                       ? 'Otro pedido, de camino al tuyo'
                       : '¡Nuevo pedido cerca!',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
                 ),
-                Text(
-                  '${pedido.categoria.label} · sugerido ${Formato.moneda(pedido.tarifaSugerida)}',
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 13,
-                  ),
+                // La tarifa es el dato sobre el que se decide: va con el rol de
+                // dinero de lista, no diluida en la misma línea que la categoría.
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${pedido.categoria.label} · ',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption,
+                      ),
+                    ),
+                    Text(
+                      Formato.moneda(pedido.tarifaSugerida),
+                      style: AppText.moneySm,
+                    ),
+                  ],
                 ),
                 if (encadenado)
-                  const Text(
+                  Text(
                     'Se suma al que llevas. Puedes decir que no.',
-                    style: TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 11.5,
-                    ),
+                    style: AppText.caption,
                   ),
               ],
             ),
@@ -530,12 +573,14 @@ class _ToggleEnLinea extends StatelessWidget {
                       : noHabilitado
                       ? 'Cuenta no habilitada'
                       : (enLinea ? 'En línea' : 'Fuera de línea'),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                  // Es la acción más importante de la app: `title` y no
+                  // `subtitle`. Con el peso de una fila de lista competía con
+                  // los avisos que tiene encima, que son secundarios.
+                  style: AppText.title.copyWith(
                     color: activo ? Colors.white : AppColors.ink,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   bloqueado
                       ? 'Paga tu deuda para recibir pedidos'
@@ -544,9 +589,8 @@ class _ToggleEnLinea extends StatelessWidget {
                       : (enLinea
                             ? 'Recibiendo pedidos de tu zona'
                             : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: activo ? Colors.white70 : AppColors.inkMuted,
+                  style: AppText.caption.copyWith(
+                    color: activo ? AppColors.onAccentMuted : AppColors.inkMuted,
                   ),
                 ),
               ],
@@ -722,49 +766,11 @@ class _FotoPerfilBanner extends StatelessWidget {
   const _FotoPerfilBanner();
 
   Future<void> _elegir(BuildContext context, InicioViewModel vm) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.sm,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tu foto de perfil',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Que se te vea la cara, de frente y con buena luz. Es la '
-                    'que ve el cliente al elegir conductor.',
-                    style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-        ),
-      ),
+    final source = await elegirFotoSheet(
+      context,
+      titulo: 'Tu foto de perfil',
+      contexto: 'Que se te vea la cara, de frente y con buena luz. Es la que '
+          've el cliente al elegir conductor.',
     );
     if (source == null) return;
     final err = await vm.subirFotoPerfil(source);
@@ -870,20 +876,20 @@ class _BateriaBanner extends StatelessWidget {
             children: [
               const Text(
                 'Te pueden faltar pedidos con la app cerrada',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: AppText.title,
               ),
               const SizedBox(height: AppSpacing.sm),
-              const Text(
+              Text(
                 'Tu teléfono puede cerrar Zumbeo para ahorrar batería. Elige '
                 '"Permitir" para que los avisos de pedido te lleguen aunque no '
                 'tengas la app abierta.',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                style: AppText.body.copyWith(color: AppColors.inkMuted),
               ),
               const SizedBox(height: AppSpacing.md),
-              const Text(
+              Text(
                 'Si tienes Xiaomi, Huawei, Oppo o Realme, busca además "Inicio '
                 'automático" en los ajustes y actívalo para Zumbeo.',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                style: AppText.body.copyWith(color: AppColors.inkMuted),
               ),
               const SizedBox(height: AppSpacing.lg),
               PrimaryButton(
@@ -944,14 +950,17 @@ class _TextoAviso extends StatelessWidget {
           titulo,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          // `subtitle`, no `title`: los avisos son secundarios frente al control
+          // "En línea", que es lo que el conductor viene a tocar. Cuando todo
+          // destaca, no destaca nada.
+          style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
         ),
         const SizedBox(height: 2),
         Text(
           detalle,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+          style: AppText.caption,
         ),
       ],
     );
@@ -1045,18 +1054,10 @@ class _Ganancias extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Ganancias de hoy',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
-          ),
-          Text(
-            Formato.moneda(vm.gananciasHoy),
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink,
-            ),
-          ),
+          // Etiqueta encima y pequeña, cifra debajo y grande. En la misma línea
+          // competían, y el número es lo único que hay que leer aquí.
+          const Text('Ganancias de hoy', style: AppText.caption),
+          Text(Formato.moneda(vm.gananciasHoy), style: AppText.money),
           const SizedBox(height: AppSpacing.sm),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1082,15 +1083,16 @@ class _Metrica extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Etiqueta arriba y cifra abajo, igual que las ganancias: la misma regla en
+    // los dos sitios, o la tarjeta cuenta dos historias distintas.
     return Column(
       children: [
+        Text(etiqueta, style: AppText.caption),
         Text(
           valor,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-        ),
-        Text(
-          etiqueta,
-          style: const TextStyle(color: AppColors.inkMuted, fontSize: 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.moneySm,
         ),
       ],
     );
@@ -1195,9 +1197,9 @@ class _ZonasDemanda extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               'Dónde están pidiendo',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -1208,10 +1210,7 @@ class _ZonasDemanda extends StatelessWidget {
                     // que evita leer lo de la semana pasada como si fuera ahora.
                     ? '${d.totalPedidos} pedidos · ${d.periodoLabel}'
                     : 'Últimas horas',
-                style: const TextStyle(
-                  color: AppColors.inkMuted,
-                  fontSize: 12.5,
-                ),
+                style: AppText.caption,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -1280,6 +1279,9 @@ class _Leyenda extends StatelessWidget {
         color: AppColors.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
         border: Border.all(color: AppColors.line),
+        // Flota sobre el mapa: tiene que leerse igual sobre una calle blanca
+        // que sobre una zona verde, y el borde solo no lo consigue.
+        boxShadow: AppElevation.flotante,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1315,10 +1317,7 @@ class _PuntoLeyenda extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
-        ),
+        Text(label, style: AppText.caption),
       ],
     );
   }
@@ -1339,10 +1338,7 @@ class _AvisoDemanda extends StatelessWidget {
           Icon(icono, size: 20, color: AppColors.inkMuted),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(
-              texto,
-              style: const TextStyle(fontSize: 13, height: 1.3),
-            ),
+            child: Text(texto, style: AppText.body),
           ),
           if (accion != null)
             TextButton(onPressed: accion, child: const Text('Reintentar')),

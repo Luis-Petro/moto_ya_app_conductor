@@ -43,9 +43,7 @@ void main() {
     'billetera/billetera_screen.dart',
     'feedback/feedback_screen.dart',
     'historial/historial_screen.dart',
-    'pedido_activo/pedido_activo_screen.dart',
     'pedido_detalle/pedido_detalle_screen.dart',
-    'pedido_entrante/pedido_entrante_screen.dart',
     'perfil/documentos_screen.dart',
     'perfil/perfil_screen.dart',
   };

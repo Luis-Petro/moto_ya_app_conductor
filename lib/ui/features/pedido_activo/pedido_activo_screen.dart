@@ -18,14 +18,17 @@ import '../../../di/locator.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/brand.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../core/widgets/proponer_lugar_sheet.dart';
 import '../../core/widgets/visor_foto.dart';
+import '../../router.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 import 'pedido_activo_view_model.dart';
@@ -231,11 +234,11 @@ class _ActivoViewState extends State<_ActivoView> {
     final vm = context.watch<PedidoActivoViewModel>();
 
     if (vm.cargando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: CargandoConMensaje('Cargando tu pedido…'));
     }
     if (vm.pedido == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: encabezado(null, onAtras: () => context.go(Rutas.inicio)),
         body: ErrorRetry(
           message: vm.error ?? 'No pudimos cargar el pedido',
           onRetry: vm.cargar,
@@ -250,7 +253,11 @@ class _ActivoViewState extends State<_ActivoView> {
         vm.puntoObjetivo ?? vm.posicion ?? LocationService.fallbackCenter;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Pedido #${pedido.id}')),
+      // Retroceso explícito: a esta pantalla se llega desde una notificación,
+      // que reemplaza la pila, y `AppBar()` sola dejaría al conductor sin salida
+      // visible en mitad de un pedido.
+      appBar: encabezado('Pedido #${pedido.id}',
+          onAtras: () => context.go(Rutas.inicio)),
       body: Column(
         children: [
           // Mapa más bajo que antes: lo que el conductor necesita a la vista es
@@ -321,16 +328,15 @@ class _ActivoViewState extends State<_ActivoView> {
                           children: [
                             Text(
                               pedido.clienteNombre ?? 'Cliente',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.subtitle,
                             ),
                             Text(
                               pedido.direccionDestino ?? '—',
-                              style: const TextStyle(
-                                color: AppColors.inkMuted,
-                                fontSize: 13,
-                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.caption,
                             ),
                           ],
                         ),
@@ -435,18 +441,22 @@ class _EstadoCompacto extends StatelessWidget {
                       ? Icons.radio_button_checked
                       : Icons.circle_outlined),
             size: 18,
-            color: paso.indiceTracking <= actual
-                ? AppColors.success
-                : AppColors.line,
+            // El paso **actual** es el único con el color pleno; los cumplidos
+            // van apagados. Iban los dos en verde y en un vistazo —que es como
+            // se mira esto, conduciendo— no se sabía en cuál se está.
+            color: switch (paso.indiceTracking) {
+              _ when paso.indiceTracking == actual => AppColors.successInk,
+              _ when paso.indiceTracking < actual => AppColors.success,
+              _ => AppColors.line,
+            },
           ),
           const SizedBox(width: 4),
           Text(
             paso.label,
-            style: TextStyle(
-              fontSize: 12.5,
+            style: AppText.caption.copyWith(
               fontWeight: paso.indiceTracking == actual
-                  ? FontWeight.w700
-                  : FontWeight.w500,
+                  ? AppText.fuerte
+                  : AppText.regular,
               color: paso.indiceTracking <= actual
                   ? AppColors.ink
                   : AppColors.inkMuted,
@@ -530,10 +540,7 @@ class _PanelDetalle extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          title: const Text(
-            'Ver todo el detalle',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
+          title: const Text('Ver todo el detalle', style: AppText.subtitle),
           childrenPadding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             0,
@@ -563,22 +570,21 @@ class _DetallePedido extends StatelessWidget {
           children: [
             Icon(pedido.categoria.icon, size: 18, color: AppColors.primary),
             const SizedBox(width: 6),
-            Text(
-              pedido.categoria.label.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-                letterSpacing: 0.4,
+            // `primaryInk`: es texto, y el naranja de marca sobre blanco a este
+            // tamaño da 3,1:1 — en la pantalla que se mira al sol y en
+            // movimiento, es justo lo que dice de qué va el pedido.
+            Expanded(
+              child: Text(
+                pedido.categoria.label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.label.copyWith(color: AppColors.primaryInk),
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text(
-          pedido.descripcion,
-          style: const TextStyle(fontSize: 15, height: 1.35),
-        ),
+        Text(pedido.descripcion, style: AppText.body),
         if (pedido.requiereCompra) ...[
           const SizedBox(height: AppSpacing.md),
           Container(
@@ -601,7 +607,7 @@ class _DetallePedido extends StatelessWidget {
                     pedido.montoCompraEstimado != null
                         ? 'Debes comprar por ~${Formato.moneda(pedido.montoCompraEstimado)}. El cliente te lo devuelve en la entrega.'
                         : 'Este pedido incluye una compra que el cliente te devuelve en la entrega.',
-                    style: const TextStyle(fontSize: 13, height: 1.3),
+                    style: AppText.caption.copyWith(color: AppColors.ink),
                   ),
                 ),
               ],
@@ -626,14 +632,23 @@ class _DetallePedido extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Text(
-                'Comisión de la plataforma (15%)',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              // `Expanded` y no `Spacer`: una fila con un espaciador rígido en
+              // medio no se puede recortar.
+              const Expanded(
+                child: Text(
+                  'Comisión de la plataforma (15%)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption,
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 '−${Formato.moneda(Pedido.comision(tarifa))}',
-                style: const TextStyle(fontSize: 13),
+                style: AppText.caption.copyWith(
+                  color: AppColors.ink,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ],
           ),
@@ -642,12 +657,7 @@ class _DetallePedido extends StatelessWidget {
           const Divider(height: AppSpacing.xl),
           const Text(
             'FOTO DEL PEDIDO',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkMuted,
-              letterSpacing: 0.4,
-            ),
+            style: AppText.label,
           ),
           const SizedBox(height: AppSpacing.sm),
           // Mismo visor que usa la app cliente: a pantalla completa, con zoom.
@@ -691,24 +701,18 @@ class _PuntoFila extends StatelessWidget {
             children: [
               Text(
                 titulo,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.inkMuted,
-                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.caption.copyWith(fontWeight: AppText.fuerte),
               ),
               Text(
                 direccion ?? 'Ubicación marcada en el mapa',
-                style: const TextStyle(fontSize: 14, height: 1.3),
+                style: AppText.body,
               ),
               if (referencia != null && referencia!.trim().isNotEmpty)
                 Text(
                   'Referencia: ${referencia!}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.inkMuted,
-                    height: 1.3,
-                  ),
+                  style: AppText.caption,
                 ),
             ],
           ),
@@ -820,13 +824,7 @@ class _BotonEvidencia extends StatelessWidget {
                       ),
                       if (detalle != null) ...[
                         const SizedBox(height: 2),
-                        Text(
-                          detalle,
-                          style: const TextStyle(
-                            color: AppColors.inkMuted,
-                            fontSize: 12.5,
-                          ),
-                        ),
+                        Text(detalle, style: AppText.caption),
                       ],
                     ],
                   ),
@@ -935,10 +933,7 @@ class _Entregado extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                const Text(
-                  '¡Pedido entregado!',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                ),
+                const Text('¡Pedido entregado!', style: AppText.display),
                 const SizedBox(height: AppSpacing.sm),
                 const Text(
                   'La comisión se registró en tu billetera.',

@@ -9,6 +9,7 @@ import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/mascota_animada.dart';
 import '../../core/widgets/moto_card.dart';
@@ -157,17 +158,13 @@ class _OfertaCerrada extends StatelessWidget {
                 const Text(
                   'Esta oferta ya no está disponible',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
+                  style: AppText.title,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   motivo,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.inkMuted),
+                  style: AppText.body.copyWith(color: AppColors.inkMuted),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 SizedBox(
@@ -226,22 +223,23 @@ class _CabeceraNuevo extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text('¡Nuevo pedido!',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.title.copyWith(color: Colors.white)),
               ),
               Icon(expirado ? Icons.timer_off_outlined : Icons.timer_outlined,
-                  color: Colors.white, size: 16),
+                  color: AppColors.onAccentMuted, size: 16),
               const SizedBox(width: 6),
+              // El contador acompaña, no compite: es información de urgencia, y
+              // la decisión se toma sobre la tarifa. Va en `caption` y en el
+              // secundario del navy, no en blanco pleno al tamaño del título.
               Text(
                 textoTimer,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15),
+                style: AppText.caption.copyWith(
+                    color: AppColors.onAccentMuted,
+                    fontWeight: AppText.fuerte),
               ),
             ],
           ),
@@ -302,17 +300,16 @@ class _TiempoEstimado extends StatelessWidget {
                   total == null
                       ? 'Tiempo estimado no disponible'
                       : '~$total min en total',
-                  style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.accent),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle.copyWith(
+                      fontWeight: AppText.fuerte, color: AppColors.accent),
                 ),
                 Text(
                   espera > 0 && viajeMin != null
                       ? 'Recorrido ~$viajeMin min + espera ~$espera min'
                       : 'Recorrido recogida → entrega',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.inkMuted),
+                  style: AppText.caption,
                 ),
               ],
             ),
@@ -324,11 +321,13 @@ class _TiempoEstimado extends StatelessWidget {
                 color: AppColors.warningSurface,
                 borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
               ),
-              child: const Text('Hay cola',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.warning)),
+              // `warningInk`: el ámbar de relleno sobre su propia superficie no
+              // llega a AA, y esto es justo lo que hay que leer antes de aceptar
+              // —que va a haber espera— para no descubrirlo en la cola.
+              child: Text('Hay cola',
+                  style: AppText.caption.copyWith(
+                      fontWeight: AppText.fuerte,
+                      color: AppColors.warningInk)),
             ),
         ],
       ),
@@ -365,11 +364,10 @@ class _PuntoRuta extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(titulo,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13)),
-              Text(detalle,
-                  style:
-                      const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption.copyWith(color: AppColors.ink)),
+              Text(detalle, style: AppText.caption),
               if (referencia != null && referencia!.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -381,8 +379,7 @@ class _PuntoRuta extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(referencia!.trim(),
-                            style: const TextStyle(
-                                fontSize: 12.5,
+                            style: AppText.caption.copyWith(
                                 fontStyle: FontStyle.italic,
                                 color: AppColors.ink)),
                       ),
@@ -428,16 +425,22 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
             children: [
               Icon(pedido.categoria.icon, size: 17, color: AppColors.primary),
               const SizedBox(width: 5),
-              Text(pedido.categoria.label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13.5)),
-              const Spacer(),
+              // `Expanded` y no `Spacer`: una fila con un espaciador rígido en
+              // medio no se puede recortar, y con la escala al 130 % la
+              // categoría empujaba la distancia fuera de la tarjeta.
+              Expanded(
+                child: Text(pedido.categoria.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.caption.copyWith(
+                        color: AppColors.ink, fontWeight: AppText.fuerte)),
+              ),
               const Icon(Icons.straighten_rounded,
                   size: 15, color: AppColors.inkMuted),
               const SizedBox(width: 3),
               Text(Formato.distancia(pedido.distanciaEstimadaMetros),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: AppText.caption.copyWith(
+                      color: AppColors.ink, fontWeight: AppText.fuerte)),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -475,7 +478,7 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
                 descripcion,
                 maxLines: _mandadoCompleto ? null : 2,
                 overflow: _mandadoCompleto ? null : TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13.5),
+                style: AppText.body,
               ),
             ),
           ],
@@ -498,8 +501,7 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
                       pedido.montoCompraEstimado != null
                           ? 'Adelantas ${Formato.moneda(pedido.montoCompraEstimado)} · te los reembolsa el cliente'
                           : 'Adelantas la compra · te la reembolsa el cliente',
-                      style:
-                          const TextStyle(fontSize: 12.5, color: AppColors.ink),
+                      style: AppText.caption.copyWith(color: AppColors.ink),
                     ),
                   ),
                 ],
@@ -545,17 +547,13 @@ class _TarjetaDineroState extends State<_TarjetaDinero> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               const Expanded(
-                child: Text('Ganas por este pedido',
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.inkMuted)),
+                child: Text('Ganas por este pedido', style: AppText.caption),
               ),
+              // La cifra sobre la que se decide, con figuras tabulares: en
+              // `successInk` y no `success`, que sobre esta superficie clara no
+              // llega a AA.
               Text(Formato.moneda(vm.gananciaNeta),
-                  style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.success)),
+                  style: AppText.money.copyWith(color: AppColors.successInk)),
             ],
           ),
           const SizedBox(height: 2),
@@ -566,8 +564,7 @@ class _TarjetaDineroState extends State<_TarjetaDinero> {
                   '${vm.esContraoferta ? 'Tu propuesta' : 'Tarifa'} '
                   '${Formato.moneda(vm.montoPropuesto)} · comisión '
                   '${Formato.moneda(vm.comision)}',
-                  style: const TextStyle(
-                      fontSize: 12.5, color: AppColors.inkMuted),
+                  style: AppText.caption,
                 ),
               ),
               if (hayRecargos)
@@ -579,16 +576,15 @@ class _TarjetaDineroState extends State<_TarjetaDinero> {
                     child: Row(
                       children: [
                         Text(_abierto ? 'Ocultar' : 'Ver desglose',
-                            style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary)),
+                            style: AppText.caption.copyWith(
+                                fontWeight: AppText.fuerte,
+                                color: AppColors.primaryInk)),
                         Icon(
                             _abierto
                                 ? Icons.expand_less_rounded
                                 : Icons.expand_more_rounded,
                             size: 18,
-                            color: AppColors.primary),
+                            color: AppColors.primaryInk),
                       ],
                     ),
                   ),
@@ -644,23 +640,24 @@ class _Fila extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tam = tenue ? 13.0 : 14.0;
+    final color = tenue ? AppColors.inkMuted : AppColors.ink;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: Text(label,
-              style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: tam,
-                  color: tenue ? AppColors.inkMuted : AppColors.ink)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.body.copyWith(color: color)),
         ),
         const SizedBox(width: AppSpacing.sm),
+        // El desglose es una columna de cifras que se compara de arriba abajo:
+        // sin figuras tabulares las unidades no alinean.
         Text(valor,
-            style: TextStyle(
-                fontWeight: tenue ? FontWeight.w600 : FontWeight.w800,
-                fontSize: tam,
-                color: tenue ? AppColors.inkMuted : AppColors.ink)),
+            style: AppText.body.copyWith(
+                color: color,
+                fontWeight: tenue ? AppText.medio : AppText.fuerte,
+                fontFeatures: const [FontFeature.tabularFigures()])),
       ],
     );
   }
@@ -684,20 +681,24 @@ class _ProponerTarifa extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Proponer otra tarifa',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text('Proponer otra tarifa',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.caption.copyWith(
+                        color: AppColors.ink, fontWeight: AppText.fuerte)),
                 Text(
                   diferencia == 0
                       ? 'Sugerida ${Formato.moneda(vm.tarifaSugerida)}'
                       : (diferencia > 0
                           ? '+${Formato.moneda(diferencia)} sobre la sugerida'
                           : '${Formato.moneda(diferencia)} bajo la sugerida'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption.copyWith(
+                    // Tinta: el ámbar de relleno sobre blanco da 2,15:1, y esto
+                    // avisa de que se está pidiendo por encima de la sugerida.
                     color: diferencia > 0
-                        ? AppColors.warning
+                        ? AppColors.warningInk
                         : AppColors.inkMuted,
                   ),
                 ),
@@ -710,10 +711,12 @@ class _ProponerTarifa extends StatelessWidget {
           ),
           SizedBox(
             width: 96,
+            // Figuras tabulares: el valor sube y baja de 500 en 500 con los dos
+            // botones que tiene al lado, y sin ellas la cifra cambiaba de ancho
+            // y los botones bailaban a cada toque.
             child: Text(Formato.moneda(vm.montoPropuesto),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 19)),
+                style: AppText.moneySm),
           ),
           _BotonAjuste(
             icon: Icons.add_rounded,

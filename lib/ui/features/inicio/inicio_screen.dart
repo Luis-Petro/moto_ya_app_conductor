@@ -171,7 +171,15 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
                           // Ocultarla aquí hacía que esa oferta se venciera sin
                           // que nadie la viera nunca.
                           if (vm.ofertaActual != null) ...[
-                            _OfertaBanner(vm: vm),
+                            _EntradaDeslizada(
+                              // La clave es lo que hace que la animación se
+                              // repita con **cada** oferta nueva: sin ella
+                              // Flutter reutiliza el estado y la segunda
+                              // aparecería de golpe, que es justo el caso que
+                              // esto viene a arreglar.
+                              key: ValueKey(vm.ofertaActual!.pedido.id),
+                              child: _OfertaBanner(vm: vm),
+                            ),
                             const SizedBox(height: AppSpacing.md),
                           ],
                           _ToggleEnLinea(vm: vm),
@@ -447,6 +455,57 @@ class _ActivoBanner extends StatelessWidget {
           ),
           const Icon(Icons.chevron_right_rounded, color: Colors.white),
         ],
+      ),
+    );
+  }
+}
+
+/// Entrada deslizada de algo que **llega solo**.
+///
+/// La oferta no la abre el conductor: aparece mientras mira otra cosa. Sin
+/// transición, la tarjeta se materializa y empuja de golpe lo que tiene debajo,
+/// y con el pedido encadenado encendido —dos ofertas visibles a la vez ya no es
+/// raro— la segunda desplaza a la primera justo cuando se está leyendo su
+/// precio: parece que cambió el precio de la que se estaba mirando.
+///
+/// 260 ms y `easeOut`: lo justo para que el ojo siga el movimiento sin que la
+/// respuesta se retrase, dentro del tope de 300 ms del sistema visual.
+class _EntradaDeslizada extends StatefulWidget {
+  const _EntradaDeslizada({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_EntradaDeslizada> createState() => _EntradaDeslizadaState();
+}
+
+class _EntradaDeslizadaState extends State<_EntradaDeslizada>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  )..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curva = CurvedAnimation(parent: _c, curve: Curves.easeOut);
+    return FadeTransition(
+      opacity: curva,
+      child: SizeTransition(
+        sizeFactor: curva,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.25),
+            end: Offset.zero,
+          ).animate(curva),
+          child: widget.child,
+        ),
       ),
     );
   }

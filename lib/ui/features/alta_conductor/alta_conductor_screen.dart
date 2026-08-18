@@ -14,7 +14,11 @@ import '../../../di/locator.dart';
 import '../../../domain/models/catalogo_motos.dart';
 import '../../../domain/models/municipio.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_elevation.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/async_view.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
@@ -264,8 +268,9 @@ class _AltaViewState extends State<_AltaView> {
 
     if (vm.cargando) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Completa tu perfil')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: encabezado('Completa tu perfil',
+            onAtras: () => context.go(Rutas.inicio)),
+        body: const CargandoConMensaje('Cargando tus datos…'),
       );
     }
 
@@ -276,14 +281,7 @@ class _AltaViewState extends State<_AltaView> {
         if (!salio) _atras();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Completa tu perfil'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: _paso == 0 ? 'Salir' : 'Paso anterior',
-            onPressed: _atras,
-          ),
-        ),
+        appBar: encabezado('Completa tu perfil', onAtras: _atras),
         body: SafeArea(
           child: Column(
             children: [
@@ -294,11 +292,9 @@ class _AltaViewState extends State<_AltaView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Paso ${_paso + 1} de $_pasos · ${_tituloPaso(_paso)}',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.inkMuted,
-                            letterSpacing: 0.3)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.label),
                     const SizedBox(height: AppSpacing.sm),
                     _ProgresoAlta(hechos: _completados(vm), total: _totalHitos),
                   ],
@@ -441,8 +437,7 @@ class _PasoMoto extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
-        const Text('Cuéntanos de tu moto',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+        const Text('Cuéntanos de tu moto', style: AppText.display),
         const SizedBox(height: AppSpacing.xs),
         const Text(
             'Los datos y las dos fotos de la moto. Aprovecha que estás junto a '
@@ -581,8 +576,7 @@ class _PasoIdentidad extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
-        const Text('Empecemos por ti',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+        const Text('Empecemos por ti', style: AppText.display),
         const SizedBox(height: AppSpacing.xs),
         const Text(
             'Dos fotos para confirmar quién eres. Con la cédula ya puedes '
@@ -594,7 +588,8 @@ class _PasoIdentidad extends StatelessWidget {
           titulo: 'Foto de tu cédula',
           subtitulo: 'Solo el lado de adelante (donde está tu foto)',
           etiqueta: 'Necesaria para enviar',
-          etiquetaColor: AppColors.primary,
+          // Tinta: es texto, y el naranja de marca sobre blanco da 3,1:1.
+          etiquetaColor: AppColors.primaryInk,
           archivo: vm.cedula,
           accion: 'Tomar foto',
           onElegir: onCedula,
@@ -637,8 +632,7 @@ class _PasoRevision extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
-        const Text('Revisa y envía',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+        const Text('Revisa y envía', style: AppText.display),
         const SizedBox(height: AppSpacing.xs),
         const Text(
             'Esto es lo que verá el administrador. Puedes volver a cualquier '
@@ -656,14 +650,18 @@ class _PasoRevision extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(vehiculo ?? 'Sin definir',
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.subtitle),
                     Text(placa.isEmpty ? 'Sin placa' : 'Placa $placa',
-                        style: const TextStyle(
-                            color: AppColors.inkMuted, fontSize: 12.5)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption),
                     if (vm.municipioElegido != null)
                       Text(vm.municipioElegido!.etiqueta,
-                          style: const TextStyle(
-                              color: AppColors.inkMuted, fontSize: 12.5)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.caption),
                   ],
                 ),
               ),
@@ -712,8 +710,12 @@ class _PieDelPaso extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.xl, AppSpacing.md, AppSpacing.xl, AppSpacing.lg),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.line)),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: const Border(top: BorderSide(color: AppColors.line)),
+        // Barra anclada: la sombra va hacia arriba, que es la única dirección
+        // en la que hay contenido del que separarse.
+        boxShadow: AppElevation.anclada,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -732,7 +734,7 @@ class _PieDelPaso extends StatelessWidget {
             Text(
               faltaEnEstePaso!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              style: AppText.caption,
             ),
           ],
         ],
@@ -759,20 +761,26 @@ class _ProgresoAlta extends StatelessWidget {
       children: [
         Row(
           children: [
+            // `Expanded` y no `Spacer` entre los dos: una fila con un espaciador
+            // rígido en medio no se puede recortar, y con la escala al 130 % el
+            // texto empujaba al porcentaje fuera de la pantalla.
             Expanded(
               child: Text(
                 completo
                     ? '¡Listo! Ya puedes enviar tu solicitud'
                     : 'Ya llevas $hechos de $total',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 14),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.subtitle,
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             Text('${(fraccion * 100).round()}%',
-                style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14)),
+                // `primaryInk` y no `primary`: el naranja de marca como texto
+                // sobre blanco da 3,1:1.
+                style: AppText.subtitle.copyWith(
+                    color: AppColors.primaryInk,
+                    fontWeight: AppText.fuerte)),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -780,7 +788,11 @@ class _ProgresoAlta extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0, end: fraccion),
-            duration: const Duration(milliseconds: 400),
+            // La misma duración y la misma curva que el cambio de paso
+            // (`_paginas.animateToPage`). Iban a 400 ms contra 250: dos
+            // transiciones de duraciones distintas sobre el mismo gesto se leen
+            // como un salto, no como un avance.
+            duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
             builder: (_, valor, __) => LinearProgressIndicator(
               value: valor,
@@ -845,10 +857,9 @@ class _ItemChecklist extends StatelessWidget {
           Expanded(
             child: Text(
               texto,
-              style: TextStyle(
-                fontSize: 14,
+              style: AppText.body.copyWith(
                 color: hecho ? AppColors.ink : AppColors.inkMuted,
-                fontWeight: hecho ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: hecho ? AppText.medio : AppText.regular,
               ),
             ),
           ),
@@ -866,11 +877,9 @@ class _Label extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(text.toUpperCase(),
-          style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.inkMuted,
-              letterSpacing: 0.4)),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.label),
     );
   }
 }
@@ -928,11 +937,11 @@ class _DocCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(titulo,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.subtitle),
                 const SizedBox(height: 2),
-                Text(subtitulo,
-                    style: const TextStyle(
-                        color: AppColors.inkMuted, fontSize: 12.5)),
+                Text(subtitulo, style: AppText.caption),
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -940,17 +949,19 @@ class _DocCard extends StatelessWidget {
                       const Icon(Icons.check_circle,
                           color: AppColors.success, size: 16),
                       const SizedBox(width: 4),
-                      const Text('Foto lista',
-                          style: TextStyle(
-                              color: AppColors.success,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700)),
+                      // Tinta y no relleno: `success` sobre blanco da 2,74:1
+                      // contra su propia superficie y no llega a AA.
+                      Text('Foto lista',
+                          style: AppText.caption.copyWith(
+                              color: AppColors.successInk,
+                              fontWeight: AppText.fuerte)),
                     ] else
                       Text(etiqueta,
-                          style: TextStyle(
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.caption.copyWith(
                               color: etiquetaColor,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700)),
+                              fontWeight: AppText.fuerte)),
                   ],
                 ),
               ],
@@ -982,8 +993,7 @@ class _GuiaCedulaSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Foto de tu cédula',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const Text('Foto de tu cédula', style: AppText.title),
             const SizedBox(height: AppSpacing.xs),
             const Text(
                 'Solo el lado de adelante, donde está tu foto. Sigue estos pasos:',
@@ -1050,8 +1060,7 @@ class _PasoGuia extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text('$numero. $texto',
-                style: const TextStyle(fontSize: 14.5, height: 1.3)),
+            child: Text('$numero. $texto', style: AppText.body),
           ),
         ],
       ),
@@ -1077,11 +1086,10 @@ class _OrigenFotoSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(titulo,
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(titulo, style: AppText.title),
             const SizedBox(height: AppSpacing.xs),
-            Text(mensaje, style: const TextStyle(color: AppColors.inkMuted)),
+            Text(mensaje,
+                style: AppText.body.copyWith(color: AppColors.inkMuted)),
             const SizedBox(height: AppSpacing.lg),
             PrimaryButton(
               label: 'Tomar una foto',
@@ -1111,10 +1119,10 @@ class _AvisoRevision extends StatelessWidget {
         children: [
           const Icon(Icons.hourglass_top_rounded, color: AppColors.primary),
           const SizedBox(width: AppSpacing.md),
-          const Expanded(
+          Expanded(
             child: Text(
               'Revisaremos tus documentos y habilitaremos tu cuenta. Te avisaremos cuando puedas empezar a recibir pedidos.',
-              style: TextStyle(color: AppColors.ink, fontSize: 13),
+              style: AppText.body,
             ),
           ),
         ],

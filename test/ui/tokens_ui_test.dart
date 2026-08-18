@@ -40,7 +40,6 @@ void main() {
   /// Se vacía por bloques, en el orden de `tasks.md`: Inicio, acceso, alta,
   /// pedido, y por último historial/dinero/perfil.
   const exentosTipografia = <String>{
-    'alta_conductor/alta_conductor_screen.dart',
     'billetera/billetera_screen.dart',
     'feedback/feedback_screen.dart',
     'historial/historial_screen.dart',

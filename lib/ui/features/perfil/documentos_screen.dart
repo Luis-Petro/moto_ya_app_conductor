@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/repositories/auth_repository.dart';
@@ -10,8 +10,12 @@ import '../../../domain/models/conductor.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/elegir_foto_sheet.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../router.dart';
 import 'perfil_view_model.dart';
 
 /// Los cuatro documentos de habilitación, en su propia pantalla.
@@ -54,42 +58,14 @@ class _DocumentosViewState extends State<_DocumentosView> {
   /// Sube o reemplaza uno de los documentos de habilitación.
   Future<void> _subirDocumento(
       PerfilViewModel vm, DocumentoConductor doc) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.lg,
-                  AppSpacing.xl, AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(doc.titulo,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(doc.guia,
-                      style: const TextStyle(
-                          color: AppColors.inkMuted, fontSize: 13)),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-        ),
-      ),
+    // La hoja compartida: aquí eran dos `ListTile` sueltos sobre el gris de
+    // Material y sin salida visible más que tocar fuera. La guía del documento
+    // pasa a ser el contexto, que es donde hace falta: son cuatro documentos y
+    // la hoja no decía de cuál estaba hablando.
+    final source = await elegirFotoSheet(
+      context,
+      titulo: doc.titulo,
+      contexto: doc.guia,
     );
     if (source == null) return;
     final err = await vm.subirDocumento(doc, source);
@@ -103,10 +79,10 @@ class _DocumentosViewState extends State<_DocumentosView> {
     final conductor = vm.conductor;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis documentos')),
+      appBar: encabezado('Mis documentos', onAtras: () => context.go(Rutas.perfil)),
       body: SafeArea(
         child: vm.cargando
-            ? const Center(child: CircularProgressIndicator())
+            ? const CargandoConMensaje('Cargando tus documentos…')
             : conductor == null
                 ? ErrorRetry(
                     message: vm.error ?? 'No pudimos cargar tus documentos',
@@ -118,12 +94,11 @@ class _DocumentosViewState extends State<_DocumentosView> {
                     child: ListView(
                       padding: const EdgeInsets.all(AppSpacing.xl),
                       children: [
-                        const Text(
+                        Text(
                           'Con estas cuatro fotos el administrador puede habilitarte '
                           'para recibir pedidos. Que se lean bien es lo único que '
                           'importa: sin recortes, sin brillos y con la placa visible.',
-                          style: TextStyle(
-                              color: AppColors.inkMuted, fontSize: 13),
+                          style: AppText.body.copyWith(color: AppColors.inkMuted),
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         _Documentos(
@@ -182,7 +157,7 @@ class _Documentos extends StatelessWidget {
             'Tus documentos ya fueron verificados y no se pueden cambiar desde la '
             'app. Si alguno quedó mal (borroso, vencido), pídele al administrador '
             'que devuelva tu cuenta a revisión.',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+            style: AppText.caption,
           ),
         ],
         if (faltantes.isNotEmpty) ...[
@@ -191,7 +166,7 @@ class _Documentos extends StatelessWidget {
             conductor.habilitado
                 ? 'Te falta subir: ${faltantes.join(', ')}.'
                 : 'Para que te habiliten falta: ${faltantes.join(', ')}.',
-            style: const TextStyle(color: AppColors.warning, fontSize: 12.5),
+            style: AppText.caption.copyWith(color: AppColors.warningInk),
           ),
         ],
       ],
@@ -239,7 +214,7 @@ class _FilaDocumento extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                   ),
                   child: const Icon(Icons.photo_camera_outlined,
-                      size: 20, color: AppColors.warning),
+                      size: 20, color: AppColors.warningInk),
                 ),
         ),
         const SizedBox(width: AppSpacing.md),
@@ -255,10 +230,9 @@ class _FilaDocumento extends StatelessWidget {
                       : tiene
                           ? 'Subida'
                           : 'Pendiente',
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: tiene ? AppColors.success : AppColors.warning)),
+                  style: AppText.caption.copyWith(
+                      fontWeight: AppText.medio,
+                      color: tiene ? AppColors.successInk : AppColors.warningInk)),
             ],
           ),
         ),

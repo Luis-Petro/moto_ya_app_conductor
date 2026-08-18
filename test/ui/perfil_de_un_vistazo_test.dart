@@ -56,10 +56,17 @@ void main() {
     test('las credenciales no se cortan a mitad de palabra', () {
       // El correo competía por el ancho con dos TextButton en la misma fila y se
       // partía en tres renglones.
-      final tile = perfil.substring(
-        perfil.indexOf('class _CredencialTile'),
-        perfil.indexOf('/// Estado de la cuenta y deuda'),
-      );
+      //
+      // La fila vivía dentro de esta pantalla y ahora es el componente
+      // compartido `core/widgets/credencial_tile.dart`: la regla no cambia, lo
+      // que cambia es dónde está escrita. Sale de aquí porque **la disposición
+      // es lo que se rompió** y dentro de la pantalla no había forma de montarla
+      // en un test; `credencial_tile_test.dart` la monta a 320 dp y con la
+      // escala de texto al 130 %, que es donde se rompía de verdad.
+      final tile = File(
+        'lib/ui/core/widgets/credencial_tile.dart',
+      ).readAsStringSync();
+      expect(perfil, contains('CredencialTile('));
       expect(tile, contains('maxLines: 1'));
       expect(tile, contains('overflow: TextOverflow.ellipsis'));
       // Las acciones bajan a su propia fila, debajo del valor.
@@ -109,8 +116,15 @@ void main() {
     test('lista los cuatro y conserva la subida', () {
       expect(documentos, contains('DocumentoConductor.values.length'));
       expect(documentos, contains('vm.subirDocumento(doc, source)'));
-      expect(documentos, contains('ImageSource.camera'));
-      expect(documentos, contains('ImageSource.gallery'));
+      // La procedencia de la foto la pregunta la hoja compartida, que es la
+      // que ofrece cámara y galería. Aquí eran dos `ListTile` sueltos sobre el
+      // gris de Material, repetidos en tres pantallas.
+      expect(documentos, contains('elegirFotoSheet('));
+      final hoja = File(
+        'lib/ui/core/widgets/elegir_foto_sheet.dart',
+      ).readAsStringSync();
+      expect(hoja, contains('ImageSource.camera'));
+      expect(hoja, contains('ImageSource.gallery'));
     });
 
     test('con los documentos en firme no ofrece reemplazarlos', () {

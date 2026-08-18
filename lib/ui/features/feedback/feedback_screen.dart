@@ -9,6 +9,8 @@ import '../../../data/services/feedback_service.dart';
 import '../../../di/locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/primary_button.dart';
 
 /// Queja o sugerencia del cliente. Al enviar, la pantalla agradece de forma
@@ -70,7 +72,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ayúdanos a mejorar')),
+      appBar: encabezado('Ayúdanos a mejorar', onAtras: () => Navigator.of(context).maybePop()),
       body: SafeArea(
         child: _enviado ? _gracias() : _formulario(),
       ),
@@ -93,7 +95,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
             const SizedBox(height: AppSpacing.lg),
             const Text('¡Gracias por escribirnos!',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                style: AppText.display),
             const SizedBox(height: AppSpacing.sm),
             const Text(
               'Ya lo estamos leyendo. Lo que nos cuentas es lo que nos dice qué '
@@ -114,12 +116,12 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         const Text('¿Qué nos quieres contar?',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            style: AppText.title),
         const SizedBox(height: AppSpacing.sm),
         const Text(
           'Lo leemos nosotros, no un robot. Cuéntanos qué pasó o qué te gustaría '
           'que cambiara.',
-          style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
+          style: AppText.body,
         ),
         const SizedBox(height: AppSpacing.lg),
         SegmentedButton<String>(
@@ -160,7 +162,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           const Padding(
             padding: EdgeInsets.only(top: AppSpacing.sm),
             child: Text('Escribe al menos 10 caracteres para poder ayudarte.',
-                style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+                style: AppText.caption),
           ),
       ],
     );
@@ -197,7 +199,7 @@ class _AdjuntoCaptura extends StatelessWidget {
                 archivo == null
                     ? 'Adjuntar una captura (opcional)'
                     : 'Captura lista para enviar',
-                style: const TextStyle(fontSize: 13),
+                style: AppText.body,
               ),
             ),
           ],

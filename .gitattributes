@@ -1,0 +1,23 @@
+# Finales de línea LF en el repositorio, siempre.
+#
+# `core.autocrlf=true` en Windows convierte a CRLF al hacer checkout. Da igual
+# para casi todo, pero este repo tiene **tests que leen su propio código fuente**
+# —`tokens_ui_test.dart`, `altos_que_escalan_test.dart`, `carga_visible_test.dart`,
+# `perfil_de_un_vistazo_test.dart`— y comparan contra literales escritos con `\n`.
+# Sin esta declaración, esos tests pasan en la máquina donde se escribieron y
+# fallan en un clon nuevo, que es la peor forma de fallar: en el CI, sin que nada
+# haya cambiado.
+* text=auto eol=lf
+
+# Binarios: nunca se tocan.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.ogg binary
+*.mp3 binary
+*.jar binary
+*.keystore binary
+*.apk binary

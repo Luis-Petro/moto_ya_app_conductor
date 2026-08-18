@@ -9,8 +9,10 @@ import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/tab_activa.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/estado_badge.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../router.dart';
 import 'historial_view_model.dart';
@@ -51,12 +53,7 @@ class _HistorialView extends StatelessWidget {
                     const SizedBox(height: AppSpacing.lg),
                     _Ingresos(vm: vm),
                     const SizedBox(height: AppSpacing.lg),
-                    const Text('PEDIDOS RECIENTES',
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.inkMuted,
-                            letterSpacing: 0.4)),
+                    const Text('PEDIDOS RECIENTES', style: AppText.label),
                     const SizedBox(height: AppSpacing.sm),
                     if (vm.grupos.isEmpty)
                       const EmptyState(
@@ -141,14 +138,14 @@ class _MetricaCard extends StatelessWidget {
                 Icon(icon, size: 16, color: iconColor),
                 const SizedBox(width: 2),
               ],
-              Text(valor,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w800)),
+              Text(valor, style: AppText.moneySm),
             ],
           ),
           const SizedBox(height: 2),
           Text(etiqueta,
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 11.5)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.caption),
         ],
       ),
     );
@@ -171,11 +168,8 @@ class _Ingresos extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Ingresos esta semana',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 13)),
-              Text(Formato.moneda(vm.totalSemana),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 16)),
+              const Text('Ingresos esta semana', style: AppText.caption),
+              Text(Formato.moneda(vm.totalSemana), style: AppText.moneySm),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -200,9 +194,7 @@ class _Ingresos extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(_dias[i],
-                          style: const TextStyle(
-                              color: AppColors.inkMuted, fontSize: 11)),
+                      Text(_dias[i], style: AppText.caption),
                     ],
                   ),
                 );
@@ -229,14 +221,16 @@ class _SeparadorDia extends StatelessWidget {
         children: [
           Expanded(
             child: Text(grupo.etiqueta,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 14.5)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte)),
           ),
+          const SizedBox(width: AppSpacing.sm),
           Text('+${Formato.moneda(grupo.total)}',
-              style: const TextStyle(
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5)),
+              style: AppText.body.copyWith(
+                  color: AppColors.successInk,
+                  fontWeight: AppText.fuerte,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
         ],
       ),
     );
@@ -277,6 +271,10 @@ class _PedidoTile extends StatelessWidget {
                   size: 18, color: AppColors.primary),
             ),
             const SizedBox(width: AppSpacing.md),
+            // Dos renglones y no uno. Categoría, dirección, fecha, distancia,
+            // estado y valor competían en la misma línea, y en un teléfono
+            // estrecho la que cedía era la dirección ("Barrio San…"), que es
+            // justo lo que identifica el pedido en una lista.
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,16 +283,28 @@ class _PedidoTile extends StatelessWidget {
                       '${pedido.categoria.label} · ${pedido.direccionDestino ?? ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(subtitulo,
-                      style: const TextStyle(
-                          color: AppColors.inkMuted, fontSize: 12)),
+                      style: AppText.subtitle),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(subtitulo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.caption),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      EstadoBadge(estado: pedido.estado),
+                    ],
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
+            // `moneySm` con figuras tabulares: es una columna de cifras que se
+            // compara de arriba abajo, y `successInk` porque es texto.
             Text('+${Formato.moneda(ganancia)}',
-                style: const TextStyle(
-                    color: AppColors.success, fontWeight: FontWeight.w800)),
+                style: AppText.moneySm.copyWith(color: AppColors.successInk)),
             const Icon(Icons.chevron_right_rounded, color: AppColors.inkMuted),
           ],
         ),

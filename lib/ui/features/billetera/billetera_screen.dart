@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,7 +11,10 @@ import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/elegir_foto_sheet.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import 'billetera_view_model.dart';
@@ -102,7 +104,9 @@ class _BilleteraViewState extends State<_BilleteraView> {
     final vm = context.watch<BilleteraViewModel>();
     final b = vm.billetera;
     return Scaffold(
-      appBar: AppBar(title: const Text('Billetera')),
+      // Es una pestaña del shell: no lleva retroceso, pero sí el recorte del
+      // título, que `AppBar` no hace por su cuenta.
+      appBar: encabezado('Billetera', conRetroceso: false),
       body: SafeArea(
         child: vm.cargando && b == null
             ? const Center(child: CircularProgressIndicator())
@@ -249,10 +253,7 @@ class _PagoSheetState extends State<_PagoSheet> {
             children: [
               Text(
                 b.enDeuda ? 'Pagar comisiones' : 'Abonar a mi saldo',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: AppText.title,
               ),
               const SizedBox(height: AppSpacing.md),
               const _Etiqueta('PAGAR CON'),
@@ -376,12 +377,7 @@ class _Etiqueta extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       texto,
-      style: const TextStyle(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w700,
-        color: AppColors.inkMuted,
-        letterSpacing: 0.4,
-      ),
+      style: AppText.label,
     );
   }
 }
@@ -433,10 +429,11 @@ class _OrigenChip extends StatelessWidget {
               child: Text(
                 titulo,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: seleccionado ? AppColors.primary : AppColors.ink,
+                style: AppText.caption.copyWith(
+                  fontWeight: AppText.fuerte,
+                  // Tinta: es texto, y el naranja de marca sobre blanco a este
+                  // tamaño da 3,1:1.
+                  color: seleccionado ? AppColors.primaryInk : AppColors.ink,
                 ),
               ),
             ),
@@ -469,7 +466,7 @@ class _AvisoComprobante extends StatelessWidget {
             child: Text(
               'Al terminar te pedimos la foto del comprobante: con ella '
               'confirmamos el mismo día.',
-              style: TextStyle(fontSize: 12, height: 1.3),
+              style: AppText.caption,
             ),
           ),
         ],
@@ -538,7 +535,7 @@ class _TarjetaSaldo extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 aFavor ? 'Saldo a favor' : 'Comisiones pendientes',
-                style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                style: AppText.caption,
               ),
             ],
           ),
@@ -547,12 +544,13 @@ class _TarjetaSaldo extends StatelessWidget {
             Formato.moneda(
               aFavor ? billetera.saldoAFavor : billetera.deudaActual,
             ),
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
+            // La cifra dominante de la pantalla, con figuras tabulares: la
+            // deuda cambia al registrar un pago y sin ellas se desplazaría lo
+            // que tiene al lado. Tintas y no rellenos: es texto.
+            style: AppText.money.copyWith(
               color: billetera.bloqueado
-                  ? AppColors.danger
-                  : (aFavor ? AppColors.success : AppColors.ink),
+                  ? AppColors.dangerInk
+                  : (aFavor ? AppColors.successInk : AppColors.ink),
             ),
           ),
           if (aFavor) ...[
@@ -560,7 +558,7 @@ class _TarjetaSaldo extends StatelessWidget {
             const Text(
               'Pagaste de más, así que este dinero está a tu favor: tus próximas '
               'comisiones se descuentan de aquí antes de generar deuda.',
-              style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+              style: AppText.caption,
             ),
           ] else ...[
             const SizedBox(height: AppSpacing.sm),
@@ -572,7 +570,7 @@ class _TarjetaSaldo extends StatelessWidget {
                         'servicios que ya entregaste. Al pasar el límite de '
                         '${Formato.moneda(billetera.limite)} dejas de recibir pedidos '
                         'hasta ponerte al día.',
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+              style: AppText.caption,
             ),
             const SizedBox(height: AppSpacing.md),
             ClipRRect(
@@ -590,17 +588,11 @@ class _TarjetaSaldo extends StatelessWidget {
               children: [
                 Text(
                   '${billetera.porcentajeUso}% del límite',
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 12,
-                  ),
+                  style: AppText.caption,
                 ),
                 Text(
                   'Límite ${Formato.moneda(billetera.limite)}',
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 12,
-                  ),
+                  style: AppText.caption,
                 ),
               ],
             ),
@@ -641,7 +633,7 @@ class _EstadoCuenta extends StatelessWidget {
               bloqueado
                   ? 'No puedes recibir pedidos. Paga para reactivar tu cuenta.'
                   : 'Cuenta al día. Sigue recibiendo pedidos con normalidad.',
-              style: TextStyle(color: color, fontSize: 13),
+              style: AppText.caption.copyWith(color: color),
             ),
           ),
         ],
@@ -659,49 +651,11 @@ class _PagoEnProceso extends StatelessWidget {
 
   /// Pide la foto del comprobante y la adjunta al pago.
   Future<void> _adjuntar(BuildContext context, BilleteraViewModel vm) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.sm,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Comprobante de la transferencia',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'La captura de la app del banco o la foto del recibo del '
-                    'corresponsal. Que se vean el monto y la fecha.',
-                    style: TextStyle(color: AppColors.inkMuted, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Elegir de la galería'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tomar foto'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-        ),
-      ),
+    final source = await elegirFotoSheet(
+      context,
+      titulo: 'Comprobante de la transferencia',
+      contexto: 'La captura de la app del banco o la foto del recibo del '
+          'corresponsal. Que se vean el monto y la fecha.',
     );
     if (source == null) return;
     final err = await vm.adjuntarComprobante(pago.id, source);
@@ -734,14 +688,11 @@ class _PagoEnProceso extends StatelessWidget {
                   children: [
                     Text(
                       'Pago de ${Formato.moneda(pago.valor)} por ${pago.medioPago.label} en revisión',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppText.caption.copyWith(color: AppColors.ink, fontWeight: AppText.medio),
                     ),
                     const Text(
                       'Lo confirmamos al verificar la transferencia.',
-                      style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                      style: AppText.caption,
                     ),
                   ],
                 ),
@@ -771,11 +722,10 @@ class _PagoEnProceso extends StatelessWidget {
                       ? 'Comprobante recibido'
                       : 'Falta el comprobante: adjúntalo para que lo validemos '
                             'más rápido.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+                  style: AppText.caption.copyWith(
+                    fontWeight: AppText.medio,
                     color: pago.tieneComprobante
-                        ? AppColors.success
+                        ? AppColors.successInk
                         : AppColors.ink,
                   ),
                 ),
@@ -816,7 +766,7 @@ class _AccesoHistorial extends StatelessWidget {
         padding: EdgeInsets.all(AppSpacing.md),
         child: Text(
           'Aún no has registrado pagos de comisión.',
-          style: TextStyle(fontSize: 13, color: AppColors.inkMuted),
+          style: AppText.caption,
         ),
       );
     }
@@ -842,10 +792,7 @@ class _AccesoHistorial extends StatelessWidget {
                 ),
                 Text(
                   'Último: ${Formato.moneda(ultimo.valor)} · ${ultimo.estadoLabel.toLowerCase()}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.inkMuted,
-                  ),
+                  style: AppText.caption,
                 ),
               ],
             ),
@@ -879,7 +826,7 @@ class _HistorialSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           const Text(
             'Mis movimientos',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            style: AppText.title,
           ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(
@@ -903,7 +850,7 @@ class _HistorialSheet extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
                     child: Text(
                       'Aún no has registrado pagos de comisión.',
-                      style: TextStyle(fontSize: 13, color: AppColors.inkMuted),
+                      style: AppText.caption,
                     ),
                   )
                 else
@@ -927,12 +874,7 @@ class _TituloSeccion extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Text(
         texto.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: AppColors.inkMuted,
-          letterSpacing: 0.4,
-        ),
+        style: AppText.label,
       ),
     );
   }
@@ -964,12 +906,10 @@ class _FilaMovimiento extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 if (movimiento.nota.isNotEmpty)
                   Text(movimiento.nota,
-                      style: const TextStyle(
-                          fontSize: 12.5, color: AppColors.inkMuted)),
+                      style: AppText.caption),
                 if (movimiento.creadoEn != null)
                   Text(Formato.fechaHora(movimiento.creadoEn!),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.inkMuted)),
+                      style: AppText.caption),
               ],
             ),
           ),
@@ -1012,23 +952,22 @@ class _FilaPago extends StatelessWidget {
               children: [
                 Text(
                   Formato.moneda(pago.valor),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: AppText.moneySm,
                 ),
                 Text(
                   '${pago.medioPago.label} · ${Formato.fechaHora(pago.confirmadoEn ?? pago.creadoEn)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.inkMuted,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             pago.estadoLabel,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+            style: AppText.caption.copyWith(
+              fontWeight: AppText.fuerte,
               color: color,
             ),
           ),
@@ -1060,11 +999,7 @@ class _PagoConfirmado extends StatelessWidget {
           Expanded(
             child: Text(
               mensaje,
-              style: const TextStyle(
-                color: AppColors.success,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppText.caption.copyWith(color: AppColors.successInk, fontWeight: AppText.medio),
             ),
           ),
           InkWell(
@@ -1137,58 +1072,45 @@ class _DestinoPago extends StatelessWidget {
                     children: [
                       Text(
                         'Transfiere a ${esNequi ? 'Nequi' : 'Bre-B'}:',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.inkMuted,
-                        ),
+                        style: AppText.caption,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         destino!,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
+                        style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
                       ),
                       // El titular va con el mismo peso que el número: es lo
                       // que el conductor coteja en la app del banco antes de
                       // aceptar, y en letra chica se lo salta.
                       Text(
                         titular ?? 'Titular sin configurar',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
+                        style: AppText.subtitle.copyWith(
+                          fontWeight: AppText.fuerte,
                           color: titular == null
-                              ? AppColors.danger
+                              ? AppColors.dangerInk
                               : AppColors.ink,
                         ),
                       ),
                       if (titular == null)
-                        const Text(
+                        Text(
                           'El administrador aún no registró a nombre de quién '
                           'está la cuenta. Confírmalo antes de transferir.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.danger,
-                          ),
+                          // `dangerInk`: es el aviso que evita transferir a una
+                          // cuenta sin comprobar de quién es.
+                          style: AppText.caption
+                              .copyWith(color: AppColors.dangerInk),
                         ),
                       if (!esNequi &&
                           (datos.brebEntidad?.trim().isNotEmpty ?? false))
                         Text(
                           datos.brebEntidad!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.inkMuted,
-                          ),
+                          style: AppText.caption,
                         ),
                     ],
                   )
                 : Text(
                     'Aún no hay una cuenta ${esNequi ? 'Nequi' : 'Bre-B'} configurada. Contacta al administrador.',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.inkMuted,
-                    ),
+                    style: AppText.caption,
                   ),
           ),
           if (tiene)
@@ -1263,10 +1185,9 @@ class _MedioChip extends StatelessWidget {
               children: [
                 Text(
                   medio.label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: sel ? AppColors.primary : AppColors.ink,
+                  style: AppText.caption.copyWith(
+                    fontWeight: AppText.medio,
+                    color: sel ? AppColors.primaryInk : AppColors.ink,
                   ),
                 ),
                 if (sel) ...[
@@ -1342,10 +1263,7 @@ class _TransaccionSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Pago por ${intencion.medioPago.label}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: AppText.title,
                   ),
                 ),
               ],
@@ -1382,14 +1300,14 @@ class _TransaccionSheet extends StatelessWidget {
                 ),
                 child: Text(
                   intencion.instrucciones!,
-                  style: const TextStyle(fontSize: 13, height: 1.35),
+                  style: AppText.body,
                 ),
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
             const Text(
               'Cuando el pago se confirme, tu saldo y tu cuenta se actualizan solos.',
-              style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+              style: AppText.caption,
             ),
             const SizedBox(height: AppSpacing.lg),
             if (intencion.urlPago != null)

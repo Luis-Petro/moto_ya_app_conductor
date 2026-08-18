@@ -35,22 +35,17 @@ void main() {
   /// poder aplicarse sin criterio. Ese caso es `AppColors.onAccentMuted`.
   const permitidos = {'white', 'transparent'};
 
-  /// Pantallas que todavía declaran su tipografía a mano.
+  /// Pantallas que todavía declaran su tipografía a mano. **Vacía**: las trece
+  /// features están migradas y los 213 `fontSize` que había son cero.
   ///
-  /// Se vacía por bloques, en el orden de `tasks.md`: Inicio, acceso, alta,
-  /// pedido, y por último historial/dinero/perfil.
-  const exentosTipografia = <String>{
-    'billetera/billetera_screen.dart',
-    'feedback/feedback_screen.dart',
-    'historial/historial_screen.dart',
-    'pedido_detalle/pedido_detalle_screen.dart',
-    'perfil/documentos_screen.dart',
-    'perfil/perfil_screen.dart',
-  };
+  /// Se conserva la constante porque es lo que documenta la regla: una pantalla
+  /// nueva que traiga su propio `fontSize` tiene que **fallar aquí**, no
+  /// añadirse a una lista.
+  const exentosTipografia = <String>{};
 
-  /// Pantallas que todavía declaran algún color de Material. Queda el
-  /// `black45` del perfil; el del Inicio ya salió.
-  const exentosColor = <String>{'perfil/perfil_screen.dart'};
+  /// Pantallas que todavía declaran algún color de Material. **Vacía**: no
+  /// queda ninguna. Se conserva por el mismo motivo que la de arriba.
+  const exentosColor = <String>{};
 
   List<File> pantallas() => Directory('lib/ui/features')
       .listSync(recursive: true)

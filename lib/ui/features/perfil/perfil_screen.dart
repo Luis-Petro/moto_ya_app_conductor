@@ -12,8 +12,11 @@ import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/beta_chip.dart';
+import '../../core/widgets/credencial_tile.dart';
+import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/confirmar_baja_dialog.dart';
 import '../../core/widgets/legal.dart';
@@ -141,20 +144,14 @@ class _PerfilViewState extends State<_PerfilView> {
                 children: [
                   Text(
                     paso == 1 ? 'Cambiar correo' : 'Verifica tu correo',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: AppText.title,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     paso == 1
                         ? 'Te enviaremos un código al correo nuevo para confirmar que es tuyo.'
                         : 'Escribe el código que enviamos a ${emailCtrl.text.trim()}.',
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 13,
-                    ),
+                    style: AppText.caption,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   if (paso == 1)
@@ -181,10 +178,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       errorLocal!,
-                      style: const TextStyle(
-                        color: AppColors.danger,
-                        fontSize: 13,
-                      ),
+                      style: AppText.caption.copyWith(color: AppColors.dangerInk),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -281,20 +275,14 @@ class _PerfilViewState extends State<_PerfilView> {
                 children: [
                   Text(
                     paso == 1 ? 'Cambiar celular' : 'Verifica tu celular',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: AppText.title,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     paso == 1
                         ? 'Te enviaremos un código al número nuevo para confirmar que es tuyo.'
                         : 'Escribe el código que enviamos a ${telCtrl.text.trim()}.',
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 13,
-                    ),
+                    style: AppText.caption,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   if (paso == 1)
@@ -313,10 +301,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       errorLocal!,
-                      style: const TextStyle(
-                        color: AppColors.danger,
-                        fontSize: 13,
-                      ),
+                      style: AppText.caption.copyWith(color: AppColors.dangerInk),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -451,18 +436,12 @@ class _PerfilViewState extends State<_PerfilView> {
                 children: [
                   Text(
                     titulo,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: AppText.title,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Escribe el código que enviamos a $destino.',
-                    style: const TextStyle(
-                      color: AppColors.inkMuted,
-                      fontSize: 13,
-                    ),
+                    style: AppText.caption,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   TextField(
@@ -478,10 +457,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       errorLocal!,
-                      style: const TextStyle(
-                        color: AppColors.danger,
-                        fontSize: 13,
-                      ),
+                      style: AppText.caption.copyWith(color: AppColors.dangerInk),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -551,9 +527,12 @@ class _PerfilViewState extends State<_PerfilView> {
     final conductor = vm.conductor;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Perfil'),
-        actions: [
+      // Pestaña del shell: sin retroceso, pero con el título recortado a un
+      // renglón, que `AppBar` no hace por su cuenta.
+      appBar: encabezado(
+        'Perfil',
+        conRetroceso: false,
+        acciones: [
           // Cerrar sesión SIEMPRE accesible: aunque el perfil no cargue (401 o
           // error de red), el conductor debe poder salir y no quedar atrapado.
           //
@@ -620,10 +599,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     Center(
                       child: Text(
                         vm.usuario!.nombre,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: AppText.display,
                       ),
                     ),
                     // Un 5,0 sin ninguna entrega es una promesa que el
@@ -651,19 +627,13 @@ class _PerfilViewState extends State<_PerfilView> {
                                   if (conductor.tasaAceptacion != null)
                                     Text(
                                       '  ·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% aceptación',
-                                      style: const TextStyle(
-                                        color: AppColors.inkMuted,
-                                        fontSize: 13,
-                                      ),
+                                      style: AppText.caption,
                                     ),
                                 ],
                               )
                             : const Text(
                                 'Sin calificaciones aún',
-                                style: TextStyle(
-                                  color: AppColors.inkMuted,
-                                  fontSize: 13,
-                                ),
+                                style: AppText.caption,
                               ),
                       ),
                     ],
@@ -702,10 +672,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                 ),
                                 Text(
                                   'Envíanos una queja o una sugerencia',
-                                  style: TextStyle(
-                                    color: AppColors.inkMuted,
-                                    fontSize: 12.5,
-                                  ),
+                                  style: AppText.caption,
                                 ),
                               ],
                             ),
@@ -751,7 +718,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                 'contáctanos.',
                           ),
                           const Divider(height: AppSpacing.lg),
-                          _CredencialTile(
+                          CredencialTile(
                             etiqueta: 'Correo',
                             icono: Icons.mail_outline,
                             valor: vm.usuario!.email,
@@ -763,7 +730,7 @@ class _PerfilViewState extends State<_PerfilView> {
                             onVerificar: () => _verificarCorreoActual(vm),
                           ),
                           const Divider(height: AppSpacing.lg),
-                          _CredencialTile(
+                          CredencialTile(
                             etiqueta: 'Celular',
                             icono: Icons.phone_outlined,
                             valor: vm.usuario!.telefono,
@@ -778,15 +745,8 @@ class _PerfilViewState extends State<_PerfilView> {
 
                     if (conductor != null) ...[
                       const SizedBox(height: AppSpacing.xl),
-                      const Text(
-                        'VEHÍCULO Y DOCUMENTOS',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.inkMuted,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
+                      const Text('VEHÍCULO Y DOCUMENTOS',
+                          style: AppText.label),
                       const SizedBox(height: AppSpacing.sm),
                       MotoCard(
                         child: Column(
@@ -833,18 +793,18 @@ class _PerfilViewState extends State<_PerfilView> {
                                 children: [
                                   const Text(
                                     'Mis documentos',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: AppText.subtitle,
                                   ),
                                   Text(
                                     _resumenDocumentos(conductor),
-                                    style: TextStyle(
-                                      fontSize: 12.5,
+                                    style: AppText.caption.copyWith(
+                                      // Tinta y no relleno: el ámbar sobre
+                                      // blanco da 2,15:1, y esto es lo que
+                                      // dice qué documento falta.
                                       color:
                                           conductor.documentosFaltantes.isEmpty
                                           ? AppColors.inkMuted
-                                          : AppColors.warning,
+                                          : AppColors.warningInk,
                                     ),
                                   ),
                                 ],
@@ -878,10 +838,7 @@ class _PerfilViewState extends State<_PerfilView> {
                         vm.eliminandoCuenta
                             ? 'Eliminando…'
                             : 'Eliminar mi cuenta',
-                        style: const TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 13,
-                        ),
+                        style: AppText.caption,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
@@ -892,10 +849,7 @@ class _PerfilViewState extends State<_PerfilView> {
                     const Center(
                       child: Text(
                         'Hecho en Colombia 🇨🇴',
-                        style: TextStyle(
-                          color: AppColors.inkMuted,
-                          fontSize: 12,
-                        ),
+                        style: AppText.caption,
                       ),
                     ),
                     // Versión + beta: es la pantalla donde alguien mira
@@ -930,9 +884,12 @@ class _FotoPerfil extends StatelessWidget {
         // y sin child —como estaba— una URL vencida dejaba un círculo vacío.
         InitialsAvatar(initials: iniciales, imageUrl: fotoUrl, radius: 40),
         if (cargando)
-          const CircleAvatar(
+          CircleAvatar(
             radius: 40,
-            backgroundColor: Colors.black45,
+            // Velo teñido con la tinta de marca, no negro suelto: es el mismo
+            // criterio que las sombras, y así el color sale de la paleta y no
+            // de un `Colors.<algo>` que nadie puede corregir desde los tokens.
+            backgroundColor: AppColors.ink.withValues(alpha: 0.45),
             child: SizedBox(
               width: 22,
               height: 22,
@@ -957,108 +914,6 @@ class _FotoPerfil extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Fila de una credencial de acceso (correo o celular): valor actual, si está
-/// verificada y el acceso a su flujo de cambio. Nunca se edita en línea.
-class _CredencialTile extends StatelessWidget {
-  const _CredencialTile({
-    required this.etiqueta,
-    required this.icono,
-    required this.vacio,
-    required this.onCambiar,
-    this.valor,
-    this.verificado,
-    this.onVerificar,
-  });
-
-  final String etiqueta;
-  final IconData icono;
-  final String vacio;
-  final String? valor;
-
-  /// null cuando no aplica mostrar el estado (p. ej. el dato no existe).
-  final bool? verificado;
-  final VoidCallback onCambiar;
-
-  /// Verificar el dato **actual** (sin cambiarlo). Nulo = no aplica.
-  final VoidCallback? onVerificar;
-
-  @override
-  Widget build(BuildContext context) {
-    final tiene = (valor ?? '').trim().isNotEmpty;
-
-    // Etiqueta y valor arriba a ancho completo; las acciones abajo, en su propia
-    // fila. Antes era una fila de tres columnas y el valor competía por el ancho
-    // con dos `TextButton`: un correo normal se partía a mitad de palabra
-    // ("luispetro1994res / paldo@gmail.co / m") en tres renglones. Un correo se
-    // lee de un tirón o no se lee.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icono, color: AppColors.inkMuted, size: 20),
-            const SizedBox(width: AppSpacing.md),
-            Text(
-              etiqueta.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkMuted,
-                letterSpacing: 0.4,
-              ),
-            ),
-            if (tiene && verificado != null) ...[
-              const SizedBox(width: AppSpacing.sm),
-              Icon(
-                verificado! ? Icons.verified_rounded : Icons.error_outline,
-                size: 13,
-                color: verificado! ? AppColors.success : AppColors.warning,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                verificado! ? 'Verificado' : 'Sin verificar',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: verificado! ? AppColors.success : AppColors.warning,
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 3),
-        Text(
-          tiene ? valor! : vacio,
-          // Una línea con elipsis: un correo largo se corta al final, donde se
-          // entiende que sigue, y no por la mitad de una palabra.
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: tiene ? AppColors.ink : AppColors.inkMuted,
-          ),
-        ),
-        Row(
-          children: [
-            // "Verificar" solo cuando el dato existe y está sin verificar: antes
-            // la única salida era "cambiarlo" por el mismo valor, que el backend
-            // rechaza por unicidad.
-            if (tiene && verificado == false && onVerificar != null)
-              TextButton(
-                onPressed: onVerificar,
-                child: const Text('Verificar'),
-              ),
-            TextButton(
-              onPressed: onCambiar,
-              child: Text(tiene ? 'Cambiar' : 'Agregar'),
-            ),
-          ],
         ),
       ],
     );
@@ -1180,12 +1035,7 @@ class SaldoCabecera extends StatelessWidget {
           children: [
             Text(
               aFavor ? 'A FAVOR' : 'DEUDA',
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkMuted,
-                letterSpacing: 0.4,
-              ),
+              style: AppText.label,
             ),
             Text(
               // Valor absoluto: "-$ 3.000 a favor" son dos negaciones que hay
@@ -1277,7 +1127,7 @@ class _ProbarTonoState extends State<_ProbarTono> {
           'Acabas de recibir el mismo aviso que un pedido nuevo.\n\n'
           'Si no sonó, revisa que el teléfono no esté en vibración: el '
           'tono sale por el volumen de llamada.',
-          style: TextStyle(fontSize: 13),
+          style: AppText.body,
         ),
         actions: [
           TextButton(
@@ -1307,7 +1157,7 @@ class _ProbarTonoState extends State<_ProbarTono> {
                 ),
                 Text(
                   'Suena igual que una oferta de verdad',
-                  style: TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                  style: AppText.caption,
                 ),
               ],
             ),
@@ -1361,12 +1211,7 @@ class _FilaEnFirme extends StatelessWidget {
             children: [
               Text(
                 etiqueta.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.inkMuted,
-                  letterSpacing: 0.4,
-                ),
+                style: AppText.label,
               ),
               const SizedBox(height: 2),
               Text(
@@ -1380,11 +1225,7 @@ class _FilaEnFirme extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   nota!,
-                  style: const TextStyle(
-                    color: AppColors.inkMuted,
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
+                  style: AppText.caption,
                 ),
               ],
             ],

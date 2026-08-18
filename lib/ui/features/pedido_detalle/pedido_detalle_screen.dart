@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/models/polyline_codec.dart';
@@ -11,10 +12,15 @@ import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_text.dart';
+import '../../core/widgets/async_view.dart';
+import '../../core/widgets/encabezado.dart';
+import '../../core/widgets/estado_badge.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/lugares_layer.dart';
 import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/star_rating.dart';
+import '../../router.dart';
 import 'pedido_detalle_view_model.dart';
 
 /// Detalle completo de un pedido del historial del conductor: recorrido en mapa,
@@ -46,14 +52,18 @@ class _DetalleView extends StatelessWidget {
     final vm = context.watch<PedidoDetalleViewModel>();
     final p = vm.pedido;
     return Scaffold(
-      appBar: AppBar(title: Text(p != null ? 'Pedido #${p.id}' : 'Pedido')),
+      // Ruta de primer nivel alcanzable desde una notificación: la flecha se
+      // pinta siempre y con destino explícito.
+      appBar: encabezado(p != null ? 'Pedido #${p.id}' : 'Pedido',
+          onAtras: () => context.go(Rutas.historial)),
       body: SafeArea(
         child: p == null
-            ? Center(
-                child: vm.cargando
-                    ? const CircularProgressIndicator()
-                    : Text(vm.error ?? 'No se pudo cargar el pedido.'),
-              )
+            ? (vm.cargando
+                ? const CargandoConMensaje('Cargando el pedido…')
+                : ErrorRetry(
+                    message: vm.error ?? 'No se pudo cargar el pedido.',
+                    onRetry: vm.cargar,
+                  ))
             : ListView(
                 children: [
                   _Mapa(pedido: p),
@@ -147,9 +157,28 @@ class _Encabezado extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(pedido.categoria.label,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-              Text('${pedido.estado.label} · ${Formato.fechaHora(pedido.entregadoEn ?? pedido.creadoEn)}',
-                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle.copyWith(
+                      fontWeight: AppText.fuerte)),
+              const SizedBox(height: 2),
+              // El estado sale del párrafo y pasa al distintivo compartido: es
+              // el mismo pedido que se ve en el historial y tiene que verse
+              // igual en los dos sitios.
+              Row(
+                children: [
+                  EstadoBadge(estado: pedido.estado),
+                  const SizedBox(width: AppSpacing.sm),
+                  Flexible(
+                    child: Text(
+                        Formato.fechaHora(
+                            pedido.entregadoEn ?? pedido.creadoEn),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.caption),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -219,13 +248,11 @@ class _Direcciones extends StatelessWidget {
           ),
           if (pedido.descripcion.trim().isNotEmpty) ...[
             const Divider(height: AppSpacing.lg),
-            Text(pedido.descripcion,
-                style: const TextStyle(color: AppColors.ink, fontSize: 13)),
+            Text(pedido.descripcion, style: AppText.body),
           ],
           if (pedido.referencia != null && pedido.referencia!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text('Referencia: ${pedido.referencia}',
-                style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+            Text('Referencia: ${pedido.referencia}', style: AppText.caption),
           ],
         ],
       ),
@@ -301,7 +328,7 @@ class _Calificacion extends StatelessWidget {
                   : (pedido.estado.esFinal
                       ? 'El cliente aún no te ha calificado.'
                       : 'Disponible cuando se complete el pedido.'),
-              style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+              style: AppText.caption,
             ),
         ],
       ),
@@ -321,8 +348,7 @@ class _Motivo extends StatelessWidget {
           const Icon(Icons.cancel_outlined, color: AppColors.inkMuted, size: 20),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text('Cancelado: $motivo',
-                style: const TextStyle(color: AppColors.inkMuted, fontSize: 13)),
+            child: Text('Cancelado: $motivo', style: AppText.caption),
           ),
         ],
       ),
@@ -344,8 +370,11 @@ class _Dato extends StatelessWidget {
       children: [
         Icon(icon, color: AppColors.primary, size: 20),
         const SizedBox(height: 4),
-        Text(valor, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-        Text(etiqueta, style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+        Text(valor,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte)),
+        Text(etiqueta, style: AppText.caption),
       ],
     );
   }
@@ -370,9 +399,11 @@ class _Punto extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(titulo,
-                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption),
               Text(texto == null || texto!.trim().isEmpty ? 'Ubicación en el mapa' : texto!,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: AppText.body.copyWith(fontWeight: AppText.medio)),
             ],
           ),
         ),
@@ -390,20 +421,25 @@ class _FilaMonto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final peso = destacado ? FontWeight.w800 : FontWeight.w500;
+    final base = destacado ? AppText.subtitle : AppText.caption;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
           child: Text(etiqueta,
-              style: TextStyle(
-                  fontWeight: peso, fontSize: destacado ? 15 : 13, color: color ?? AppColors.ink)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: base.copyWith(
+                  fontWeight: destacado ? AppText.fuerte : AppText.regular,
+                  color: color ?? AppColors.ink)),
         ),
         const SizedBox(width: AppSpacing.md),
+        // Figuras tabulares: es una columna de importes que se lee de arriba
+        // abajo, y sin ellas las unidades no alinean.
         Text(valor,
-            style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: destacado ? 16 : 14,
+            style: base.copyWith(
+                fontWeight: AppText.fuerte,
+                fontFeatures: const [FontFeature.tabularFigures()],
                 color: color ?? AppColors.ink)),
       ],
     );

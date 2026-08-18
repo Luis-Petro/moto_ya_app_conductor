@@ -72,7 +72,7 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             BrandMascota(height: 220),
             SizedBox(height: 16),
-            BrandWordmark(fontSize: 34),
+            BrandWordmark(tamano: 34),
             SizedBox(height: 2),
             Text('Conductor',
                 style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2)),

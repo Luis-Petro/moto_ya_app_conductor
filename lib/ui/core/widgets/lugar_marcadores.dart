@@ -164,8 +164,14 @@ class _MarcadorLugar extends StatelessWidget {
         color: colorDeCategoria(lugar.categoria),
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.surface, width: 2),
-        boxShadow: const [
-          BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 2)),
+        // Sombra teñida con la tinta de marca, no negro puro: sobre el verde de
+        // un parque o el gris de una manzana, el negro se lee como suciedad.
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withValues(alpha: 0.20),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Icon(
@@ -206,8 +212,12 @@ class _Etiqueta extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(4),
-        boxShadow: const [
-          BoxShadow(color: Color(0x22000000), blurRadius: 2, offset: Offset(0, 1)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withValues(alpha: 0.13),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
         ],
       ),
       child: Text(

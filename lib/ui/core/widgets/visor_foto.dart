@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 
 /// Foto a pantalla completa, con zoom y arrastre.
 ///
@@ -39,9 +40,14 @@ class VisorFoto extends StatelessWidget {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
+        // El negro es del visor, no del tema: es una caja de luz, no una
+        // superficie de la app. Por eso aquí sí hay blancos de Material.
         title: titulo == null
             ? null
-            : Text(titulo!, style: const TextStyle(fontSize: 16)),
+            : Text(titulo!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.subtitle.copyWith(color: Colors.white)),
       ),
       body: Center(
         child: InteractiveViewer(
@@ -64,17 +70,16 @@ class _NoCargo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(AppSpacing.lg),
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.broken_image_outlined, color: Colors.white70, size: 32),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            'No pudimos cargar la foto',
-            style: TextStyle(color: Colors.white70),
-          ),
+          const Icon(Icons.broken_image_outlined,
+              color: Colors.white70, size: 32),
+          const SizedBox(height: AppSpacing.sm),
+          Text('No pudimos cargar la foto',
+              style: AppText.body.copyWith(color: Colors.white70)),
         ],
       ),
     );
@@ -118,10 +123,8 @@ class FotoAmpliable extends StatelessWidget {
                     height: alto,
                     color: AppColors.mapPlaceholder,
                     alignment: Alignment.center,
-                    child: const Text(
-                      'No pudimos cargar la foto',
-                      style: TextStyle(color: AppColors.inkMuted, fontSize: 12),
-                    ),
+                    child: const Text('No pudimos cargar la foto',
+                        style: AppText.caption),
                   ),
                 ),
           ),

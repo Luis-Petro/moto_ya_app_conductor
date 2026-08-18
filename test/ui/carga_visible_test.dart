@@ -40,8 +40,8 @@ void main() {
       return (claro + 0.05) / (oscuro + 0.05);
     }
 
-    /// Color que se ve realmente: el relleno pintado con su opacidad sobre el
-    /// fondo. Es lo que el ojo compara, no el relleno a solas.
+    /// Color que se ve realmente cuando algo se pinta con opacidad sobre un
+    /// fondo. Es lo que el ojo compara, no el frente a solas.
     Color compuesto(Color frente, Color fondo, double opacidad) => Color.from(
       alpha: 1,
       red: opacidad * frente.r + (1 - opacidad) * fondo.r,
@@ -55,38 +55,43 @@ void main() {
     /// como "aquí no hay nada".
     const suelo = 1.4;
 
-    test('en su punto más apagado se distingue del fondo de la pantalla', () {
-      final ratio = contraste(
-        compuesto(
-          Skeleton.relleno,
-          AppColors.background,
-          Skeleton.opacidadMinima,
-        ),
-        AppColors.background,
-      );
+    /// Los dos extremos del degradado que barre el bloque.
+    ///
+    /// El esqueleto animaba la **opacidad** de un color sólido y aquí se medía
+    /// su punto más apagado. Ahora barre un degradado en un solo sentido (el
+    /// parpadeo hacía latir la pantalla entera a la vez), así que el peor caso
+    /// ya no es una opacidad: son los dos colores del degradado, y los dos
+    /// tienen que pasar. El suelo y los fondos medidos no cambian.
+    final extremos = <String, Color>{
+      'relleno': Skeleton.relleno,
+      'brillo': Skeleton.brillo,
+    };
 
-      expect(
-        ratio,
-        greaterThanOrEqualTo(suelo),
-        reason:
-            'El esqueleto queda en ${ratio.toStringAsFixed(2)}:1 contra el '
-            'fondo. Por debajo de $suelo:1 es una pantalla en blanco con un '
-            'AnimationController corriendo. Oscurece AppColors.skeleton o sube '
-            'Skeleton.opacidadMinima.',
-      );
-    });
+    for (final extremo in extremos.entries) {
+      test('el ${extremo.key} se distingue del fondo de la pantalla', () {
+        final ratio = contraste(extremo.value, AppColors.background);
 
-    test('también dentro de una tarjeta blanca', () {
-      // Los bloques del esqueleto de Inicio se pintan sobre `background`, pero
-      // el mismo widget se usa dentro de tarjetas: ahí el fondo es más claro y
-      // el contraste no puede caer por debajo del suelo.
-      final ratio = contraste(
-        compuesto(Skeleton.relleno, AppColors.surface, Skeleton.opacidadMinima),
-        AppColors.surface,
-      );
+        expect(
+          ratio,
+          greaterThanOrEqualTo(suelo),
+          reason:
+              'El ${extremo.key} del esqueleto queda en '
+              '${ratio.toStringAsFixed(2)}:1 contra el fondo. Por debajo de '
+              '$suelo:1 es una pantalla en blanco con un AnimationController '
+              'corriendo. Oscurece AppColors.skeleton o skeletonHighlight.',
+        );
+      });
 
-      expect(ratio, greaterThanOrEqualTo(suelo));
-    });
+      test('el ${extremo.key} también dentro de una tarjeta blanca', () {
+        // Los bloques del esqueleto de Inicio se pintan sobre `background`,
+        // pero el mismo widget se usa dentro de tarjetas: ahí el fondo es más
+        // claro y el contraste no puede caer por debajo del suelo.
+        expect(
+          contraste(extremo.value, AppColors.surface),
+          greaterThanOrEqualTo(suelo),
+        );
+      });
+    }
 
     test('los grises que fallaban siguen fallando la medición', () {
       // Guarda del guarda: si la fórmula se rompiera y devolviera siempre algo

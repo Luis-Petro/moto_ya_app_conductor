@@ -6,6 +6,7 @@ import '../../../di/locator.dart';
 import '../../../domain/models/lugar.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 import 'primary_button.dart';
 
 /// Hoja para que el conductor guarde el punto de una entrega como lugar del
@@ -116,15 +117,12 @@ class _ProponerLugarSheetState extends State<_ProponerLugarSheet> {
                 ),
               ),
             ),
-            const Text(
-              'Guardar este sitio',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-            ),
+            const Text('Guardar este sitio', style: AppText.title),
             const SizedBox(height: AppSpacing.xs),
-            const Text(
+            Text(
               'Se guarda el punto donde estás. Así el próximo cliente lo elige '
               'por nombre en vez de buscarlo en el mapa.',
-              style: TextStyle(color: AppColors.inkMuted),
+              style: AppText.body.copyWith(color: AppColors.inkMuted),
             ),
             const SizedBox(height: AppSpacing.lg),
             TextField(
@@ -172,7 +170,7 @@ class _ProponerLugarSheetState extends State<_ProponerLugarSheet> {
             const Text(
               'Un administrador lo revisa antes de que aparezca en la app de '
               'los clientes.',
-              style: TextStyle(fontSize: 12, color: AppColors.inkMuted),
+              style: AppText.caption,
             ),
           ],
         ),

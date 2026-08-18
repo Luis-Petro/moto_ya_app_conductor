@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 /// Muestra una calificación en estrellas (modo lectura).
+///
+/// La estrella **vacía** va en gris y no en el ámbar de las llenas. Iban las
+/// cinco del mismo color y a tamaño 16 —que es el de una fila de historial— una
+/// vacía y una llena no se distinguían, que es lo único que una calificación
+/// tiene que dejar claro. El ámbar sobre blanco da además 2,15:1, así que la
+/// vacía tampoco se veía al sol.
 class StarRating extends StatelessWidget {
   const StarRating({super.key, required this.value, this.size = 16});
 
@@ -18,7 +24,7 @@ class StarRating extends StatelessWidget {
         return Icon(
           filled ? Icons.star_rounded : Icons.star_outline_rounded,
           size: size,
-          color: AppColors.star,
+          color: filled ? AppColors.star : AppColors.starEmpty,
         );
       }),
     );
@@ -55,7 +61,7 @@ class StarRatingInput extends StatelessWidget {
             onPressed: () => onChanged(n),
             icon: Icon(
               filled ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: AppColors.star,
+              color: filled ? AppColors.star : AppColors.starEmpty,
             ),
           ),
         );

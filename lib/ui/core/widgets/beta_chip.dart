@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 
 /// Marca de "beta" de la app.
 ///
@@ -26,13 +27,9 @@ class BetaChip extends StatelessWidget {
       ),
       child: Text(
         compacto ? 'BETA' : 'Versión en pruebas',
-        style: const TextStyle(
-          fontSize: 10,
-          height: 1.3,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-          color: AppColors.primary,
-        ),
+        // `primaryInk`, no `primary`: es texto naranja sobre una superficie
+        // clara, el caso que no pasa AA (ver contraste_test.dart).
+        style: AppText.label.copyWith(color: AppColors.primaryInk),
       ),
     );
   }
@@ -73,7 +70,7 @@ class _PieVersionState extends State<PieVersion> {
           const SizedBox(height: AppSpacing.xs),
           Text(
             _version == null ? 'Zumbeo' : 'Zumbeo ${_version!}',
-            style: const TextStyle(fontSize: 11, color: AppColors.inkMuted),
+            style: AppText.caption,
           ),
         ],
       ),

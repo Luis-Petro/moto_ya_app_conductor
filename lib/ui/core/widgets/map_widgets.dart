@@ -7,6 +7,7 @@ import '../../../config/env.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/map_tile_cache.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
 /// Zoom mínimo de cualquier mapa de la app.
 ///
@@ -132,7 +133,10 @@ Widget osmAttribution() {
             Env.tilesGeoapify
                 ? '© OpenStreetMap contributors · Powered by Geoapify'
                 : '© OpenStreetMap contributors',
-            style: const TextStyle(fontSize: 9, color: AppColors.inkMuted),
+            // Más pequeño que `caption` a propósito: es la atribución exigida
+            // por la licencia, tiene que estar y tiene que poder leerse, pero no
+            // compite con nada de lo que hay sobre el mapa.
+            style: AppText.caption.copyWith(fontSize: 9),
           ),
         ),
       ),

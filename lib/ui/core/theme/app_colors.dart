@@ -104,8 +104,18 @@ class AppColors {
   /// silencioso.
   static const Color skeleton = Color(0xFFB3BAC5);
 
-  /// Brillo que recorre el esqueleto. Va sobre `skeleton`, no sobre el fondo.
-  static const Color skeletonHighlight = Color(0xFFF4F6F9);
+  /// Brillo que recorre el esqueleto.
+  ///
+  /// **Diverge de `app_cliente` por el mismo motivo que `skeleton`.** Allí es
+  /// `#F4F6F9`, casi el blanco del fondo: contra `background` da **1,01:1**, así
+  /// que la banda de brillo desaparece. En el cliente eso es un bache local en
+  /// una franja estrecha; aquí sería un trozo de pantalla que no está, al sol.
+  ///
+  /// Este valor es un `skeleton` **aclarado**, no un casi-blanco: el barrido se
+  /// lee como movimiento (1,84:1 en el bloque, 1,42:1 en la banda) sin que
+  /// ningún punto del ciclo baje del suelo. Lo comprueba
+  /// `test/ui/skeleton_visible_test.dart` en los dos extremos del degradado.
+  static const Color skeletonHighlight = Color(0xFFCDD3DC);
 
   static const Color star = Color(0xFFF5A623);
 

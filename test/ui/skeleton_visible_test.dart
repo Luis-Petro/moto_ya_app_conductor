@@ -33,67 +33,67 @@ double _contraste(Color a, Color b) {
   return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
 }
 
-/// Color efectivo de un bloque translúcido pintado sobre un fondo opaco.
-/// El `FadeTransition` del esqueleto no aclara el color: lo **mezcla** con lo
-/// que tiene detrás, y es esa mezcla la que hay que medir.
-Color _sobre(Color frente, Color fondo, double opacidad) => Color.fromARGB(
-      255,
-      (frente.r * 255 * opacidad + fondo.r * 255 * (1 - opacidad)).round(),
-      (frente.g * 255 * opacidad + fondo.g * 255 * (1 - opacidad)).round(),
-      (frente.b * 255 * opacidad + fondo.b * 255 * (1 - opacidad)).round(),
-    );
-
 void main() {
   /// Suelo medido. Por debajo de esto el bloque deja de leerse como "aquí va a
   /// llegar algo" y pasa a leerse como pantalla vacía.
   const suelo = 1.4;
 
-  test('el esqueleto se ve en el punto más apagado de su ciclo', () {
-    // Es el peor caso del ciclo, así que es el único que hace falta comprobar:
-    // si pasa apagado, pasa encendido.
-    final apagado = _sobre(
-      Skeleton.relleno,
-      AppColors.background,
-      Skeleton.opacidadMinima,
-    );
-    final ratio = _contraste(apagado, AppColors.background);
+  /// Los dos extremos del degradado que barre el bloque. **Los dos** tienen que
+  /// pasar: el brillo no es un detalle decorativo, es una banda que recorre todo
+  /// el bloque, y si se funde con el fondo lo que se ve es un trozo de pantalla
+  /// que falta.
+  final extremos = <String, Color>{
+    'relleno': Skeleton.relleno,
+    'brillo': Skeleton.brillo,
+  };
 
+  for (final extremo in extremos.entries) {
+    test('el ${extremo.key} del esqueleto se ve sobre el fondo', () {
+      final ratio = _contraste(extremo.value, AppColors.background);
+      expect(
+        ratio,
+        greaterThanOrEqualTo(suelo),
+        reason: 'El ${extremo.key} del bloque de carga da '
+            '${ratio.toStringAsFixed(2)}:1 contra el fondo (mínimo $suelo:1). '
+            'Aclararlo deja la pantalla en blanco al sol.',
+      );
+    });
+  }
+
+  test('el brillo es más claro que el relleno', () {
+    // Contraparte del caso anterior: los dos podrían pasar el suelo siendo el
+    // mismo color, y entonces el barrido no se vería aunque el test estuviera
+    // verde. Lo que se comprueba aquí es que hay animación que ver.
     expect(
-      ratio,
-      greaterThanOrEqualTo(suelo),
-      reason: 'El bloque de carga da ${ratio.toStringAsFixed(2)}:1 contra el '
-          'fondo en el punto apagado del ciclo (mínimo $suelo:1). Aclarar el '
-          'relleno o bajar `opacidadMinima` deja la pantalla en blanco al sol.',
+      _luminancia(Skeleton.brillo),
+      greaterThan(_luminancia(Skeleton.relleno)),
     );
   });
 
-  test('el esqueleto se ve también a opacidad plena', () {
-    final ratio = _contraste(Skeleton.relleno, AppColors.background);
-    expect(ratio, greaterThanOrEqualTo(suelo));
-  });
-
-  test('el relleno del esqueleto sale del token, no de un literal', () {
-    // Contraparte del caso anterior. Sin ella, `Skeleton.relleno` podría dejar
-    // de ser `AppColors.skeleton` y los dos casos de arriba seguirían en verde
-    // midiendo un color que la pantalla ya no pinta.
+  test('los colores del esqueleto salen de los tokens, no de literales', () {
+    // Sin esto, `Skeleton.relleno` podría dejar de ser `AppColors.skeleton` y
+    // los casos de arriba seguirían en verde midiendo colores que la pantalla
+    // ya no pinta.
     expect(Skeleton.relleno, AppColors.skeleton);
+    expect(Skeleton.brillo, AppColors.skeletonHighlight);
   });
 
-  test('el gris del cliente no serviría aquí', () {
+  test('los grises del cliente no servirían aquí', () {
     // Este caso no vigila el código: vigila la tentación. `app_cliente` usa
-    // #E8ECF1 para el mismo bloque y unificar "porque son la misma marca" es la
-    // forma exacta en que este valor se pierde. Si algún día ese gris pasa el
-    // suelo, este caso se pone rojo y la unificación deja de ser un riesgo.
-    const grisDelCliente = Color(0xFFE8ECF1);
-    final ratio = _contraste(
-      _sobre(grisDelCliente, AppColors.background, Skeleton.opacidadMinima),
-      AppColors.background,
-    );
-    expect(
-      ratio,
-      lessThan(suelo),
-      reason: 'Si el gris del cliente ya pasara el suelo, la divergencia de '
-          '`AppColors.skeleton` sobraría: revisar los dos tokens juntos.',
-    );
+    // #E8ECF1 y #F4F6F9 para lo mismo, y unificar "porque son la misma marca"
+    // es la forma exacta en que estos valores se pierden. El segundo es el que
+    // más engaña: es casi el color del fondo, así que la banda de brillo
+    // desaparece — en el cliente es un bache local, aquí sería un hueco al sol.
+    for (final gris in {
+      'skeleton': const Color(0xFFE8ECF1),
+      'skeletonHighlight': const Color(0xFFF4F6F9),
+    }.entries) {
+      expect(
+        _contraste(gris.value, AppColors.background),
+        lessThan(suelo),
+        reason: 'Si el ${gris.key} del cliente ya pasara el suelo, la '
+            'divergencia sobraría: revisar los dos tokens juntos.',
+      );
+    }
   });
 }

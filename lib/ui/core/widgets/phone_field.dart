@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 
 /// Campo de celular con prefijo de país (+57 Colombia).
 class PhoneField extends StatelessWidget {
@@ -16,25 +17,20 @@ class PhoneField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkMuted,
-                letterSpacing: 0.4)),
-        const SizedBox(height: 6),
+        Text(label.toUpperCase(), style: AppText.label),
+        const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
             Container(
-              height: 52,
+              constraints: const BoxConstraints(
+                  minHeight: AppSpacing.minTouchTarget + 8),
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: AppColors.primarySurface,
                 borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
               ),
-              child: const Text('co +57',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text('co +57', style: AppText.subtitle),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

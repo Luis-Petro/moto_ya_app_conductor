@@ -6,6 +6,7 @@ import '../../../data/services/app_version_service.dart';
 import '../../../di/locator.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 import 'mascota_animada.dart';
 
 /// A dónde manda el botón del banner, con qué texto y con qué icono.
@@ -112,12 +113,10 @@ class _BannerVersionState extends State<BannerVersion> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Versión ${nueva.version} disponible',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13)),
+                    style:
+                        AppText.subtitle.copyWith(fontWeight: AppText.fuerte)),
                 if ((nueva.notas ?? '').trim().isNotEmpty)
-                  Text(nueva.notas!.trim(),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.inkMuted)),
+                  Text(nueva.notas!.trim(), style: AppText.caption),
                 if (destino != null)
                   TextButton.icon(
                     onPressed: () => _abrir(destino.url),
@@ -125,7 +124,10 @@ class _BannerVersionState extends State<BannerVersion> {
                     label: Text(destino.etiqueta),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 32),
+                      // 44 y no 32: el aviso se descarta con un toque al lado y
+                      // el botón que lleva a la tienda era el más pequeño de la
+                      // pantalla.
+                      minimumSize: const Size(0, 44),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_elevation.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 import 'brand.dart';
 
 /// Bloque gris animado que ocupa el sitio del contenido mientras carga.
@@ -11,11 +13,10 @@ import 'brand.dart';
 /// llegar, y la espera deja de leerse como "se rompió".
 ///
 /// **Pero eso solo vale si se ve.** Este bloque se pintaba con `AppColors.line`
-/// (#E3E8EE) sobre `background` (#F7F8FA) y con la opacidad animando desde 0.4:
-/// en el punto apagado quedaba en #EFF2F5, **1,06:1** de contraste contra el
-/// fondo, y a opacidad plena 1,15:1. Al sol, en un celular de gama media, eso es
-/// una pantalla en blanco — y así llegó el reporte. El relleno y el suelo de
-/// opacidad de aquí están medidos, y hay un test que impide aclararlos.
+/// (#E3E8EE) sobre `background` (#F7F8FA): **1,06:1** de contraste contra el
+/// fondo en el punto apagado del ciclo. Al sol, en un celular de gama media, eso
+/// es una pantalla en blanco — y así llegó el reporte. Los dos colores de aquí
+/// están medidos y `test/ui/skeleton_visible_test.dart` impide aclararlos.
 class Skeleton extends StatefulWidget {
   const Skeleton({
     super.key,
@@ -24,13 +25,10 @@ class Skeleton extends StatefulWidget {
     this.radius = AppSpacing.radiusSm,
   });
 
-  /// Relleno del bloque. Expuesto para que el test mida el color de verdad y no
-  /// una copia del literal.
+  /// Los dos extremos del degradado que barre el bloque. Expuestos para que el
+  /// test mida los colores de verdad y no una copia de los literales.
   static const Color relleno = AppColors.skeleton;
-
-  /// Opacidad en el punto más apagado del ciclo. Es donde el contraste es peor,
-  /// así que es el valor que el test comprueba.
-  static const double opacidadMinima = 0.6;
+  static const Color brillo = AppColors.skeletonHighlight;
 
   final double? width;
   final double height;
@@ -42,10 +40,12 @@ class Skeleton extends StatefulWidget {
 
 class _SkeletonState extends State<Skeleton>
     with SingleTickerProviderStateMixin {
+  // Sin `reverse`: el brillo barre siempre en el mismo sentido, como una luz
+  // que pasa. De ida y vuelta parece un péndulo y delata que no pasa nada.
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
+    duration: const Duration(milliseconds: 1300),
+  )..repeat();
 
   @override
   void dispose() {
@@ -55,18 +55,64 @@ class _SkeletonState extends State<Skeleton>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween<double>(
-        begin: Skeleton.opacidadMinima,
-        end: 1,
-      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+    // Un brillo que recorre el bloque, no un parpadeo de opacidad. El parpadeo
+    // hace que la pantalla entera lata a la vez y cansa; el barrido se lee como
+    // "esto viene en camino".
+    //
+    // El brillo es un gris aclarado y no un casi-blanco (que es lo que usa
+    // `app_cliente`): aquí la banda tiene que seguir viéndose sobre el fondo,
+    // no desaparecer en él.
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = _controller.value;
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            gradient: LinearGradient(
+              begin: Alignment(-1 - 2 * (1 - t), 0),
+              end: Alignment(1 + 2 * t, 0),
+              colors: const [
+                Skeleton.relleno,
+                Skeleton.brillo,
+                Skeleton.relleno,
+              ],
+              stops: const [0.35, 0.5, 0.65],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Tarjeta fantasma: el contenedor real, con esqueletos dentro.
+///
+/// La tarjeta se pinta de verdad (superficie, borde, elevación) y solo el
+/// contenido es fantasma. Así el salto al llegar los datos es solo de texto: si
+/// el contenedor apareciera después, la lista entera se movería de sitio.
+class SkeletonCard extends StatelessWidget {
+  const SkeletonCard({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        boxShadow: AppElevation.carta,
+      ),
       child: Container(
-        width: widget.width,
-        height: widget.height,
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: Skeleton.relleno,
-          borderRadius: BorderRadius.circular(widget.radius),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(color: AppColors.line),
         ),
+        child: child,
       ),
     );
   }
@@ -116,9 +162,8 @@ class SkeletonInicio extends StatelessWidget {
                   if (tieneIdentidad)
                     Text(
                       nombre!,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                      style: AppText.subtitle.copyWith(
+                        fontWeight: AppText.fuerte,
                       ),
                     )
                   else

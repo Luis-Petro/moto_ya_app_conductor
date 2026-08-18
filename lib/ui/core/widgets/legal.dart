@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/env.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text.dart';
 
 /// Abre una URL legal en el navegador del sistema.
 ///
@@ -52,8 +53,7 @@ class EnlacesLegales extends StatelessWidget {
           etiqueta: 'Términos y condiciones',
           url: Env.terminosUrl,
         ),
-        const Text('·',
-            style: TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+        const Text('·', style: AppText.caption),
         _EnlaceLegal(
           etiqueta: 'Política de privacidad',
           url: Env.privacidadUrl,
@@ -75,11 +75,11 @@ class _EnlaceLegal extends StatelessWidget {
       onPressed: () => abrirEnlaceLegal(context, url),
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-        minimumSize: const Size(0, 40),
+        minimumSize: const Size(0, AppSpacing.minTouchTarget),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         foregroundColor: AppColors.inkMuted,
       ),
-      child: Text(etiqueta, style: const TextStyle(fontSize: 12)),
+      child: Text(etiqueta, style: AppText.caption),
     );
   }
 }
@@ -123,13 +123,14 @@ class _TextoAceptacionLegalState extends State<TextoAceptacionLegal> {
 
   @override
   Widget build(BuildContext context) {
-    const base = TextStyle(fontSize: 13, color: AppColors.ink);
-    const enlace = TextStyle(
-      fontSize: 13,
-      color: AppColors.primary,
-      fontWeight: FontWeight.w600,
+    const base = AppText.body;
+    // `primaryInk` y subrayado: el naranja de marca sobre blanco da 3,1:1, y
+    // esto es texto pequeño que además hay que reconocer como enlace.
+    final enlace = AppText.body.copyWith(
+      color: AppColors.primaryInk,
+      fontWeight: AppText.medio,
       decoration: TextDecoration.underline,
-      decorationColor: AppColors.primary,
+      decorationColor: AppColors.primaryInk,
     );
     return Text.rich(
       TextSpan(

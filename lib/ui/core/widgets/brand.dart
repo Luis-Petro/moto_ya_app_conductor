@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
 /// Ruta del logo de marca (lockup: moto + "Zumbeo · Tu domicilio, ya.").
 const String kLogoAsset = 'assets/images/logo.webp';
@@ -8,22 +9,34 @@ const String kLogoAsset = 'assets/images/logo.webp';
 /// Ruta de la mascota de marca, cuerpo completo y fondo transparente.
 const String kMascotaAsset = 'assets/images/mascota.png';
 
-/// Mascota Zumbeo. Es la cara de la marca en splash, login y pantallas vacías.
+/// Mascota Zumbeo. Es la cara de la marca en splash, login y onboarding.
 ///
 /// Va sin el nombre horneado dentro: el wordmark se compone al lado con
 /// [BrandWordmark], que usa la fuente de la app y se lee igual en cualquier
 /// tamaño (el texto dentro de un PNG se deshace al reducirlo).
+///
+/// [alineacion] permite encuadrar una parte —cuerpo entero, medio cuerpo o
+/// cabeza— de la misma ilustración, que es como el onboarding consigue tres
+/// láminas distintas sin tres dibujos distintos.
 class BrandMascota extends StatelessWidget {
-  const BrandMascota({super.key, this.height = 160});
+  const BrandMascota({
+    super.key,
+    this.height = 160,
+    this.alineacion = Alignment.center,
+    this.encuadre = BoxFit.contain,
+  });
 
   final double height;
+  final Alignment alineacion;
+  final BoxFit encuadre;
 
   @override
   Widget build(BuildContext context) {
     return Image.asset(
       kMascotaAsset,
       height: height,
-      fit: BoxFit.contain,
+      fit: encuadre,
+      alignment: alineacion,
       semanticLabel: 'Zumbeo',
     );
   }
@@ -72,19 +85,23 @@ class BrandLogo extends StatelessWidget {
 }
 
 /// Texto de marca "Zumbeo".
+///
+/// El parámetro se llama [tamano] y no `fontSize` a propósito: con ese nombre,
+/// una llamada legítima al wordmark era indistinguible de una pantalla
+/// declarando su propia tipografía, y `tokens_ui_test.dart` no puede saber la
+/// diferencia leyendo el código.
 class BrandWordmark extends StatelessWidget {
-  const BrandWordmark({super.key, this.fontSize = 28, this.color});
+  const BrandWordmark({super.key, this.tamano = 28, this.color});
 
-  final double fontSize;
+  final double tamano;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return RichText(
       text: TextSpan(
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w800,
+        style: AppText.display.copyWith(
+          fontSize: tamano,
           color: color ?? AppColors.ink,
           letterSpacing: -0.5,
         ),
@@ -132,10 +149,12 @@ class InitialsAvatar extends StatelessWidget {
       onForegroundImageError: tieneFoto ? (_, __) {} : null,
       child: Text(
         initials,
-        style: TextStyle(
+        // El tamaño sale del radio, no de la escala: el avatar se usa a seis
+        // diámetros distintos y las iniciales tienen que llenarlo en todos.
+        style: AppText.subtitle.copyWith(
           color: foreground,
-          fontWeight: FontWeight.w700,
           fontSize: radius * 0.8,
+          height: 1,
         ),
       ),
     );

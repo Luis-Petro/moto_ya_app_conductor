@@ -130,9 +130,12 @@ Widget osmAttribution() {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
           child: Text(
-            Env.tilesGeoapify
+            Env.tilesGeoapify || Env.ruteoGeoapify
                 ? '© OpenStreetMap contributors · Powered by Geoapify'
                 : '© OpenStreetMap contributors',
+            // A Geoapify se le acredita cuando sirve los tiles o cuando calculó
+            // las rutas que se dibujan: sus términos gratuitos lo exigen igual, y
+            // el ruteo lo decide el backend, no esta app.
             // Más pequeño que `caption` a propósito: es la atribución exigida
             // por la licencia, tiene que estar y tiene que poder leerse, pero no
             // compite con nada de lo que hay sobre el mapa.

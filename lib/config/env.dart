@@ -100,6 +100,18 @@ class Env {
   static bool get tilesGeoapify =>
       _tileUrlOverride.isEmpty && tileApiKey.isNotEmpty;
 
+  /// `true` cuando las rutas que dibuja la app las calculó Geoapify.
+  ///
+  /// Lo decide el backend (`RUTEO_BASE_URL`), no la app, así que esto es una
+  /// declaración: hoy es Geoapify y por eso el default es `true`. Existe porque
+  /// la atribución no puede depender solo de quién sirve los tiles — con tiles
+  /// de otra fuente y rutas de Geoapify, el crédito desaparecería sin que nadie
+  /// lo notara, y sus términos lo exigen igual.
+  static const bool ruteoGeoapify = bool.fromEnvironment(
+    'RUTEO_GEOAPIFY',
+    defaultValue: true,
+  );
+
   /// Client ID de Google para la verificación server-side del idToken.
   static const String googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',

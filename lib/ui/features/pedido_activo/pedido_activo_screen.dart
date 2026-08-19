@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:latlong2/latlong.dart';
 
+import '../../../data/models/polyline_codec.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/imagen_compresor.dart';
@@ -251,6 +252,18 @@ class _ActivoViewState extends State<_ActivoView> {
     final pedido = vm.pedido!;
     final centro =
         vm.puntoObjetivo ?? vm.posicion ?? LocationService.fallbackCenter;
+    // Trayecto recogida→entrega tal como lo calculó el backend. Esta pantalla no lo
+    // dibujaba: el mapa eran dos pines sueltos y el conductor no podía ver por dónde
+    // va el viaje sin salir a "Cómo llegar".
+    final ruta = PolylineCodec.decode(pedido.rutaPolyline);
+    // Encuadre que abarca ruta y pines. Con zoom fijo, un trayecto que no cabe en
+    // 150 px de alto deja la mitad fuera de pantalla sin que nada lo indique.
+    final puntosEncuadre = <LatLng>[
+      ...ruta,
+      if (pedido.origen != null) pedido.origen!,
+      if (pedido.destino != null) pedido.destino!,
+      if (vm.posicion != null) vm.posicion!,
+    ];
 
     return Scaffold(
       // Retroceso explícito: a esta pantalla se llega desde una notificación,
@@ -269,6 +282,10 @@ class _ActivoViewState extends State<_ActivoView> {
               options: MapOptions(
                 initialCenter: centro,
                 initialZoom: 15,
+                initialCameraFit: puntosEncuadre.length >= 2
+                    ? encuadreDePuntos(puntosEncuadre,
+                        padding: const EdgeInsets.all(16))
+                    : null,
                 minZoom: zoomMinimoMapa,
                 maxZoom: zoomMaximoMapa,
               ),
@@ -277,6 +294,16 @@ class _ActivoViewState extends State<_ActivoView> {
                 // Sin nombres: en 150 px de alto las etiquetas taparían los
                 // pines de recogida y entrega, que son el objetivo del viaje.
                 const LugaresLayer(mostrarNombres: false),
+                if (ruta.length >= 2)
+                  PolylineLayer(polylines: [
+                    Polyline(
+                      points: ruta,
+                      strokeWidth: 4,
+                      color: AppColors.primary,
+                      borderStrokeWidth: 1,
+                      borderColor: Colors.white,
+                    ),
+                  ]),
                 MarkerLayer(
                   markers: [
                     if (pedido.origen != null)

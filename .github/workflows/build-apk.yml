@@ -107,14 +107,33 @@ jobs:
           if [ -z "${TILE_API_KEY:-}" ]; then
             echo "::warning::Sin TILE_API_KEY: el mapa usará los tiles de openstreetmap.org, que no permiten este uso. Añade el secret en el environment 'prod'."
           fi
+          # --obfuscate renombra los símbolos de Dart en el binario. No impide
+          # decompilar, pero convierte un APK que se lee como código fuente
+          # —nombres de clases, endpoints, la lógica de la comisión— en algo que
+          # cuesta trabajo. --split-debug-info es obligatorio con él: saca los
+          # símbolos a un directorio aparte, que se sube como artefacto porque
+          # sin ellos una traza de error de producción es ilegible.
           flutter build apk --release \
+            --obfuscate --split-debug-info=build/simbolos \
             --build-number=${{ github.run_number }} \
             --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
             --dart-define=TILE_API_KEY="$TILE_API_KEY"
           flutter build appbundle --release \
+            --obfuscate --split-debug-info=build/simbolos \
             --build-number=${{ github.run_number }} \
             --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
             --dart-define=TILE_API_KEY="$TILE_API_KEY"
+
+      # Sin estos símbolos, una traza de un crash del release no se puede leer.
+      # Van con el mismo número de build que el binario que los produjo: son
+      # inútiles si no se sabe a qué APK corresponden.
+      - name: Upload símbolos de depuración
+        uses: actions/upload-artifact@v4
+        with:
+          name: zumbeo-conductor-simbolos-${{ github.run_number }}
+          path: build/simbolos
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

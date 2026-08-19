@@ -29,11 +29,21 @@
          exige: la app deja ponerse en linea aunque el conductor la rechace. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- Sin usesCleartextTraffic: el backend es HTTPS y permitir texto claro en
-         toda la app solo abre una via de interceptacion en redes publicas. -->
+    <!-- android:allowBackup="false" y dataExtractionRules vacias: sin esto, los
+         datos de la app se pueden extraer por ADB en telefonos con depuracion
+         activada y viajan en la transferencia a un telefono nuevo. Ahi dentro
+         esta la sesion del conductor. El almacenamiento cifrado protege del
+         acceso de otras apps, no de una copia completa de los datos.
+
+         networkSecurityConfig declara explicitamente que nada viaja en texto
+         claro: el default de Android ya lo hace, pero es un default. -->
     <application
         android:label="Zumbeo Conductor"
         android:name=".ZumbeoApplication"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

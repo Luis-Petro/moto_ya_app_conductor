@@ -21,22 +21,53 @@ class TrackingService {
   StreamController<EventoTracking>? _controller;
   int? _pedidoId;
 
+  /// Token con el que se abrió el canal vigente. Sirve para detectar que la
+  /// sesión cambió (otra cuenta entró en el mismo teléfono) y rehacer la
+  /// conexión: el CONNECT lleva el token, así que un canal abierto con el
+  /// anterior seguiría hablando en nombre de quien ya no está.
+  String? _tokenDelCanal;
+
   /// Stream de eventos del pedido suscrito. Broadcast para múltiples oyentes.
   Stream<EventoTracking> connect(int pedidoId) {
     disconnect();
     _pedidoId = pedidoId;
     final controller = StreamController<EventoTracking>.broadcast();
     _controller = controller;
+    _activar(controller); // resuelve la sesión y activa el cliente (async)
+    return controller.stream;
+  }
+
+  /// Abre el canal, pero solo si hay sesión: el backend **rechaza el CONNECT sin
+  /// token**, así que activar el cliente sin ella sería un reintento cada cuatro
+  /// segundos contra un servidor que va a decir que no siempre.
+  Future<void> _activar(StreamController<EventoTracking> controller) async {
+    final sesion = await _session.leer();
+    if (!identical(_controller, controller)) return; // se cerró mientras se leía
+    final token = sesion?.token;
+    if (token == null || token.isEmpty) {
+      disconnect();
+      return;
+    }
+    _tokenDelCanal = token;
+
+    // El CONNECT se manda después de `beforeConnect`, así que basta con rellenar
+    // este mapa ahí: el frame se construye con lo que tenga en ese momento. Y se
+    // rellena en cada reconexión, no solo en la primera, que es lo que hace que
+    // un token renovado entre solo.
+    final headers = <String, String>{'Authorization': 'Bearer $token'};
 
     _client = StompClient(
       config: StompConfig.sockJS(
         url: Env.wsTrackingUrl,
         reconnectDelay: const Duration(seconds: 4),
         onConnect: _onConnect,
+        stompConnectHeaders: headers,
         beforeConnect: () async {
           final sesion = await _session.leer();
-          if (sesion != null) {
-            // Header opcional por si el endpoint exige token en el CONNECT.
+          final token = sesion?.token;
+          if (token != null && token.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $token';
+            _tokenDelCanal = token;
           }
         },
         onWebSocketError: (_) {/* el reconnectDelay reintenta */},
@@ -44,7 +75,21 @@ class TrackingService {
       ),
     );
     _client!.activate();
-    return controller.stream;
+  }
+
+  /// Rehace el canal si la sesión ya no es la que lo abrió. Sin esto, cerrar
+  /// sesión y entrar con otra cuenta dejaba vivo un canal autenticado como el
+  /// usuario anterior hasta que alguien cambiara de pantalla.
+  Future<void> revisarSesion() async {
+    final id = _pedidoId;
+    if (id == null) return;
+    final sesion = await _session.leer();
+    if (sesion?.token == _tokenDelCanal) return;
+    if (sesion == null) {
+      disconnect();
+      return;
+    }
+    connect(id);
   }
 
   void _onConnect(StompFrame frame) {
@@ -86,5 +131,6 @@ class TrackingService {
     _controller?.close();
     _controller = null;
     _pedidoId = null;
+    _tokenDelCanal = null;
   }
 }

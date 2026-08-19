@@ -5,6 +5,7 @@ import 'package:app_conductor/data/services/notificacion_service.dart';
 import 'package:app_conductor/data/services/push_service.dart';
 import 'package:app_conductor/data/services/session_storage.dart';
 import 'package:app_conductor/data/services/social_auth_service.dart';
+import 'package:app_conductor/data/services/tracking_service.dart';
 import 'package:app_conductor/domain/models/rol.dart';
 import 'package:app_conductor/domain/models/sesion.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,8 @@ class _MockNotificaciones extends Mock implements NotificacionService {}
 
 class _MockPush extends Mock implements PushService {}
 
+class _MockTracking extends Mock implements TrackingService {}
+
 class _FakeSesion extends Fake implements Sesion {}
 
 void main() {
@@ -32,6 +35,7 @@ void main() {
   late _MockSession session;
   late _MockNotificaciones notificaciones;
   late _MockPush push;
+  late _MockTracking tracking;
   late AuthRepository repo;
 
   const sesion = Sesion(token: 'jwt-123', usuarioId: 7, rol: Rol.cliente);
@@ -42,7 +46,8 @@ void main() {
     session = _MockSession();
     notificaciones = _MockNotificaciones();
     push = _MockPush();
-    repo = AuthRepository(auth, social, session, notificaciones, push);
+    tracking = _MockTracking();
+    repo = AuthRepository(auth, social, session, notificaciones, push, tracking);
 
     when(() => session.guardar(any())).thenAnswer((_) async {});
     when(() => push.obtenerToken()).thenAnswer((_) async => null);

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ separa la copia en la nube de la transferencia entre dispositivos,
+  y `allowBackup="false"` solo cubre la primera. Sin este archivo, los datos de
+  la app —incluida la sesion— viajan al telefono nuevo en una transferencia
+  directa, que es justo el caso mas comun al cambiar de equipo.
+
+  Se excluye todo en las dos vias. Volver a entrar con el correo y la contrasena
+  cuesta veinte segundos; una sesion clonada en un telefono que ya no es el suyo
+  no caduca hasta que caduque el token.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

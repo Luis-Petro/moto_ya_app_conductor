@@ -40,8 +40,15 @@ class OfertasService {
   }
 
   Future<void> _activar() async {
-    final headers = await _authHeaders();
+    final sesion = await _session.leer();
     if (_controller == null) return; // desconectado mientras se leía la sesión
+    if (sesion == null || sesion.token.isEmpty) {
+      // El backend rechaza el CONNECT sin token. Sin sesión no hay cola personal
+      // que escuchar, y activar igual sería reintentar cada cuatro segundos
+      // contra un servidor que va a decir que no siempre.
+      disconnect();
+      return;
+    }
     _client = StompClient(
       config: StompConfig.sockJS(
         url: Env.wsTrackingUrl,
@@ -49,18 +56,12 @@ class OfertasService {
         onConnect: _onConnect,
         // El JWT viaja como header nativo del frame CONNECT; el backend fija el
         // Principal de la sesión para enrutar `/user/queue/**`.
-        stompConnectHeaders: headers,
+        stompConnectHeaders: {'Authorization': 'Bearer ${sesion.token}'},
         onWebSocketError: (_) {/* reconnectDelay reintenta */},
         onStompError: (_) {},
       ),
     );
     _client!.activate();
-  }
-
-  Future<Map<String, String>> _authHeaders() async {
-    final sesion = await _session.leer();
-    if (sesion == null) return const {};
-    return {'Authorization': 'Bearer ${sesion.token}'};
   }
 
   void _onConnect(StompFrame frame) {

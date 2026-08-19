@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nada de esta app viaja en texto claro.
+
+  El default de Android ya es `cleartextTrafficPermitted="false"` desde API 28,
+  pero es un default: cualquier librería que añada su propia configuración de red,
+  o una rebaja futura del targetSdk, lo cambian sin que nada falle a la vista. Y
+  el fallo, cuando llega, es que el JWT del conductor y las coordenadas de un
+  pedido viajan legibles por el wifi de una plaza.
+
+  Se declara explícito y sin excepciones: no hay `domain-config` con
+  `localhost`, porque una excepción para desarrollo que se cuela en el release es
+  precisamente la forma en que esto se rompe.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

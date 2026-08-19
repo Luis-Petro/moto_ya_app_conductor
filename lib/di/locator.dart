@@ -68,6 +68,7 @@ void configurarDependencias() {
         locator<SessionStorage>(),
         locator<NotificacionService>(),
         locator<PushService>(),
+        locator<TrackingService>(),
       ));
   locator.registerLazySingleton(() => UsuarioRepository(locator()));
   locator.registerLazySingleton(() => MunicipioRepository(locator()));

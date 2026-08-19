@@ -10,6 +10,7 @@ import '../services/notificacion_service.dart';
 import '../services/push_service.dart';
 import '../services/session_storage.dart';
 import '../services/social_auth_service.dart';
+import '../services/tracking_service.dart';
 
 /// Fuente de verdad de la autenticación. Expone el estado de sesión de forma
 /// reactiva (para los guards de ruta) y orquesta los canales de login.
@@ -20,6 +21,7 @@ class AuthRepository extends ChangeNotifier {
     this._session,
     this._notificaciones,
     this._push,
+    this._tracking,
   ) {
     // FCM rota el token por su cuenta: al reinstalar la app, al borrar datos y
     // cada cierto tiempo. Cuando eso pasa, el que tiene el backend deja de
@@ -39,6 +41,7 @@ class AuthRepository extends ChangeNotifier {
   final SessionStorage _session;
   final NotificacionService _notificaciones;
   final PushService _push;
+  final TrackingService _tracking;
 
   Sesion? _sesion;
   Sesion? get sesion => _sesion;
@@ -125,6 +128,10 @@ class AuthRepository extends ChangeNotifier {
       // Un token huérfano solo produce pushes fallidos; no bloquea el logout.
     }
     await _session.borrar();
+    // El canal de tiempo real se autentica con el token en su CONNECT: si no se
+    // cierra aquí, la conexión sigue viva —y suscrita— con la sesión que se
+    // acaba de cerrar, hasta que alguien cambie de pantalla.
+    _tracking.disconnect();
     _sesion = null;
     notifyListeners();
   }
@@ -132,6 +139,7 @@ class AuthRepository extends ChangeNotifier {
   /// Invocado por el ApiClient ante un 401 (sesión expirada).
   Future<void> sesionExpirada() async {
     await _session.borrar();
+    _tracking.disconnect();
     _sesion = null;
     notifyListeners();
   }

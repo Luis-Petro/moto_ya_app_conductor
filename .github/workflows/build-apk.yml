@@ -39,6 +39,12 @@ jobs:
     runs-on: ubuntu-latest
     # Da acceso a los secrets del entorno `prod` (ADMIN_EMAIL/ADMIN_PASSWORD).
     environment: prod
+    # `actions: write` es lo que permite borrar artifacts de corridas anteriores
+    # (paso "Liberar cuota de artifacts"). Se declaran los dos porque nombrar el
+    # bloque `permissions` deja el resto en `none`.
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +101,42 @@ jobs:
       # El versionCode sale del número de build: Play exige uno estrictamente mayor
       # en cada subida y no se puede reutilizar. El versionName sigue saliendo del
       # pubspec, que es donde se declara la versión a mano.
+      # La cuota de almacenamiento de artifacts es de la CUENTA, no del repo: la
+      # comparten los seis. Al agotarse, `upload-artifact` falla con "Artifact
+      # storage quota has been hit" en el repo que corra después, que no tiene por
+      # qué ser el que la llenó — pasó una vez en el cliente con este mismo
+      # workflow intacto. Se libera aquí, ANTES de subir nada, para que el espacio
+      # esté disponible en esta misma corrida. GitHub recalcula el uso cada 6–12 h,
+      # así que el desbloqueo puede no ser inmediato.
+      - name: Liberar cuota de artifacts
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const CORRIDAS_A_CONSERVAR = 3;
+            const { owner, repo } = context.repo;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 },
+            );
+            const vivos = artifacts.filter((a) => !a.expired);
+            // Se conservan las N corridas más recientes (por id, que es creciente),
+            // no los N artifacts: cada corrida sube varios y borrar a medias deja
+            // símbolos sin su binario, que es justo la pareja que hace falta junta.
+            const corridas = [...new Set(vivos.map((a) => a.workflow_run?.id).filter(Boolean))]
+              .sort((a, b) => b - a)
+              .slice(0, CORRIDAS_A_CONSERVAR);
+            const conservar = new Set([...corridas, context.runId]);
+            let borrados = 0;
+            let bytes = 0;
+            for (const a of vivos) {
+              if (conservar.has(a.workflow_run?.id)) continue;
+              await github.rest.actions.deleteArtifact({ owner, repo, artifact_id: a.id });
+              borrados += 1;
+              bytes += a.size_in_bytes;
+            }
+            core.info(`Artifacts borrados: ${borrados} (${(bytes / 1e6).toFixed(0)} MB liberados).`);
+
       - name: Build release APK y App Bundle
         env:
           # Clave de Geoapify (tiles del mapa), secret del environment `prod`.
@@ -118,16 +160,30 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
             --dart-define=TILE_API_KEY="$TILE_API_KEY"
-          flutter build appbundle --release \
-            --obfuscate --split-debug-info=build/simbolos \
-            --build-number=${{ github.run_number }} \
-            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
-            --dart-define=TILE_API_KEY="$TILE_API_KEY"
+          # El .aab solo se construye bajo demanda: es lo que se sube a Play a mano,
+          # no hace falta en cada commit, y son ~50 MB de cuota de artifacts por
+          # corrida y por app — la mitad del consumo que agotó el almacenamiento.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            flutter build appbundle --release \
+              --obfuscate --split-debug-info=build/simbolos \
+              --build-number=${{ github.run_number }} \
+              --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
+              --dart-define=TILE_API_KEY="$TILE_API_KEY"
+          else
+            echo "Sin .aab: se construye solo con 'Run workflow' (workflow_dispatch)."
+          fi
 
       # Sin estos símbolos, una traza de un crash del release no se puede leer.
       # Van con el mismo número de build que el binario que los produjo: son
       # inútiles si no se sabe a qué APK corresponden.
+      #
+      # Los tres uploads van con `continue-on-error`: la cuota de artifacts es un
+      # recurso compartido de la cuenta y puede agotarla otro repo, así que no
+      # puede decidir si el APK llega al panel admin (el paso de abajo), que es lo
+      # único que este workflow existe para lograr. El fallo sigue viéndose en rojo
+      # en el paso, pero ya no tumba el job.
       - name: Upload símbolos de depuración
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: zumbeo-conductor-simbolos-${{ github.run_number }}
@@ -135,17 +191,23 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      # Retención corta a propósito: el APK se publica además en el panel admin
+      # (R2) en el paso final, que es de donde se instala. Este artifact es solo
+      # para bajarlo desde la corrida.
       - name: Upload APK artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: zumbeo-conductor-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       # El .aab es lo que se sube a Play (a mano la primera vez: una ficha nueva no
-      # acepta la primera subida por API).
+      # acepta la primera subida por API). Solo existe en las corridas manuales.
       - name: Upload App Bundle artifact
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: zumbeo-conductor-aab

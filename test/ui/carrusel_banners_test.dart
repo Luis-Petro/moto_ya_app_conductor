@@ -139,7 +139,41 @@ void main() {
     // La primera página del carrusel es la tarjeta de versión; el banner queda
     // detrás. Es información de la propia app: no puede ir tras una promoción.
     expect(find.byType(TarjetaVersion), findsOneWidget);
-    expect(find.text('Versión 1.1.0 disponible'), findsOneWidget);
+    // El número de versión sigue en el titular: es lo que hace reproducible un
+    // reporte, y por eso el rediseño no lo movió a un sitio más pequeño.
+    expect(find.text('Ya está lista la versión 1.1.0'), findsOneWidget);
+    expect(find.text('NUEVA VERSIÓN'), findsOneWidget);
+    await desmontar(tester);
+  });
+
+  testWidgets('el aviso de versión cabe en un teléfono sin desbordar',
+      (tester) async {
+    // La caja es 16:6, así que en un teléfono de 360 dp son ~135 dp de alto para
+    // el antetítulo, el titular, el apoyo y el botón. Ahí es donde esto se rompe,
+    // y el ancho por defecto del test (800 dp) no lo prueba: un desbordamiento se
+    // vería como las franjas amarillas de Flutter encima del Inicio.
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    when(() => version.nuevaVersionDisponible()).thenAnswer(
+      (_) async => const VersionVigente(
+        version: '1.4.0',
+        notas: 'Arreglos en el mapa y en los avisos de pedido.',
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=com.zumbeo.conductor',
+      ),
+    );
+
+    await montar(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Ya está lista la versión 1.4.0'), findsOneWidget);
+    // El texto se escala si no cabe, pero el botón que lleva a la tienda no:
+    // encogerlo le quitaría área táctil. (El destino es el de Play porque el
+    // entorno de test no es iOS.)
+    final boton = tester.getSize(
+        find.widgetWithText(InkWell, 'Actualizar en Google Play'));
+    expect(boton.height, greaterThanOrEqualTo(44));
     await desmontar(tester);
   });
 

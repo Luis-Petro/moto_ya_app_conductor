@@ -79,60 +79,184 @@ class TarjetaVersion extends StatelessWidget {
       playStoreUrl: nueva.playStoreUrl,
       appStoreUrl: nueva.appStoreUrl,
     );
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.primarySurface,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(color: AppColors.primary),
+    final notas = (nueva.notas ?? '').trim();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: LayoutBuilder(
+        builder: (context, caja) => ColoredBox(
+          color: AppColors.primarySurface,
+          child: Stack(
+            children: [
+              // Lo único decorativo: el disco suave del fondo. Se dimensiona con
+              // la caja porque el carrusel deriva la altura del ancho de la
+              // pantalla, así que un tamaño fijo se vería enorme en una tablet.
+              // El color sale del token de marca y no de un literal: si la
+              // paleta cambia, esto cambia con ella.
+              Positioned(
+                right: -caja.maxHeight * 0.45,
+                top: -caja.maxHeight * 0.35,
+                child: Container(
+                  width: caja.maxHeight * 1.6,
+                  height: caja.maxHeight * 1.6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primaryLight.withValues(alpha: 0.22),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, AppSpacing.sm, 0, AppSpacing.sm),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // El texto va dentro de un `FittedBox` y el botón
+                          // fuera, a propósito: el carrusel da una altura fija
+                          // (la del ratio de las imágenes) y en una pantalla
+                          // estrecha el texto podría no caber. Escalar el texto
+                          // es feo una vez y desbordar es feo siempre —serían
+                          // las franjas amarillas de Flutter encima del Inicio—,
+                          // pero escalar el botón encogería su área táctil, y
+                          // esa no se negocia.
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, texto) => FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: SizedBox(
+                                  width: texto.maxWidth,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'NUEVA VERSIÓN',
+                                        style: AppText.label.copyWith(
+                                            color: AppColors.primaryInk),
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(
+                                        'Ya está lista la versión ${nueva.version}',
+                                        style: AppText.subtitle.copyWith(
+                                            fontWeight: AppText.fuerte),
+                                      ),
+                                      // `inkMuted` sobre `primarySurface` da
+                                      // 4,35:1 y no llega a AA —el test de
+                                      // contraste cubre ese gris sobre las
+                                      // superficies blancas, no sobre esta—, así
+                                      // que aquí el apoyo va en tinta.
+                                      Text(
+                                        notas.isEmpty
+                                            ? 'Actualiza desde tu tienda de apps.'
+                                            : notas,
+                                        style: AppText.caption
+                                            .copyWith(color: AppColors.ink),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (destino != null) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            _BotonTienda(
+                                destino: destino,
+                                onPulsar: () => _abrir(destino.url)),
+                          ],
+                        ],
+                      ),
+                    ),
+                    // La mascota con el teléfono en la mano, en vez del icono de
+                    // sistema. El aviso no es un momento de espera, así que va
+                    // quieta: aquí la mascota es identidad de marca, no
+                    // acompañamiento.
+                    MascotaAnimada(
+                      pose: PoseMascota.actualizar,
+                      alto: caja.maxHeight * 0.86,
+                    ),
+                  ],
+                ),
+              ),
+              // El velo oscuro que llevan los banners de imagen se vería como una
+              // mancha sobre un fondo claro; un disco blanco translúcido logra lo
+              // mismo —que la equis se lea también encima de la mascota— sin
+              // ensuciar la tarjeta.
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Material(
+                  color: AppColors.surface.withValues(alpha: 0.72),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: 'Descartar',
+                    onPressed: onDescartar,
+                    iconSize: 18,
+                    color: AppColors.ink,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      // El carrusel da una altura fija a todas las tarjetas (la del ratio de las
-      // imágenes). En una pantalla muy estrecha el texto de esta podría no
-      // caber, y un desbordamiento se vería como las franjas amarillas de Flutter
-      // encima del Inicio: escalar es feo una vez, desbordar es feo siempre.
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // La mascota con el teléfono en la mano, en vez del icono de sistema.
-            // El banner no es un momento de espera, así que va quieta: aquí la
-            // mascota es identidad de marca, no acompañamiento.
-            const MascotaAnimada(pose: PoseMascota.actualizar, alto: 48),
-            const SizedBox(width: AppSpacing.sm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+/// El botón que lleva a la tienda, como píldora de marca.
+///
+/// Va en azul marino y no en naranja: el naranja es el CTA del resto de la app y
+/// este aviso no compite con lo que el conductor vino a hacer. Sobre el marino, el
+/// blanco tiene contraste de sobra a cualquier tamaño, así que no le aplica la
+/// regla de los 19 dp que sí rige para el blanco sobre naranja.
+class _BotonTienda extends StatelessWidget {
+  const _BotonTienda({required this.destino, required this.onPulsar});
+
+  final DestinoActualizacion destino;
+  final VoidCallback onPulsar;
+
+  @override
+  Widget build(BuildContext context) {
+    final radio = BorderRadius.circular(AppSpacing.radiusLg);
+    return Material(
+      color: AppColors.accent,
+      borderRadius: radio,
+      child: InkWell(
+        onTap: onPulsar,
+        borderRadius: radio,
+        child: ConstrainedBox(
+          // 44 y no 32: el aviso se descarta con un toque al lado, y el botón que
+          // lleva a la tienda era el más pequeño de la pantalla.
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Versión ${nueva.version} disponible',
-                    style:
-                        AppText.subtitle.copyWith(fontWeight: AppText.fuerte)),
-                if ((nueva.notas ?? '').trim().isNotEmpty)
-                  Text(nueva.notas!.trim(), style: AppText.caption),
-                if (destino != null)
-                  TextButton.icon(
-                    onPressed: () => _abrir(destino.url),
-                    icon: Icon(destino.icono, size: 18),
-                    label: Text(destino.etiqueta),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      // 44 y no 32: el aviso se descarta con un toque al lado y
-                      // el botón que lleva a la tienda era el más pequeño de la
-                      // pantalla.
-                      minimumSize: const Size(0, 44),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
+                Icon(destino.icono, size: 16, color: AppColors.surface),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: Text(
+                    destino.etiqueta,
+                    style: AppText.caption.copyWith(
+                        color: AppColors.surface, fontWeight: AppText.fuerte),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
               ],
             ),
-            IconButton(
-              tooltip: 'Descartar',
-              onPressed: onDescartar,
-              icon: const Icon(Icons.close_rounded, size: 18),
-            ),
-          ],
+          ),
         ),
       ),
     );

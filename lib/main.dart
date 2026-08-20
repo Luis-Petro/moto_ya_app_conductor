@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'config/env.dart';
+import 'data/services/banner_image_store.dart';
 import 'data/services/map_tile_cache.dart';
 import 'di/locator.dart';
 import 'ui/core/theme/app_colors.dart';
@@ -24,6 +25,10 @@ Future<void> main() async {
   // mapa abierto todo el domicilio y recorre el mismo municipio a diario: sin
   // caché vuelve a descargar los mismos tiles con sus datos cada viaje.
   await MapTileCache.init();
+
+  // Misma idea con las imágenes de los banners: se bajan una vez y se sirven de
+  // disco durante 30 días. El conductor abre el Inicio decenas de veces al día.
+  await BannerImageStore.init();
 
   // Firebase es opcional: solo se inicializa si está habilitado y configurado.
   if (Env.fcmEnabled) {

@@ -9,6 +9,9 @@ import '../data/repositories/usuario_repository.dart';
 import '../data/services/api_client.dart';
 import '../data/services/app_version_service.dart';
 import '../data/services/auth_service.dart';
+import '../data/services/banner_descartes.dart';
+import '../data/services/banner_image_store.dart';
+import '../data/services/banner_service.dart';
 import '../data/services/feedback_service.dart';
 import '../data/services/billetera_service.dart';
 import '../data/services/conductor_service.dart';
@@ -60,6 +63,9 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => LugarService(locator()));
   locator.registerLazySingleton(() => FeedbackService(locator()));
   locator.registerLazySingleton(() => AppVersionService(locator()));
+  locator.registerLazySingleton(() => BannerService(locator()));
+  locator.registerLazySingleton(() => BannerImageStore());
+  locator.registerLazySingleton(() => BannerDescartes());
 
   // ── Repositories (fuente de verdad, modelos de dominio) ──
   locator.registerLazySingleton(() => AuthRepository(
@@ -69,6 +75,7 @@ void configurarDependencias() {
         locator<NotificacionService>(),
         locator<PushService>(),
         locator<TrackingService>(),
+        locator<BannerDescartes>(),
       ));
   locator.registerLazySingleton(() => UsuarioRepository(locator()));
   locator.registerLazySingleton(() => MunicipioRepository(locator()));

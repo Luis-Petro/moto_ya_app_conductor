@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/services/app_version_service.dart';
-import '../../../di/locator.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text.dart';
@@ -49,35 +48,25 @@ DestinoActualizacion? destinoActualizacion({
   );
 }
 
-/// Aviso de versión nueva disponible. Siempre **descartable**: no hay
-/// actualización forzada, así que nunca bloquea el uso de la app. Si la consulta
-/// falla o la versión instalada está al día, no se pinta nada.
+/// Aviso de versión nueva disponible, como **tarjeta del carrusel de avisos**
+/// (`CarruselBanners`), siempre la primera.
 ///
-/// Compara la versión instalada con la que el admin declaró como publicada en la
-/// tienda (los APK de prueba del panel no cuentan, ver `AppVersionService`), y el
-/// botón lleva a la tienda de la plataforma. Lo que se muestra son las novedades
-/// que escribió el admin para los usuarios — nunca datos internos del build.
-class BannerVersion extends StatefulWidget {
-  const BannerVersion({super.key});
+/// Va delante de cualquier banner publicado desde el panel porque es información
+/// funcional de la propia app: que quede detrás de una promoción es exactamente
+/// el orden equivocado.
+///
+/// Siempre **descartable**, y su descarte dura solo la sesión: una versión
+/// desactualizada no deja de estarlo porque el usuario cerrara el aviso una vez.
+/// El descarte persistente es de los banners del panel, que sí son campañas.
+class TarjetaVersion extends StatelessWidget {
+  const TarjetaVersion({
+    super.key,
+    required this.nueva,
+    required this.onDescartar,
+  });
 
-  @override
-  State<BannerVersion> createState() => _BannerVersionState();
-}
-
-class _BannerVersionState extends State<BannerVersion> {
-  VersionVigente? _nueva;
-  bool _descartado = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _consultar();
-  }
-
-  Future<void> _consultar() async {
-    final nueva = await locator<AppVersionService>().nuevaVersionDisponible();
-    if (mounted) setState(() => _nueva = nueva);
-  }
+  final VersionVigente nueva;
+  final VoidCallback onDescartar;
 
   Future<void> _abrir(String url) async {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -85,32 +74,37 @@ class _BannerVersionState extends State<BannerVersion> {
 
   @override
   Widget build(BuildContext context) {
-    final nueva = _nueva;
-    if (nueva == null || _descartado) return const SizedBox.shrink();
     final destino = destinoActualizacion(
       plataforma: defaultTargetPlatform,
       playStoreUrl: nueva.playStoreUrl,
       appStoreUrl: nueva.appStoreUrl,
     );
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.primarySurface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
         border: Border.all(color: AppColors.primary),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // La mascota con el teléfono en la mano, en vez del icono de sistema.
-          // El banner no es un momento de espera, así que va quieta: aquí la
-          // mascota es identidad de marca, no acompañamiento.
-          const MascotaAnimada(pose: PoseMascota.actualizar, alto: 48),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
+      // El carrusel da una altura fija a todas las tarjetas (la del ratio de las
+      // imágenes). En una pantalla muy estrecha el texto de esta podría no
+      // caber, y un desbordamiento se vería como las franjas amarillas de Flutter
+      // encima del Inicio: escalar es feo una vez, desbordar es feo siempre.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // La mascota con el teléfono en la mano, en vez del icono de sistema.
+            // El banner no es un momento de espera, así que va quieta: aquí la
+            // mascota es identidad de marca, no acompañamiento.
+            const MascotaAnimada(pose: PoseMascota.actualizar, alto: 48),
+            const SizedBox(width: AppSpacing.sm),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text('Versión ${nueva.version} disponible',
                     style:
@@ -133,13 +127,13 @@ class _BannerVersionState extends State<BannerVersion> {
                   ),
               ],
             ),
-          ),
-          IconButton(
-            tooltip: 'Descartar',
-            onPressed: () => setState(() => _descartado = true),
-            icon: const Icon(Icons.close_rounded, size: 18),
-          ),
-        ],
+            IconButton(
+              tooltip: 'Descartar',
+              onPressed: onDescartar,
+              icon: const Icon(Icons.close_rounded, size: 18),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -22,7 +22,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_elevation.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text.dart';
-import '../../core/widgets/banner_version.dart';
+import '../../core/widgets/carrusel_banners.dart';
 import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/elegir_foto_sheet.dart';
@@ -142,8 +142,11 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
                         delegate: SliverChildListDelegate([
                           _Header(vm: vm),
                           const SizedBox(height: AppSpacing.md),
-                          // Aviso de versión nueva (descartable, nunca bloquea).
-                          const BannerVersion(),
+                          // Franja de avisos: versión nueva (siempre primera) y
+                          // los banners que publica el panel. Sin avisos ocupa
+                          // cero, así que no separa el encabezado de lo que de
+                          // verdad bloquea el trabajo del conductor.
+                          const CarruselBanners(),
                           // Los avisos de puesta a punto de la cuenta van en
                           // una sola fila deslizable. Apilados eran cinco
                           // bloques del mismo naranja antes de llegar a nada, y

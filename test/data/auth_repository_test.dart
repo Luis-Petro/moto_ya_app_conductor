@@ -1,6 +1,7 @@
 ﻿import 'package:app_conductor/data/repositories/auth_repository.dart';
 import 'package:app_conductor/data/services/auth_service.dart';
 import 'package:app_conductor/data/services/api_result.dart';
+import 'package:app_conductor/data/services/banner_descartes.dart';
 import 'package:app_conductor/data/services/notificacion_service.dart';
 import 'package:app_conductor/data/services/push_service.dart';
 import 'package:app_conductor/data/services/session_storage.dart';
@@ -23,6 +24,8 @@ class _MockPush extends Mock implements PushService {}
 
 class _MockTracking extends Mock implements TrackingService {}
 
+class _MockDescartes extends Mock implements BannerDescartes {}
+
 class _FakeSesion extends Fake implements Sesion {}
 
 void main() {
@@ -36,6 +39,7 @@ void main() {
   late _MockNotificaciones notificaciones;
   late _MockPush push;
   late _MockTracking tracking;
+  late _MockDescartes descartes;
   late AuthRepository repo;
 
   const sesion = Sesion(token: 'jwt-123', usuarioId: 7, rol: Rol.cliente);
@@ -47,9 +51,12 @@ void main() {
     notificaciones = _MockNotificaciones();
     push = _MockPush();
     tracking = _MockTracking();
-    repo = AuthRepository(auth, social, session, notificaciones, push, tracking);
+    descartes = _MockDescartes();
+    repo = AuthRepository(
+        auth, social, session, notificaciones, push, tracking, descartes);
 
     when(() => session.guardar(any())).thenAnswer((_) async {});
+    when(() => descartes.borrar()).thenAnswer((_) async {});
     when(() => push.obtenerToken()).thenAnswer((_) async => null);
   });
 

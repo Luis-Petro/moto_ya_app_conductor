@@ -10,6 +10,7 @@ class BannerApp {
     required this.textoAlternativo,
     required this.descartable,
     this.enlaceUrl,
+    this.publicadoEn,
   });
 
   final int id;
@@ -24,6 +25,24 @@ class BannerApp {
   /// Adónde lleva el toque, o `null` si el aviso es solo informativo.
   final String? enlaceUrl;
 
+  /// Cuándo se publicó por última vez (cada vez que el administrador lo enciende).
+  ///
+  /// No es un dato de gestión: es lo que permite distinguir una publicación de
+  /// otra. Sin él, el descarte solo podía guardarse por id y un banner apagado y
+  /// vuelto a encender no reaparecía nunca en el teléfono de quien lo cerró.
+  final DateTime? publicadoEn;
+
+  /// Contra qué se guarda el descarte: el aviso **y** su publicación.
+  ///
+  /// `null` cuando el servidor no manda el instante —una versión anterior del
+  /// backend—: en ese caso el aviso nunca se considera descartado. Entre enseñar
+  /// un aviso de más y ocultar para siempre uno que el administrador acaba de
+  /// publicar, lo primero.
+  String? get claveDescarte {
+    final publicado = publicadoEn;
+    return publicado == null ? null : '$id:${publicado.millisecondsSinceEpoch}';
+  }
+
   static BannerApp fromJson(Map<String, dynamic> json) {
     return BannerApp(
       id: (json['id'] as num).toInt(),
@@ -31,6 +50,7 @@ class BannerApp {
       textoAlternativo: (json['textoAlternativo'] as String?) ?? '',
       descartable: json['descartable'] as bool? ?? true,
       enlaceUrl: json['enlaceUrl'] as String?,
+      publicadoEn: DateTime.tryParse((json['publicadoEn'] as String?) ?? ''),
     );
   }
 }

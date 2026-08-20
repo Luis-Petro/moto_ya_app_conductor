@@ -39,6 +39,11 @@ class _Aviso {
 
   /// Clave estable para `PageView`: la versión no tiene id numérico.
   Object get clave => banner?.id ?? 'version';
+
+  /// Identidad para comparar dos cargas. Incluye la publicación del banner: el
+  /// mismo aviso republicado es un aviso distinto.
+  String get firma =>
+      banner == null ? 'v:${version!.version}' : (banner!.claveDescarte ?? 'b:${banner!.id}');
 }
 
 /// Franja de avisos del Inicio: la versión nueva (siempre primera) y los banners
@@ -46,12 +51,16 @@ class _Aviso {
 ///
 /// Con un solo aviso se pinta fijo, sin indicadores ni movimiento. Con ninguno
 /// **ocupa cero**: nada de un hueco reservado esperando a que alguien publique.
-/// En esta app eso importa el doble, porque justo debajo van los avisos de la
-/// cuenta del conductor, que sí bloquean su trabajo.
 ///
 /// Cualquier fallo —la consulta, una imagen que no baja— se resuelve quitando
 /// ese aviso, nunca con un error en pantalla: esta franja no puede estorbar el
-/// uso normal de la app.
+/// uso normal de la app. En esta app eso importa el doble, porque justo debajo
+/// van los avisos de la cuenta del conductor, que sí bloquean su trabajo.
+///
+/// **Se refresca sin reiniciar la app**: al volver del segundo plano y al volver
+/// a esta pestaña. Cargar solo en `initState` significaba que un banner
+/// publicado ahora no se veía hasta que alguien matara la app y la abriera de
+/// nuevo, y eso es pedirle al usuario que haga algo para arreglar algo nuestro.
 class CarruselBanners extends StatefulWidget {
   const CarruselBanners({super.key});
 
@@ -59,7 +68,7 @@ class CarruselBanners extends StatefulWidget {
   State<CarruselBanners> createState() => _CarruselBannersState();
 }
 
-class _CarruselBannersState extends State<CarruselBanners> {
+class _CarruselBannersState extends State<CarruselBanners> with WidgetsBindingObserver {
   final PageController _controller = PageController();
   final List<_Aviso> _avisos = [];
   Timer? _avance;
@@ -69,44 +78,109 @@ class _CarruselBannersState extends State<CarruselBanners> {
   /// vista bajo el dedo de alguien que está leyendo es peor que no rotar.
   bool _tocado = false;
 
+  /// El aviso de versión se descarta por sesión, así que un refresco no puede
+  /// devolverlo a la pantalla de quien acaba de cerrarlo.
+  bool _versionDescartada = false;
+
+  /// Ids de la última respuesta del servidor, para poder depurar los descartes
+  /// de banners que ya no existen.
+  Set<int> _idsVigentes = const {};
+
+  /// Evita que dos cargas se pisen (volver del segundo plano y de la pestaña a la vez).
+  bool _cargando = false;
+
+  /// Si esta rama del shell está visible. `TickerMode` es lo que `go_router`
+  /// apaga en las pestañas que no se ven, así que sirve de señal de "volví".
+  bool _enPantalla = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _cargar();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (visible && !_enPantalla) {
+      _cargar();
+    }
+    _enPantalla = visible;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _cargar();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _avance?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
+  /// Trae los avisos y los pinta.
+  ///
+  /// La lista nueva se construye **entera** —bytes incluidos, que la caché de
+  /// disco sirve sin red— antes de tocar el estado, y si resulta idéntica a la
+  /// que ya se ve no se toca nada: así un refresco no parpadea ni devuelve el
+  /// carrusel a la primera tarjeta mientras alguien lee la tercera. Un fallo
+  /// deja en pantalla lo que hubiera.
   Future<void> _cargar() async {
-    final version = await locator<AppVersionService>().nuevaVersionDisponible();
-    final banners = await locator<BannerService>().vigentes();
-    final descartados = await locator<BannerDescartes>().descartados();
+    if (_cargando) return;
+    _cargando = true;
+    try {
+      final version = await locator<AppVersionService>().nuevaVersionDisponible();
+      final banners = await locator<BannerService>().vigentes();
+      // La consulta falló: se deja en pantalla lo que hubiera. Vaciar la franja
+      // porque el teléfono se quedó sin cobertura sería castigar al usuario por
+      // algo que no hizo.
+      if (banners == null) return;
+      final descartados = await locator<BannerDescartes>().descartados();
 
-    final avisos = <_Aviso>[
-      if (version != null) _Aviso.version(version),
-    ];
-    final store = locator<BannerImageStore>();
-    for (final b in banners) {
-      if (descartados.contains(b.id)) continue;
-      final bytes = await store.bytes(b.imagenUrl);
-      // Una imagen que no llega se queda fuera **antes** de construir el
-      // carrusel: dentro, los indicadores contarían un aviso que no se ve.
-      if (bytes == null) continue;
-      avisos.add(_Aviso.banner(b, bytes));
+      final avisos = <_Aviso>[
+        if (version != null && !_versionDescartada) _Aviso.version(version),
+      ];
+      final store = locator<BannerImageStore>();
+      for (final b in banners) {
+        final clave = b.claveDescarte;
+        if (clave != null && descartados.contains(clave)) continue;
+        final bytes = await store.bytes(b.imagenUrl);
+        // Una imagen que no llega se queda fuera **antes** de construir el
+        // carrusel: dentro, los indicadores contarían un aviso que no se ve.
+        if (bytes == null) continue;
+        avisos.add(_Aviso.banner(b, bytes));
+      }
+
+      if (!mounted) return;
+      _idsVigentes = {for (final b in banners) b.id};
+      if (_mismosQueSeVen(avisos)) return;
+      setState(() {
+        _avisos
+          ..clear()
+          ..addAll(avisos);
+        if (_actual >= _avisos.length) {
+          _actual = _avisos.isEmpty ? 0 : _avisos.length - 1;
+        }
+      });
+      _programarAvance();
+    } finally {
+      _cargando = false;
     }
+  }
 
-    if (!mounted) return;
-    setState(() {
-      _avisos
-        ..clear()
-        ..addAll(avisos);
-    });
-    _programarAvance();
+  bool _mismosQueSeVen(List<_Aviso> nuevos) {
+    if (nuevos.length != _avisos.length) return false;
+    for (var i = 0; i < nuevos.length; i++) {
+      if (nuevos[i].firma != _avisos[i].firma) return false;
+    }
+    return true;
   }
 
   void _programarAvance() {
@@ -133,8 +207,13 @@ class _CarruselBannersState extends State<CarruselBanners> {
 
   Future<void> _descartar(_Aviso aviso) async {
     final banner = aviso.banner;
-    if (banner != null) {
-      await locator<BannerDescartes>().descartar(banner.id);
+    if (banner == null) {
+      _versionDescartada = true;
+    } else {
+      final clave = banner.claveDescarte;
+      if (clave != null) {
+        await locator<BannerDescartes>().descartar(clave, idsVigentes: _idsVigentes);
+      }
     }
     if (!mounted) return;
     setState(() {

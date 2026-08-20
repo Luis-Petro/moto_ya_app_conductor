@@ -25,12 +25,21 @@ class _MockDescartes extends Mock implements BannerDescartes {}
 final Uint8List _png = base64Decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
 
-BannerApp _banner(int id, {bool descartable = true, String? enlace}) => BannerApp(
+final DateTime _publicacion = DateTime.utc(2026, 8, 1, 10);
+
+BannerApp _banner(
+  int id, {
+  bool descartable = true,
+  String? enlace,
+  DateTime? publicadoEn,
+}) =>
+    BannerApp(
       id: id,
       imagenUrl: 'https://archivos.zumbeo.com/banners/$id.jpg',
       textoAlternativo: 'Aviso $id',
       descartable: descartable,
       enlaceUrl: enlace,
+      publicadoEn: publicadoEn ?? _publicacion,
     );
 
 void main() {
@@ -53,8 +62,9 @@ void main() {
 
     when(() => version.nuevaVersionDisponible()).thenAnswer((_) async => null);
     when(() => banners.vigentes()).thenAnswer((_) async => const <BannerApp>[]);
-    when(() => descartes.descartados()).thenAnswer((_) async => <int>{});
-    when(() => descartes.descartar(any())).thenAnswer((_) async {});
+    when(() => descartes.descartados()).thenAnswer((_) async => <String>{});
+    when(() => descartes.descartar(any(), idsVigentes: any(named: 'idsVigentes')))
+        .thenAnswer((_) async {});
     when(() => imagenes.bytes(any())).thenAnswer((_) async => _png);
   });
 
@@ -94,14 +104,19 @@ void main() {
     await desmontar(tester);
   });
 
-  testWidgets('descartar un banner guarda su id para siempre', (tester) async {
+  testWidgets('descartar guarda el aviso Y su publicación', (tester) async {
     when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
 
     await montar(tester);
     await tester.tap(find.byTooltip('Descartar'));
     await tester.pump();
 
-    verify(() => descartes.descartar(7)).called(1);
+    // La clave lleva el instante: con el id a secas, republicar el banner no lo
+    // resucitaba en este teléfono.
+    verify(() => descartes.descartar(
+          '7:${_publicacion.millisecondsSinceEpoch}',
+          idsVigentes: {7},
+        )).called(1);
     expect(find.byType(Image), findsNothing);
   });
 
@@ -117,12 +132,44 @@ void main() {
 
   testWidgets('el banner que ya se descartó no vuelve', (tester) async {
     when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
-    when(() => descartes.descartados()).thenAnswer((_) async => {7});
+    when(() => descartes.descartados())
+        .thenAnswer((_) async => {'7:${_publicacion.millisecondsSinceEpoch}'});
 
     await montar(tester);
 
     expect(find.byType(Image), findsNothing);
     expect(tester.getSize(find.byType(CarruselBanners)).height, 0);
+  });
+
+  testWidgets('republicar el banner lo vuelve a mostrar', (tester) async {
+    // El usuario lo cerró cuando estaba publicado el 1 de agosto; el
+    // administrador lo apagó y lo encendió, y ahora la publicación es otra.
+    final republicado = _banner(7, publicadoEn: DateTime.utc(2026, 8, 20, 9));
+    when(() => banners.vigentes()).thenAnswer((_) async => [republicado]);
+    when(() => descartes.descartados())
+        .thenAnswer((_) async => {'7:${_publicacion.millisecondsSinceEpoch}'});
+
+    await montar(tester);
+
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('un aviso sin instante de publicación nunca se da por descartado',
+      (tester) async {
+    // Backend anterior al cambio: sin instante no se puede saber a qué
+    // publicación se refería un descarte, y el error barato es mostrar de más.
+    final b = BannerApp(
+      id: 7,
+      imagenUrl: 'https://archivos.zumbeo.com/banners/7.jpg',
+      textoAlternativo: 'Aviso 7',
+      descartable: true,
+    );
+    when(() => banners.vigentes()).thenAnswer((_) async => [b]);
+    when(() => descartes.descartados()).thenAnswer((_) async => {'7:0'});
+
+    await montar(tester);
+
+    expect(find.byType(Image), findsOneWidget);
   });
 
   testWidgets('una imagen que no baja se queda fuera del carrusel', (tester) async {
@@ -157,5 +204,101 @@ void main() {
     final ancho = tester.getSize(find.byType(CarruselBanners)).width;
     final alto = tester.getSize(find.byType(Image)).height;
     expect(alto, closeTo(ancho / kRatioBanner, 0.5));
+  });
+
+  // ─────────────────────────── refresco sin reiniciar ───────────────────────
+
+  testWidgets('al volver del segundo plano aparece el banner recién publicado',
+      (tester) async {
+    await montar(tester);
+    expect(find.byType(Image), findsNothing);
+
+    when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('volver a la pestaña recarga la franja', (tester) async {
+    Widget arbol(bool visible) => MaterialApp(
+          home: Scaffold(
+            body: TickerMode(
+              enabled: visible,
+              child: const Align(
+                alignment: Alignment.topCenter,
+                child: CarruselBanners(),
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(arbol(true));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(Image), findsNothing);
+
+    // Se va a otra pestaña y, mientras, el administrador publica.
+    await tester.pumpWidget(arbol(false));
+    await tester.pump();
+    when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
+
+    await tester.pumpWidget(arbol(true));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('un refresco sin cambios no devuelve el carrusel a la primera tarjeta',
+      (tester) async {
+    when(() => banners.vigentes())
+        .thenAnswer((_) async => [_banner(7), _banner(8)]);
+
+    await montar(tester);
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Aviso 2 de 2'), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.bySemanticsLabel('Aviso 2 de 2'), findsOneWidget,
+        reason: 'mover la vista bajo quien está leyendo es peor que no refrescar');
+    await desmontar(tester);
+  });
+
+  testWidgets('un refresco fallido deja en pantalla lo que ya se veía', (tester) async {
+    when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
+    await montar(tester);
+    expect(find.byType(Image), findsOneWidget);
+
+    // `null` es "no se pudo preguntar", distinto de "no hay avisos".
+    when(() => banners.vigentes()).thenAnswer((_) async => null);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('el aviso de versión cerrado no vuelve con el refresco', (tester) async {
+    when(() => version.nuevaVersionDisponible()).thenAnswer(
+        (_) async => const VersionVigente(version: '1.1.0', notas: 'Novedades'));
+
+    await montar(tester);
+    expect(find.byType(TarjetaVersion), findsOneWidget);
+    await tester.tap(find.byTooltip('Descartar'));
+    await tester.pump();
+    expect(find.byType(TarjetaVersion), findsNothing);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(TarjetaVersion), findsNothing,
+        reason: 'su descarte es de sesión, y un refresco no es una sesión nueva');
   });
 }

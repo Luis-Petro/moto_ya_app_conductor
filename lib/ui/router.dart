@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/repositories/auth_repository.dart';
 import '../domain/models/pedido.dart';
+import 'core/navegacion/observador_de_regreso.dart';
 import 'features/alta_conductor/alta_conductor_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/otp_screen.dart';
@@ -64,6 +65,11 @@ GoRouter crearRouter(AuthRepository auth) {
     navigatorKey: rootKey,
     initialLocation: Rutas.splash,
     refreshListenable: auth,
+    // Va en el navigator raíz porque es donde se empujan las pantallas completas.
+    // La franja de avisos del Inicio lo escucha para enterarse de que se volvió a
+    // ella: cambiar de pestaña sí lo nota por su cuenta, cerrar una pantalla de
+    // encima no.
+    observers: [ObservadorDeRegreso()],
     redirect: (context, state) {
       final loc = state.matchedLocation;
       if (!auth.inicializado) {

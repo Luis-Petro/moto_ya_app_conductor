@@ -10,6 +10,7 @@ import '../../../data/services/banner_image_store.dart';
 import '../../../data/services/banner_service.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/banner_app.dart';
+import '../navegacion/observador_de_regreso.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'banner_version.dart';
@@ -40,10 +41,31 @@ class _Aviso {
   /// Clave estable para `PageView`: la versión no tiene id numérico.
   Object get clave => banner?.id ?? 'version';
 
-  /// Identidad para comparar dos cargas. Incluye la publicación del banner: el
-  /// mismo aviso republicado es un aviso distinto.
-  String get firma =>
-      banner == null ? 'v:${version!.version}' : (banner!.claveDescarte ?? 'b:${banner!.id}');
+  /// Identidad para comparar dos cargas: **todo lo que se pinta**.
+  ///
+  /// No basta con el id y la publicación, y esto fue un fallo real. Editar un
+  /// banner **no** sella `publicadoEn` —ni debe hacerlo: una errata no es un
+  /// aviso nuevo y no puede reaparecer en la cara de quien ya lo cerró—, así que
+  /// reemplazar la imagen o corregir el texto daba la misma firma, la recarga
+  /// decidía que no había nada que repintar y la app viva seguía enseñando lo
+  /// viejo hasta que alguien matara el proceso. Los bytes nuevos se bajaban y se
+  /// tiraban.
+  ///
+  /// Son dos preguntas distintas y llevan dos respuestas distintas:
+  /// `BannerApp.claveDescarte` responde "¿es otra publicación?" y esto responde
+  /// "¿cambió lo que se ve?".
+  String get firma {
+    final b = banner;
+    if (b == null) return 'v:${version!.version}';
+    return [
+      b.id,
+      b.publicadoEn?.millisecondsSinceEpoch ?? '',
+      b.imagenUrl,
+      b.textoAlternativo,
+      b.enlaceUrl ?? '',
+      b.descartable,
+    ].join('|');
+  }
 }
 
 /// Franja de avisos del Inicio: la versión nueva (siempre primera) y los banners
@@ -57,10 +79,13 @@ class _Aviso {
 /// uso normal de la app. En esta app eso importa el doble, porque justo debajo
 /// van los avisos de la cuenta del conductor, que sí bloquean su trabajo.
 ///
-/// **Se refresca sin reiniciar la app**: al volver del segundo plano y al volver
-/// a esta pestaña. Cargar solo en `initState` significaba que un banner
-/// publicado ahora no se veía hasta que alguien matara la app y la abriera de
-/// nuevo, y eso es pedirle al usuario que haga algo para arreglar algo nuestro.
+/// **Se refresca sin reiniciar la app**, por tres hechos: al volver del segundo
+/// plano, al volver a esta pestaña y al cerrarse una pantalla abierta encima del
+/// shell (`ObservadorDeRegreso`). Cargar solo en `initState` significaba que un
+/// banner publicado ahora no se veía hasta que alguien matara la app y la abriera
+/// de nuevo, y eso es pedirle al usuario que haga algo para arreglar algo
+/// nuestro. Sin temporizador: esto cambia dos veces por semana y el sondeo lo
+/// pagarían en datos y batería todas las instalaciones.
 class CarruselBanners extends StatefulWidget {
   const CarruselBanners({super.key});
 
@@ -97,6 +122,7 @@ class _CarruselBannersState extends State<CarruselBanners> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ObservadorDeRegreso.regresos.addListener(_alVolverDeOtraPantalla);
     _cargar();
   }
 
@@ -110,6 +136,19 @@ class _CarruselBannersState extends State<CarruselBanners> with WidgetsBindingOb
     _enPantalla = visible;
   }
 
+  /// Se cerró una pantalla de encima del shell (el alta, un pedido, el feedback).
+  /// `TickerMode` no se entera de esto: esas pantallas se empujan en el navigator
+  /// raíz y la rama del Inicio nunca deja de estar activa.
+  ///
+  /// Solo recarga si esta pestaña es la que se ve. Si se volvió a otra, su propio
+  /// `TickerMode` lo hará cuando el conductor venga aquí, y adelantarse sería una
+  /// consulta que nadie va a mirar.
+  void _alVolverDeOtraPantalla() {
+    if (_enPantalla) {
+      _cargar();
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -120,6 +159,7 @@ class _CarruselBannersState extends State<CarruselBanners> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ObservadorDeRegreso.regresos.removeListener(_alVolverDeOtraPantalla);
     _avance?.cancel();
     _controller.dispose();
     super.dispose();

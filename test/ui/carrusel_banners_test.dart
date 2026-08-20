@@ -7,6 +7,7 @@ import 'package:app_conductor/data/services/banner_image_store.dart';
 import 'package:app_conductor/data/services/banner_service.dart';
 import 'package:app_conductor/di/locator.dart';
 import 'package:app_conductor/domain/models/banner_app.dart';
+import 'package:app_conductor/ui/core/navegacion/observador_de_regreso.dart';
 import 'package:app_conductor/ui/core/widgets/banner_version.dart';
 import 'package:app_conductor/ui/core/widgets/carrusel_banners.dart';
 import 'package:flutter/material.dart';
@@ -21,9 +22,37 @@ class _MockImagenes extends Mock implements BannerImageStore {}
 
 class _MockDescartes extends Mock implements BannerDescartes {}
 
+/// Un `PopupRoute` cualquiera —diálogo, hoja, menú—: lo que el observador **no**
+/// debe contar. Se fabrica a mano para no necesitar un `BuildContext`.
+class _RutaPopupFalsa extends PopupRoute<void> {
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  String? get barrierLabel => null;
+
+  @override
+  Duration get transitionDuration => Duration.zero;
+
+  @override
+  Widget buildPage(BuildContext context, Animation<double> animation,
+          Animation<double> secondaryAnimation) =>
+      const SizedBox.shrink();
+}
+
 /// PNG de 1x1 válido: basta para que `Image.memory` tenga algo que decodificar.
 final Uint8List _png = base64Decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
+/// Otro PNG válido, con bytes distintos: es lo que permite comprobar que lo
+/// pintado cambió de verdad y no solo que se volvió a pedir.
+final Uint8List _otroPng = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACx'
+    'jwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY/iUIvcfAAY0AnQymbOtAAAAAElF'
+    'TkSuQmCC');
 
 final DateTime _publicacion = DateTime.utc(2026, 8, 1, 10);
 
@@ -32,15 +61,25 @@ BannerApp _banner(
   bool descartable = true,
   String? enlace,
   DateTime? publicadoEn,
+  String? imagenUrl,
+  String? texto,
 }) =>
     BannerApp(
       id: id,
-      imagenUrl: 'https://archivos.zumbeo.com/banners/$id.jpg',
-      textoAlternativo: 'Aviso $id',
+      imagenUrl: imagenUrl ?? 'https://archivos.zumbeo.com/banners/$id.jpg',
+      textoAlternativo: texto ?? 'Aviso $id',
       descartable: descartable,
       enlaceUrl: enlace,
       publicadoEn: publicadoEn ?? _publicacion,
     );
+
+/// Los bytes que el carrusel tiene puestos ahora mismo en su única imagen.
+///
+/// Se lee del proveedor y no de la pantalla: el proveedor está en cuanto se
+/// construye el widget, así que la comprobación no depende de cuándo termine de
+/// decodificar la imagen.
+Uint8List _bytesPintados(WidgetTester tester) =>
+    (tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes;
 
 void main() {
   late _MockVersion version;
@@ -249,6 +288,83 @@ void main() {
     await tester.pump();
 
     expect(find.byType(Image), findsOneWidget);
+  });
+
+  testWidgets('cerrar una pantalla de encima del shell recarga la franja',
+      (tester) async {
+    // `TickerMode` no cubre este caso: el alta, los pedidos y el feedback se
+    // empujan en el navigator raíz, y mientras están abiertos la rama del Inicio
+    // sigue activa. Sin esta señal, un aviso publicado mientras el conductor
+    // atendía un pedido no aparecía al volver.
+    await montar(tester);
+    expect(find.byType(Image), findsNothing);
+
+    when(() => banners.vigentes()).thenAnswer((_) async => [_banner(7)]);
+    ObservadorDeRegreso.regresos.value++;
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(Image), findsOneWidget);
+  });
+
+  test('el observador cuenta las pantallas y no los diálogos', () {
+    // Contar los `PopupRoute` sería una consulta de más cada vez que alguien
+    // confirma algo en un diálogo, y esta app abre bastantes.
+    final observador = ObservadorDeRegreso();
+
+    final antesDelPopup = ObservadorDeRegreso.regresos.value;
+    observador.didPop(_RutaPopupFalsa(), null);
+    expect(ObservadorDeRegreso.regresos.value, antesDelPopup);
+
+    final antesDeLaPagina = ObservadorDeRegreso.regresos.value;
+    observador.didPop(
+      MaterialPageRoute<void>(builder: (_) => const SizedBox.shrink()),
+      null,
+    );
+    expect(ObservadorDeRegreso.regresos.value, antesDeLaPagina + 1);
+  });
+
+  testWidgets('reemplazar la imagen se repinta sin volver a publicar', (tester) async {
+    // Editar no sella `publicadoEn` —una errata no es un aviso nuevo—, así que
+    // la firma con la que el refresco decide si repintar no puede ser la clave
+    // de descarte: con ella los bytes nuevos se bajaban y se tiraban, y la app
+    // viva seguía enseñando la imagen anterior hasta que alguien matara el
+    // proceso.
+    const vieja = 'https://archivos.zumbeo.com/banners/7-v1.webp';
+    const nueva = 'https://archivos.zumbeo.com/banners/7-v2.webp';
+    when(() => banners.vigentes())
+        .thenAnswer((_) async => [_banner(7, imagenUrl: vieja)]);
+    when(() => imagenes.bytes(vieja)).thenAnswer((_) async => _png);
+    when(() => imagenes.bytes(nueva)).thenAnswer((_) async => _otroPng);
+
+    await montar(tester);
+    expect(_bytesPintados(tester), _png);
+
+    when(() => banners.vigentes())
+        .thenAnswer((_) async => [_banner(7, imagenUrl: nueva)]);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(_bytesPintados(tester), _otroPng);
+  });
+
+  testWidgets('corregir el texto alternativo se repinta', (tester) async {
+    when(() => banners.vigentes())
+        .thenAnswer((_) async => [_banner(7, texto: 'Farmacia abierta')]);
+
+    await montar(tester);
+    expect(tester.widget<Image>(find.byType(Image)).semanticLabel,
+        'Farmacia abierta');
+
+    when(() => banners.vigentes())
+        .thenAnswer((_) async => [_banner(7, texto: 'Farmacia abierta hasta las 10')]);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.widget<Image>(find.byType(Image)).semanticLabel,
+        'Farmacia abierta hasta las 10');
   });
 
   testWidgets('un refresco sin cambios no devuelve el carrusel a la primera tarjeta',

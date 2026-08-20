@@ -52,6 +52,25 @@ class BannerImageStore {
 
   /// Bytes de la imagen, o `null` si no se pudo traer.
   ///
+  /// **La condición es "hay bytes", no "el código es 200"**, y esa distinción es
+  /// justo la que dejó los avisos invisibles. `dio_cache_interceptor` sirve lo
+  /// que guardó con **`304`** (`model/cache_response.dart`, `toResponse`), y con
+  /// `CachePolicy.forceCache` ese es el camino normal y no la excepción: la
+  /// primera petición va por red y devuelve 200, y todas las siguientes se
+  /// resuelven en `onRequest` sin tocar la red y devuelven 304. Exigiendo un 200,
+  /// cada aviso se veía **una vez** y después desaparecía durante los 30 días de
+  /// `maxStale`, en las dos apps, sobreviviendo al reinicio —la caché es de
+  /// disco— y sin que el usuario hubiera cerrado nada. La caché contestaba bien;
+  /// era esta función la que tiraba su respuesta.
+  ///
+  /// `flutter_map_cache` corre sobre la misma librería, la misma política y el
+  /// mismo store, y lee `response.data!` sin mirar el código: por eso los tiles
+  /// del mapa llevan meses funcionando con este mismo bug al lado.
+  ///
+  /// De si hay algo que pintar responde el cuerpo. Un error de verdad —4xx, 5xx,
+  /// timeout, sin red— no llega como un cuerpo válido con un código raro: llega
+  /// como excepción de dio, al `catch`.
+  ///
   /// `null` no es un error que haya que enseñar: la tarjeta se queda fuera del
   /// carrusel. Un hueco gris con un icono de imagen rota comunica menos que no
   /// mostrar nada.
@@ -65,7 +84,7 @@ class BannerImageStore {
         ),
       );
       final datos = res.data;
-      if (res.statusCode != 200 || datos == null || datos.isEmpty) {
+      if (datos == null || datos.isEmpty) {
         return null;
       }
       return Uint8List.fromList(datos);

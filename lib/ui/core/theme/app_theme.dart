@@ -147,14 +147,25 @@ class AppTheme {
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        selectedItemColor: AppColors.primary,
+        // `primaryInk` y no `primary`. El naranja de marca como texto da
+        // 3,17:1 sobre blanco, y sobre la píldora de la pestaña activa
+        // (`primarySurface`) da 2,78:1: no pasa AA para texto ni el 3:1 que
+        // WCAG pide para un elemento no textual. Es la misma regla que el resto
+        // de la app cumple desde `contraste_test.dart`, y esta barra era el
+        // último sitio que la rompía — precisamente el más mirado.
+        selectedItemColor: AppColors.primaryInk,
         unselectedItemColor: AppColors.inkMuted,
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
-        // La sombra la pinta el shell con `AppElevation.anclada` (hacia
-        // arriba); la de Material va hacia abajo y aquí no hay nada debajo.
+        // La sombra y el borde superior los pinta `BarraNavegacion`: van hacia
+        // arriba, que es la única dirección en la que hay contenido del que
+        // separarse. La `elevation` de Material la dibuja hacia abajo.
         elevation: 0,
-        selectedLabelStyle: AppText.caption.copyWith(color: AppColors.primary),
+        // La etiqueta activa además engorda. Con la píldora y el icono relleno
+        // son tres señales independientes de dónde estás, y ninguna necesita
+        // que se distingan dos colores.
+        selectedLabelStyle: AppText.caption
+            .copyWith(color: AppColors.primaryInk, fontWeight: AppText.fuerte),
         unselectedLabelStyle: AppText.caption,
       ),
       // Los chips de Material (las sugerencias de descripción y los sitios del

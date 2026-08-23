@@ -35,19 +35,30 @@ class AppTheme {
       // Los roles de `AppText` mapeados al TextTheme, para que los widgets que
       // no reciben estilo explícito (ListTile, SnackBar, AppBar, Dialog)
       // hereden la escala en vez de quedarse con la de Material.
-      textTheme: base.textTheme.copyWith(
-        displaySmall: AppText.display,
-        headlineSmall: AppText.display,
-        titleLarge: AppText.title,
-        titleMedium: AppText.subtitle,
-        titleSmall: AppText.subtitle,
-        bodyLarge: AppText.body,
-        bodyMedium: AppText.body,
-        bodySmall: AppText.caption,
-        labelLarge: AppText.subtitle,
-        labelMedium: AppText.caption,
-        labelSmall: AppText.label,
-      ),
+      textTheme: base.textTheme
+          .copyWith(
+            displaySmall: AppText.display,
+            headlineSmall: AppText.display,
+            titleLarge: AppText.title,
+            titleMedium: AppText.subtitle,
+            titleSmall: AppText.subtitle,
+            bodyLarge: AppText.body,
+            bodyMedium: AppText.body,
+            bodySmall: AppText.caption,
+            labelLarge: AppText.subtitle,
+            labelMedium: AppText.caption,
+            labelSmall: AppText.label,
+          )
+          // **La familia se vuelve a poner aquí, y no es decorativo.**
+          // `ThemeData(fontFamily:)` aplica Plus Jakarta al `textTheme` de
+          // arriba, pero este `copyWith` sustituye once roles por los estilos de
+          // `AppText`, que **no declaran familia**. Entre ellos `bodyMedium`,
+          // que es el `DefaultTextStyle` del que hereda todo `Text` de la app:
+          // el resultado era que la fuente empaquetada viajaba en el APK y no la
+          // usaba nadie: en Android se veía la del fabricante, que es justo lo
+          // que empaquetarla venía a evitar. Sin error, sin aviso, y una captura
+          // de pantalla no lo delata. Lo vigila `test/ui/tipografia_test.dart`.
+          .apply(fontFamily: AppText.familia),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.ink,

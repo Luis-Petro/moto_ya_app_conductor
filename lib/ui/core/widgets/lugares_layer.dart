@@ -79,8 +79,26 @@ class _LugaresLayerState extends State<LugaresLayer> {
     Duration(seconds: 5),
   ];
 
+  /// Cada cuánto se vuelve a mirar si el municipio **ya llegó**.
+  ///
+  /// Esperar al municipio no es reintentar una consulta que falló: no hay red
+  /// de por medio, es leer una caché en memoria. Gastaba pasos de la escalera
+  /// de arriba, y ahí estaba el "a veces se ven los sitios y a veces no": si el
+  /// perfil del usuario tardaba más de los quince segundos de la escalera —red
+  /// de municipio, arranque en frío, teléfono de gama media—, la capa se rendía
+  /// **sin haber preguntado ni una vez** al servidor, y el mapa se quedaba sin
+  /// un solo marcador hasta reiniciar la app.
+  static const _esperaMunicipio = Duration(seconds: 1);
+
+  /// Cuántas veces se mira antes de rendirse. Treinta segundos: más allá de
+  /// eso, el perfil no va a llegar solo.
+  static const _miradasAlMunicipio = 30;
+
   int _intento = 0;
   Timer? _reintento;
+
+  /// Cuántas veces se ha mirado si ya hay municipio, sin encontrarlo.
+  int _esperasDeMunicipio = 0;
 
   @override
   void initState() {
@@ -93,6 +111,7 @@ class _LugaresLayerState extends State<LugaresLayer> {
     super.didUpdateWidget(oldWidget);
     if (widget.municipioId != oldWidget.municipioId) {
       _intento = 0;
+      _esperasDeMunicipio = 0;
       _cargar();
     }
   }
@@ -116,6 +135,18 @@ class _LugaresLayerState extends State<LugaresLayer> {
     });
   }
 
+  /// Vuelve a mirar dentro de un segundo si ya hay municipio. Contador propio,
+  /// separado de la escalera de reintentos: esperar un dato que aún no llegó y
+  /// reintentar una consulta que falló son dos cosas distintas.
+  void _esperarMunicipio() {
+    if (_esperasDeMunicipio >= _miradasAlMunicipio) return;
+    _esperasDeMunicipio++;
+    _reintento?.cancel();
+    _reintento = Timer(_esperaMunicipio, () {
+      if (mounted) _cargar();
+    });
+  }
+
   Future<void> _cargar() async {
     final municipioId =
         widget.municipioId ?? locator<UsuarioRepository>().enCache?.municipioId;
@@ -125,9 +156,10 @@ class _LugaresLayerState extends State<LugaresLayer> {
       // ya está, porque `didUpdateWidget` solo se dispara si el valor que llega
       // por parámetro cambia — y en las pantallas que lo toman de la caché del
       // usuario ese parámetro es null siempre.
-      _reintentar();
+      _esperarMunicipio();
       return;
     }
+    _esperasDeMunicipio = 0;
     final lugares = await locator<LugarService>().catalogoDeMapa(municipioId);
     if (!mounted) return;
     if (lugares == null) {

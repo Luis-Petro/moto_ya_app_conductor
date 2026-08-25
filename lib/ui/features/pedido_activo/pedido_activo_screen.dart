@@ -18,6 +18,7 @@ import '../../../data/services/tracking_service.dart';
 import '../../../di/locator.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_elevation.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
@@ -32,6 +33,7 @@ import '../../core/widgets/visor_foto.dart';
 import '../../router.dart';
 import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
+import 'mapa_pedido_screen.dart';
 import 'pedido_activo_view_model.dart';
 
 class PedidoActivoScreen extends StatelessWidget {
@@ -250,20 +252,10 @@ class _ActivoViewState extends State<_ActivoView> {
     if (vm.entregado) return _Entregado(vm: vm);
 
     final pedido = vm.pedido!;
-    final centro =
-        vm.puntoObjetivo ?? vm.posicion ?? LocationService.fallbackCenter;
     // Trayecto recogida→entrega tal como lo calculó el backend. Esta pantalla no lo
     // dibujaba: el mapa eran dos pines sueltos y el conductor no podía ver por dónde
     // va el viaje sin salir a "Cómo llegar".
     final ruta = PolylineCodec.decode(pedido.rutaPolyline);
-    // Encuadre que abarca ruta y pines. Con zoom fijo, un trayecto que no cabe en
-    // 150 px de alto deja la mitad fuera de pantalla sin que nada lo indique.
-    final puntosEncuadre = <LatLng>[
-      ...ruta,
-      if (pedido.origen != null) pedido.origen!,
-      if (pedido.destino != null) pedido.destino!,
-      if (vm.posicion != null) vm.posicion!,
-    ];
 
     return Scaffold(
       // Retroceso explícito: a esta pantalla se llega desde una notificación,
@@ -275,50 +267,17 @@ class _ActivoViewState extends State<_ActivoView> {
         children: [
           // Mapa más bajo que antes: lo que el conductor necesita a la vista es
           // a quién llamar, dónde recoger/entregar y cuánto gana; el mapa es
-          // referencia (la navegación real la hace "Cómo llegar").
-          SizedBox(
-            height: 150,
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: centro,
-                initialZoom: 15,
-                initialCameraFit: puntosEncuadre.length >= 2
-                    ? encuadreDePuntos(puntosEncuadre,
-                        padding: const EdgeInsets.all(16))
-                    : null,
-                minZoom: zoomMinimoMapa,
-                maxZoom: zoomMaximoMapa,
-              ),
-              children: [
-                osmTileLayer(),
-                // Sin nombres: en 150 px de alto las etiquetas taparían los
-                // pines de recogida y entrega, que son el objetivo del viaje.
-                const LugaresLayer(mostrarNombres: false),
-                if (ruta.length >= 2)
-                  PolylineLayer(polylines: [
-                    Polyline(
-                      points: ruta,
-                      strokeWidth: 4,
-                      color: AppColors.primary,
-                      borderStrokeWidth: 1,
-                      borderColor: Colors.white,
-                    ),
-                  ]),
-                MarkerLayer(
-                  markers: [
-                    if (pedido.origen != null)
-                      pinMarker(
-                        pedido.origen!,
-                        icon: Icons.storefront,
-                        color: AppColors.accent,
-                      ),
-                    if (pedido.destino != null)
-                      pinMarker(pedido.destino!, icon: Icons.location_on),
-                    if (vm.posicion != null) usuarioMarker(vm.posicion!),
-                  ],
-                ),
-                osmAttribution(),
-              ],
+          // referencia (la navegación real la hace "Cómo llegar"). Y cuando esa
+          // referencia no basta, un toque lo abre entero.
+          _MapaResumen(
+            pedido: pedido,
+            ruta: ruta,
+            posicion: vm.posicion,
+            objetivo: vm.puntoObjetivo,
+            onAmpliar: () => abrirMapaDelPedido(
+              context,
+              vm,
+              onComoLlegar: _comoLlegar,
             ),
           ),
           Expanded(
@@ -441,6 +400,232 @@ class _ActivoViewState extends State<_ActivoView> {
     final p = nombre.trim().split(RegExp(r'\s+'));
     if (p.length == 1) return p.first[0].toUpperCase();
     return (p.first[0] + p.last[0]).toUpperCase();
+  }
+}
+
+/// La franja de mapa del pedido en curso: un vistazo, y la puerta al mapa entero.
+///
+/// **No se maneja, se mira.** La interacción va apagada (`InteractiveFlag.none`)
+/// y el toque abre [MapaPedidoScreen]. No es quitar una capacidad, es cambiarla
+/// por otra mayor, y resuelve tres cosas de golpe:
+///
+/// - El encuadre inicial se aplica **una sola vez** (así funciona
+///   `initialCameraFit`). Un arrastre accidental —fácil, porque el dedo pasa por
+///   encima al desplazar la ficha— dejaba la franja encuadrada en un descampado
+///   sin ninguna forma de volver.
+/// - Arrastrar sobre el mapa robaba el gesto de desplazar la lista de abajo: el
+///   conductor creía que la pantalla se había colgado.
+/// - En 150 px no se puede acercar a nada útil. Lo que hace falta cuando el mapa
+///   no basta no es un mapa un poco más grande: es el mapa entero.
+///
+/// A cambio, toda la franja es un objetivo táctil de 150 px de alto, que es lo
+/// más forgiving que se puede ofrecer a alguien que acaba de parar la moto.
+class _MapaResumen extends StatefulWidget {
+  const _MapaResumen({
+    required this.pedido,
+    required this.ruta,
+    required this.posicion,
+    required this.objetivo,
+    required this.onAmpliar,
+  });
+
+  final Pedido pedido;
+  final List<LatLng> ruta;
+  final LatLng? posicion;
+  final LatLng? objetivo;
+  final VoidCallback onAmpliar;
+
+  @override
+  State<_MapaResumen> createState() => _MapaResumenState();
+}
+
+class _MapaResumenState extends State<_MapaResumen> {
+  static const double _alto = 150;
+
+  final _mapa = MapController();
+
+  /// El mapa ya se pintó una vez: `camera` y `fitCamera` lanzan antes de eso.
+  bool _listo = false;
+
+  void _alEstarListo() {
+    _listo = true;
+  }
+
+  @override
+  void dispose() {
+    // `FlutterMap` solo desecha el controlador cuando lo creó él. Este es
+    // nuestro, y por dentro es un `ValueNotifier` con un `StreamController` de
+    // eventos.
+    _mapa.dispose();
+    super.dispose();
+  }
+
+  List<LatLng> get _puntos => [
+        ...widget.ruta,
+        if (widget.pedido.origen != null) widget.pedido.origen!,
+        if (widget.pedido.destino != null) widget.pedido.destino!,
+        if (widget.posicion != null) widget.posicion!,
+      ];
+
+  @override
+  void didUpdateWidget(covariant _MapaResumen anterior) {
+    super.didUpdateWidget(anterior);
+    if (!_listo) return;
+
+    // Se reencuadra por **dos hechos**, no por cada latido del GPS. La posición
+    // llega cada pocos segundos: reencuadrar en cada una haría saltar el mapa
+    // mientras se lee, y un mapa que se mueve solo se deja de mirar.
+    //
+    // 1. Cambió el objetivo (se marcó "En camino"): la franja estaba encuadrada
+    //    en el tramo anterior.
+    // 2. El punto del conductor se salió de lo que se ve. Sin esto la franja
+    //    envejece sola: se avanza tres cuadras y el propio punto ya no está en
+    //    pantalla, sin nada que lo anuncie ni forma de recuperarlo.
+    final cambioObjetivo = widget.objetivo != anterior.objetivo;
+    final seSalioDeCuadro = widget.posicion != null &&
+        !_mapa.camera.visibleBounds.contains(widget.posicion!);
+    if (cambioObjetivo || seSalioDeCuadro) {
+      final puntos = _puntos;
+      if (puntos.length < 2) return;
+      // Fuera del `build`: `fitCamera` mueve la cámara y notifica, y hacerlo en
+      // mitad de la construcción del árbol es un setState durante el build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _listo) {
+          _mapa.fitCamera(
+            encuadreDePuntos(puntos, padding: const EdgeInsets.all(16)),
+          );
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pedido = widget.pedido;
+    final puntos = _puntos;
+
+    return SizedBox(
+      height: _alto,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: FlutterMap(
+              mapController: _mapa,
+              options: MapOptions(
+                initialCenter: widget.objetivo ??
+                    widget.posicion ??
+                    LocationService.fallbackCenter,
+                initialZoom: 15,
+                // Encuadre que abarca ruta y pines. Con zoom fijo, un trayecto
+                // que no cabe en 150 px de alto deja la mitad fuera de pantalla
+                // sin que nada lo indique.
+                initialCameraFit: puntos.length >= 2
+                    ? encuadreDePuntos(puntos,
+                        padding: const EdgeInsets.all(16))
+                    : null,
+                minZoom: zoomMinimoMapa,
+                maxZoom: zoomMaximoMapa,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
+                onMapReady: _alEstarListo,
+              ),
+              children: [
+                osmTileLayer(),
+                // Sin nombres: en 150 px de alto las etiquetas taparían los
+                // pines de recogida y entrega, que son el objetivo del viaje.
+                // Con nombres se ven al ampliar, que es donde hay sitio.
+                const LugaresLayer(mostrarNombres: false),
+                if (widget.ruta.length >= 2)
+                  PolylineLayer(polylines: [
+                    Polyline(
+                      points: widget.ruta,
+                      strokeWidth: 4,
+                      color: AppColors.primary,
+                      borderStrokeWidth: 1,
+                      borderColor: AppColors.surface,
+                    ),
+                  ]),
+                MarkerLayer(
+                  markers: [
+                    if (pedido.origen != null)
+                      pinMarker(
+                        pedido.origen!,
+                        icon: Icons.storefront,
+                        color: AppColors.accent,
+                      ),
+                    if (pedido.destino != null)
+                      pinMarker(pedido.destino!, icon: Icons.location_on),
+                    if (widget.posicion != null) usuarioMarker(widget.posicion!),
+                  ],
+                ),
+                osmAttribution(),
+              ],
+            ),
+          ),
+          Positioned.fill(
+            child: Semantics(
+              // `container: true`: sin él el nodo se funde con lo que tiene
+              // alrededor y el lector de pantalla anuncia el mapa como parte de
+              // la ficha del pedido, sin decir que se puede abrir.
+              container: true,
+              button: true,
+              label: 'Ampliar el mapa del pedido',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(onTap: widget.onAmpliar),
+              ),
+            ),
+          ),
+          // Un mapa que se toca sin nada que lo diga es una función que no
+          // existe. La pastilla va abajo a la izquierda: la atribución de
+          // OpenStreetMap ocupa la esquina de la derecha y no se le puede poner
+          // nada encima.
+          const Positioned(
+            left: AppSpacing.sm,
+            bottom: AppSpacing.sm,
+            child: IgnorePointer(child: _PastillaAmpliar()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// El rótulo de "esto se puede abrir". No es un botón: el objetivo táctil es la
+/// franja entera que tiene detrás, y duplicar el toque aquí solo daría un blanco
+/// pequeño al lado de uno grande que hace lo mismo.
+class _PastillaAmpliar extends StatelessWidget {
+  const _PastillaAmpliar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        boxShadow: AppElevation.flotante,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.open_in_full_rounded,
+            size: 14,
+            color: AppColors.primaryInk,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Ampliar el mapa',
+            style: AppText.caption.copyWith(color: AppColors.ink),
+          ),
+        ],
+      ),
+    );
   }
 }
 

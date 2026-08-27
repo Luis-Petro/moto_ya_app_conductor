@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../router.dart';
 
+import '../../../config/env.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/pedido_repository.dart';
@@ -269,8 +270,23 @@ class _Header extends StatelessWidget {
           ),
         ),
         // La app está en pruebas y se dice donde se ve siempre, no escondido en
-        // un "acerca de".
-        const BetaChip(),
+        // un "acerca de". Y si además esta build habla con el backend de
+        // pruebas, se dice también: son dos datos distintos y el segundo cambia
+        // lo que significan la deuda y los pedidos que se ven en la pantalla.
+        //
+        // Apilados y no en fila: en este encabezado, al lado del chip va el
+        // botón de refrescar y no sobra ancho.
+        if (Env.esProduccion)
+          const BetaChip()
+        else
+          const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              BetaChip(),
+              SizedBox(height: AppSpacing.xs),
+              EntornoChip(),
+            ],
+          ),
         // Refresco manual (además del gesto de arrastrar hacia abajo).
         IconButton(
           onPressed: vm.refrescar,

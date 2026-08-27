@@ -38,7 +38,7 @@
          networkSecurityConfig declara explicitamente que nada viaja en texto
          claro: el default de Android ya lo hace, pero es un default. -->
     <application
-        android:label="Zumbeo Conductor"
+        android:label="${appName}"
         android:name=".ZumbeoApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"

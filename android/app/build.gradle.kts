@@ -69,6 +69,46 @@ android {
         versionName = flutter.versionName
     }
 
+    // Sabores de entorno. El de pruebas se instala AL LADO del de tienda gracias
+    // al sufijo del applicationId, así que las dos apps conviven en el mismo
+    // teléfono con su propia sesión, su propio almacenamiento y sus propios
+    // tokens de notificación.
+    //
+    // El efecto que más vale de declararlos es de Gradle y no lo escribimos
+    // nosotros: **en cuanto un módulo tiene sabores, una construcción sin sabor
+    // deja de existir**. `flutter build apk` sin `--flavor` falla, y el entorno
+    // deja de poderse omitir por descuido — que es justo el fallo que no da
+    // error, no se ve en una captura y escribe en la base de verdad.
+    //
+    // El .aab que va a Google Play sale del sabor `prod`, sin sufijo: los
+    // canales de prueba de Play existen para probar el artefacto de producción,
+    // y uno con sufijo ni siquiera corresponde a la ficha publicada.
+    //
+    // `com.zumbeo.conductor.test` tiene que estar registrado en el proyecto
+    // Firebase zumbeo-2a176 y aparecer en google-services.json, o el plugin de
+    // Google Services falla el build al no encontrar el cliente.
+    //
+    // ⚠️ El sabor se llama `pruebas` y NO `test`: el Android Gradle Plugin
+    // rechaza los nombres de sabor que empiezan por "test" ("ProductFlavor
+    // names cannot start with 'test'") porque chocan con los source sets de
+    // pruebas instrumentadas que genera él mismo (`testProdDebug`…). Es el
+    // único sitio de todo el entorno donde la palabra no es `test`; el
+    // applicationId, la rama, APP_ENV y el dominio sí la conservan. A cambio,
+    // `pruebas` es la misma palabra que ya usan el chip de la app y la marca de
+    // los correos.
+    flavorDimensions += "entorno"
+    productFlavors {
+        create("prod") {
+            dimension = "entorno"
+            manifestPlaceholders["appName"] = "Zumbeo Conductor"
+        }
+        create("pruebas") {
+            dimension = "entorno"
+            applicationIdSuffix = ".test"
+            manifestPlaceholders["appName"] = "Zumbeo Conductor (Test)"
+        }
+    }
+
     signingConfigs {
         if (hayFirmaRelease) {
             create("release") {

@@ -35,6 +35,40 @@ class BetaChip extends StatelessWidget {
   }
 }
 
+/// Marca de **entorno de pruebas**: esta app no habla con el backend real.
+///
+/// Es un dato distinto del de [BetaChip] y por eso es otro chip. "BETA" dice
+/// que el producto está en pruebas con usuarios reales; esto dice que los datos
+/// que se ven aquí no existen — los pedidos, la deuda y la plata son de
+/// mentira. Confundirlos es pedirle a un conductor que reclame por una comisión
+/// que nunca se cobró.
+///
+/// Color de aviso y no el naranja de marca: al lado del chip BETA tienen que
+/// distinguirse de un vistazo, y `warningInk` sobre `warningSurface` es el par
+/// que ya pasa contraste en el resto de la app.
+///
+/// Quien decide si se pinta es quien lo usa, mirando `Env.esProduccion`: este
+/// widget solo sabe dibujarse.
+class EntornoChip extends StatelessWidget {
+  const EntornoChip({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.warningSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.warning),
+      ),
+      child: Text(
+        'PRUEBAS',
+        style: AppText.label.copyWith(color: AppColors.warningInk),
+      ),
+    );
+  }
+}
+
 /// Pie con la versión instalada y el aviso de beta.
 ///
 /// Va en el perfil: es donde alguien mira cuando quiere reportar un problema, y

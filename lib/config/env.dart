@@ -17,6 +17,24 @@ class Env {
     defaultValue: '$_defaultHost/Api',
   );
 
+  /// `true` solo cuando esta build habla con la API de **producción**.
+  ///
+  /// De aquí sale la marca de entorno del encabezado, y se **deriva** en vez de
+  /// declararse: una bandera aparte (`ES_PRUEBAS=true`) se puede quedar apagada
+  /// mientras la URL sí cambió —o al revés—, y el resultado sería una app de
+  /// pruebas que no se anuncia, que es justo el estado que la marca existe para
+  /// impedir. La pregunta que importa es "¿con quién estoy hablando?", y aquí se
+  /// contesta con el dato que la responde.
+  ///
+  /// La barra final se ignora: `…/Api` y `…/Api/` son el mismo backend, y que
+  /// una difiera de la otra convertiría un descuido de tecleo en una app de
+  /// producción anunciándose como de pruebas.
+  static bool get esProduccion =>
+      _sinBarraFinal(apiBaseUrl) == '$_defaultHost/Api';
+
+  static String _sinBarraFinal(String url) =>
+      url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+
   /// Endpoint WebSocket/STOMP (SockJS) para tracking en vivo.
   static const String wsTrackingUrl = String.fromEnvironment(
     'WS_TRACKING_URL',

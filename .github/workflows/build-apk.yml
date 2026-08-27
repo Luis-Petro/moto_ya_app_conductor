@@ -2,9 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, env/test]
   pull_request:
-    branches: [main]
+    branches: [main, env/test]
   workflow_dispatch:
 
 # Cancela corridas anteriores del mismo ref si llega un nuevo push.
@@ -15,10 +15,39 @@ concurrency:
 env:
   FLUTTER_VERSION: "3.32.0"
   NDK_VERSION: "26.3.11579264"
-  # Host del backend desplegado; sobreescribible como variable del repo (vars.API_BASE_URL).
-  API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.zumbeo.com/Api' }}
 
 jobs:
+  # Qué entorno le toca a esta corrida. Sale de la rama y de nada más: `main` es
+  # producción y todo lo demás es pruebas. Va en un job aparte porque
+  # `environment:` se resuelve ANTES de que corra ningún paso, así que no puede
+  # depender de una variable calculada dentro del propio job.
+  #
+  # En un pull request la rama que manda es la de destino (`base_ref`): `github.ref_name`
+  # vale "123/merge" y no se parece a ninguna de las dos.
+  contexto:
+    name: Entorno de la corrida
+    runs-on: ubuntu-latest
+    outputs:
+      entorno: ${{ steps.decidir.outputs.entorno }}
+      flavor: ${{ steps.decidir.outputs.flavor }}
+    steps:
+      - id: decidir
+        run: |
+          RAMA="${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}"
+          if [ "$RAMA" = "main" ]; then
+            # El sabor de Gradle se llama `prod`, igual que el entorno.
+            echo "entorno=prod"   >> "$GITHUB_OUTPUT"
+            echo "flavor=prod"    >> "$GITHUB_OUTPUT"
+          else
+            # OJO: el sabor NO se llama `test`. El Android Gradle Plugin rechaza
+            # los nombres de sabor que empiezan por "test" (chocan con sus source
+            # sets de pruebas instrumentadas), así que en Gradle es `pruebas`.
+            # Es el único sitio donde la palabra cambia.
+            echo "entorno=test"   >> "$GITHUB_OUTPUT"
+            echo "flavor=pruebas" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Rama '$RAMA' → entorno $(grep entorno= "$GITHUB_OUTPUT" | cut -d= -f2)"
+
   analyze-test:
     name: Analyze & Test
     runs-on: ubuntu-latest
@@ -35,10 +64,13 @@ jobs:
 
   build-apk:
     name: Build APK
-    needs: analyze-test
+    needs: [contexto, analyze-test]
     runs-on: ubuntu-latest
-    # Da acceso a los secrets del entorno `prod` (ADMIN_EMAIL/ADMIN_PASSWORD).
-    environment: prod
+    # Da acceso a los secrets del entorno que toque (ADMIN_EMAIL/ADMIN_PASSWORD
+    # y TILE_API_KEY): los de `prod` desde `main`, los de `test` desde
+    # `env/test`. Es lo que impide que un APK de pruebas se publique con la
+    # cuenta de administrador de producción.
+    environment: ${{ needs.contexto.outputs.entorno }}
     # `actions: write` es lo que permite borrar artifacts de corridas anteriores
     # (paso "Liberar cuota de artifacts"). Se declaran los dos porque nombrar el
     # bloque `permissions` deja el resto en `none`.
@@ -46,6 +78,29 @@ jobs:
       contents: read
       actions: write
     steps:
+      # Va PRIMERO, antes de instalar Java, Flutter y el NDK: si el entorno no
+      # está declarado, que falle en cinco segundos y no en cinco minutos.
+      #
+      # `vars.API_BASE_URL` es una variable DEL ENTORNO de GitHub (`prod` /
+      # `test`), no del repo: es lo que hace que cada rama construya contra su
+      # backend. Sin ella no hay respaldo a producción — una app de pruebas
+      # hablando con el backend real no da error, no se ve en una captura, y lo
+      # que escribe es de verdad.
+      - name: Resolver el entorno de destino
+        env:
+          ENTORNO: ${{ needs.contexto.outputs.entorno }}
+          FLAVOR: ${{ needs.contexto.outputs.flavor }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if [ -z "${API_BASE_URL:-}" ]; then
+            echo "::error::Falta la variable API_BASE_URL en el environment '$ENTORNO' de GitHub. Sin ella el APK saldría sin backend (o, peor, contra el equivocado). Añádela en Settings → Environments → $ENTORNO → Variables."
+            exit 1
+          fi
+          echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
+          echo "FLAVOR=$FLAVOR" >> "$GITHUB_ENV"
+          echo "ENTORNO=$ENTORNO" >> "$GITHUB_ENV"
+          echo "Entorno $ENTORNO · sabor $FLAVOR · API $API_BASE_URL"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-java@v4
@@ -139,7 +194,7 @@ jobs:
 
       - name: Build release APK y App Bundle
         env:
-          # Clave de Geoapify (tiles del mapa), secret del environment `prod`.
+          # Clave de Geoapify (tiles del mapa), secret del environment que toque.
           # Sin ella el build sale igual, pero el mapa cae al respaldo de
           # openstreetmap.org: ese uso en una app distribuida no está permitido y
           # bloquean por User-Agent sin avisar, así que se avisa en el log para
@@ -147,7 +202,7 @@ jobs:
           TILE_API_KEY: ${{ secrets.TILE_API_KEY }}
         run: |
           if [ -z "${TILE_API_KEY:-}" ]; then
-            echo "::warning::Sin TILE_API_KEY: el mapa usará los tiles de openstreetmap.org, que no permiten este uso. Añade el secret en el environment 'prod'."
+            echo "::warning::Sin TILE_API_KEY: el mapa usará los tiles de openstreetmap.org, que no permiten este uso. Añade el secret en el environment '$ENTORNO'."
           fi
           # --obfuscate renombra los símbolos de Dart en el binario. No impide
           # decompilar, pero convierte un APK que se lee como código fuente
@@ -155,22 +210,32 @@ jobs:
           # cuesta trabajo. --split-debug-info es obligatorio con él: saca los
           # símbolos a un directorio aparte, que se sube como artefacto porque
           # sin ellos una traza de error de producción es ilegible.
-          flutter build apk --release \
+          # --flavor es obligatorio desde que el módulo declara sabores: sin él
+          # Gradle no sabe qué construir. Esa es la garantía de que ningún APK
+          # sale sin haber declarado su entorno.
+          flutter build apk --release --flavor "$FLAVOR" \
             --obfuscate --split-debug-info=build/simbolos \
             --build-number=${{ github.run_number }} \
-            --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=TILE_API_KEY="$TILE_API_KEY"
-          # El .aab solo se construye bajo demanda: es lo que se sube a Play a mano,
-          # no hace falta en cada commit, y son ~50 MB de cuota de artifacts por
-          # corrida y por app — la mitad del consumo que agotó el almacenamiento.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            flutter build appbundle --release \
+          # El .aab solo se construye bajo demanda Y desde `main`: es lo que se
+          # sube a Play a mano, no hace falta en cada commit, y son ~50 MB de
+          # cuota de artifacts por corrida y por app — la mitad del consumo que
+          # agotó el almacenamiento.
+          #
+          # Que salga solo de `main` no es una precaución de más: los canales de
+          # prueba interna y cerrada de Play existen para probar el ARTEFACTO DE
+          # PRODUCCIÓN, y un bundle del sabor `pruebas` lleva el applicationId
+          # con sufijo — ni siquiera corresponde a la ficha publicada. Play lo
+          # rechazaría, pero después de gastar la subida.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$ENTORNO" = "prod" ]; then
+            flutter build appbundle --release --flavor "$FLAVOR" \
               --obfuscate --split-debug-info=build/simbolos \
               --build-number=${{ github.run_number }} \
-              --dart-define=API_BASE_URL=${{ env.API_BASE_URL }} \
+              --dart-define=API_BASE_URL="$API_BASE_URL" \
               --dart-define=TILE_API_KEY="$TILE_API_KEY"
           else
-            echo "Sin .aab: se construye solo con 'Run workflow' (workflow_dispatch)."
+            echo "Sin .aab: se construye solo con 'Run workflow' sobre main."
           fi
 
       # Sin estos símbolos, una traza de un crash del release no se puede leer.
@@ -186,7 +251,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: zumbeo-conductor-simbolos-${{ github.run_number }}
+          name: zumbeo-conductor-${{ env.ENTORNO }}-simbolos-${{ github.run_number }}
           path: build/simbolos
           if-no-files-found: error
           retention-days: 90
@@ -198,26 +263,27 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: zumbeo-conductor-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: zumbeo-conductor-${{ env.ENTORNO }}-apk
+          path: build/app/outputs/flutter-apk/app-${{ env.FLAVOR }}-release.apk
           if-no-files-found: error
           retention-days: 7
 
       # El .aab es lo que se sube a Play (a mano la primera vez: una ficha nueva no
       # acepta la primera subida por API). Solo existe en las corridas manuales.
       - name: Upload App Bundle artifact
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && needs.contexto.outputs.entorno == 'prod'
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: zumbeo-conductor-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: build/app/outputs/bundle/${{ env.FLAVOR }}Release/app-${{ env.FLAVOR }}-release.aab
           if-no-files-found: error
           retention-days: 90
 
-      # Publica el APK en el panel admin (sube a R2 vía /admin/releases).
-      # Requiere los secrets ADMIN_EMAIL y ADMIN_PASSWORD (usuario ADMINISTRADOR)
-      # en el environment `prod`. Se omite solo en pull_request.
+      # Publica el APK en el panel admin del ENTORNO DE SU RAMA (sube a R2 vía
+      # /admin/releases). Requiere los secrets ADMIN_EMAIL y ADMIN_PASSWORD
+      # (usuario ADMINISTRADOR) en el environment que corresponda —`prod` o
+      # `test`—. Se omite solo en pull_request.
       #
       # Este paso FALLA si el APK no queda publicado, incluso por 502 del proxy.
       # Antes solo avisaba: el build salía verde y nadie se enteraba de que el
@@ -230,15 +296,19 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           APP: CONDUCTOR
-          APK: build/app/outputs/flutter-apk/app-release.apk
         run: |
           set -uo pipefail
+          # El APK y el panel al que se sube salen los dos del entorno de la
+          # rama: el de `env/test` va al panel de pruebas y el de `main` al de
+          # producción. Nunca se cruzan, porque las credenciales de admin son
+          # las del environment de GitHub que resolvió el job.
+          APK="build/app/outputs/flutter-apk/app-${FLAVOR}-release.apk"
           if [ -z "${ADMIN_PASSWORD:-}" ] || [ -z "${ADMIN_EMAIL:-}" ]; then
-            echo "::error::Faltan los secrets ADMIN_EMAIL/ADMIN_PASSWORD en el environment 'prod'. El APK quedó como artifact pero NO se publicó en el panel."
+            echo "::error::Faltan los secrets ADMIN_EMAIL/ADMIN_PASSWORD en el environment '$ENTORNO'. El APK quedó como artifact pero NO se publicó en el panel."
             exit 1
           fi
           VERSION=$(grep -E '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')
-          NOTAS="CI · commit ${GITHUB_SHA::7} · build #${GITHUB_RUN_NUMBER}"
+          NOTAS="CI · ${ENTORNO} · commit ${GITHUB_SHA::7} · build #${GITHUB_RUN_NUMBER}"
 
           echo "Autenticando en $API_BASE_URL ..."
           # 10 intentos cada 30 s ≈ 5 min. Eran 6 cada 15 s (90 s), menos de lo que

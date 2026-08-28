@@ -51,10 +51,14 @@ class PedidoRepository {
   /// perdía en silencio y el pedido quedaba `ENTREGADO` **sin evidencia**, que es
   /// justo el registro con el que se resuelve una disputa. Y sin esto no hay nada
   /// que reintentar: el estado ya habría avanzado.
+  /// [montoRealProductos] es opcional y **no bloquea la entrega**: si el conductor
+  /// no lo declara, el pedido se entrega igual y el backend se queda con el
+  /// estimado del catálogo.
   Future<Result<Pedido>> entregar(
     int pedidoId, {
     MultipartFile? foto,
     LatLng? coordenadas,
+    double? montoRealProductos,
     void Function(int enviados, int total)? onProgreso,
   }) async {
     if (foto != null || coordenadas != null) {
@@ -66,7 +70,8 @@ class PedidoRepository {
       );
       if (evidencia case Err<void>(failure: final f)) return Err<Pedido>(f);
     }
-    return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire);
+    return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire,
+        montoRealProductos: montoRealProductos);
   }
 
   /// Pedido activo del conductor (último no terminado) vía el endpoint ligero

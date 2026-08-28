@@ -153,7 +153,11 @@ class PedidoActivoViewModel extends ChangeNotifier {
   /// Si la subida de la foto falla, **el pedido no avanza** y la foto sigue en
   /// pantalla para reintentar: es la prueba con la que se resuelve una disputa, y
   /// perderla en silencio era el comportamiento anterior.
-  Future<bool> entregar({File? foto}) async {
+  /// [montoRealProductos] es lo que el negocio cobró de verdad por los productos,
+  /// y es **opcional a propósito**: si el conductor lo deja vacío la entrega sigue
+  /// su curso con el estimado del catálogo. Un campo obligatorio aquí sería un
+  /// trámite entre él y cobrar, con el cliente esperando en la puerta.
+  Future<bool> entregar({File? foto, double? montoRealProductos}) async {
     procesando = true;
     error = null;
     progresoSubida = null;
@@ -170,6 +174,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
       pedidoId,
       foto: multipart,
       coordenadas: posicion,
+      montoRealProductos: montoRealProductos,
       onProgreso: multipart == null
           ? null
           : (enviados, total) {

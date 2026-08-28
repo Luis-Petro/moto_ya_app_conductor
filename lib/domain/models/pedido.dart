@@ -2,6 +2,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'categoria_servicio.dart';
 import 'estado_pedido.dart';
+import 'item_pedido.dart';
 
 /// Modelo de dominio del pedido.
 class Pedido {
@@ -37,6 +38,7 @@ class Pedido {
     this.distanciaEstimadaMetros,
     this.duracionEstimadaSegundos,
     this.rutaPolyline,
+    this.items = const [],
   });
 
   final int id;
@@ -109,6 +111,17 @@ class Pedido {
   /// Polilínea codificada (Google, precisión 5) del trayecto recogida→entrega.
   final String? rutaPolyline;
 
+  /// Los artículos del catálogo que el cliente eligió, si el pedido salió de un
+  /// negocio afiliado. **Vacía en un pedido escrito a mano**, que sigue siendo el
+  /// camino principal: la lista es un extra sobre la descripción, no la sustituye.
+  ///
+  /// Solo llega en `PedidoDetalleResponse` (el detalle, el avance, el activo) y no
+  /// en la entidad cruda de `/pedidos/asignados`, así que el historial la ve vacía
+  /// y eso no es un fallo.
+  final List<ItemPedido> items;
+
+  bool get tieneItems => items.isNotEmpty;
+
   /// Copia con campos sustituidos. Reconstruir el pedido a mano campo por campo
   /// hacía que cualquier campo nuevo se perdiera en silencio (así desaparecía el
   /// contacto del cliente al avanzar de estado).
@@ -151,6 +164,7 @@ class Pedido {
       distanciaEstimadaMetros: distanciaEstimadaMetros,
       duracionEstimadaSegundos: duracionEstimadaSegundos,
       rutaPolyline: rutaPolyline,
+      items: items,
     );
   }
 

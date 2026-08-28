@@ -6,6 +6,7 @@ import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/demanda_zonas.dart';
 import '../../domain/models/estado_pedido.dart';
+import '../../domain/models/item_pedido.dart';
 import '../../domain/models/lugar.dart';
 import '../../domain/models/municipio.dart';
 import '../../domain/models/oferta.dart';
@@ -246,7 +247,25 @@ class ApiMappers {
       distanciaEstimadaMetros: _double(m['distanciaEstimadaMetros']),
       duracionEstimadaSegundos: _double(m['duracionEstimadaSegundos']),
       rutaPolyline: m['rutaPolyline'] as String?,
+      items: itemsDePedido(m['items']),
     );
+  }
+
+  /// Artículos del catálogo del pedido. **Ausentes en la entidad cruda** que
+  /// devuelve `/pedidos/asignados`, así que un `null` es lo normal y no un error:
+  /// se traduce a lista vacía y la pantalla simplemente no pinta la sección.
+  static List<ItemPedido> itemsDePedido(dynamic json) {
+    if (json is! List) return const [];
+    return json.whereType<Map<String, dynamic>>().map((m) {
+      return ItemPedido(
+        productoId: _int(m['productoId']),
+        cantidad: _int(m['cantidad']) ?? 1,
+        nombre: (m['nombre'] as String?) ?? 'Artículo',
+        precioUnitario: _double(m['precioUnitario']),
+        subtotal: _double(m['subtotal']),
+        nota: m['nota'] as String?,
+      );
+    }).toList(growable: false);
   }
 
   static List<Pedido> pedidos(dynamic json) =>

@@ -81,11 +81,22 @@ class PedidoService {
   /// transición y responde 409 si no es permitida.
   /// Avanza el estado del pedido (EN_COMPRA → EN_CAMINO → ENTREGADO). El backend
   /// valida la transición y responde 409 si no es permitida.
-  /// Contrato real: `POST /pedidos/{id}/avanzar` con body `{estado}`.
-  Future<Result<Pedido>> avanzarEstado(int pedidoId, String estadoWire) {
+  /// Contrato real: `POST /pedidos/{id}/avanzar` con body
+  /// `{estado, montoRealProductos?}`.
+  ///
+  /// [montoRealProductos] es **lo que el negocio cobró de verdad** y solo tiene
+  /// efecto al pasar a `ENTREGADO`. Va **fuera del JSON cuando es nulo** y no como
+  /// `null`: el backend distingue "no lo declaró" de un valor, y mandar la clave
+  /// vacía es la forma silenciosa de convertir lo primero en lo segundo.
+  Future<Result<Pedido>> avanzarEstado(int pedidoId, String estadoWire,
+      {double? montoRealProductos}) {
     return _api.post<Pedido>(
       '/pedidos/$pedidoId/avanzar',
-      body: {'estado': estadoWire},
+      body: {
+        'estado': estadoWire,
+        if (montoRealProductos != null)
+          'montoRealProductos': montoRealProductos,
+      },
       parse: ApiMappers.pedido,
     );
   }

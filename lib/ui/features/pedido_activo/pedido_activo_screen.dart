@@ -208,8 +208,23 @@ class _ActivoViewState extends State<_ActivoView> {
     if (vm.procesando) return;
 
     final esEntrega = vm.proximoEstado == EstadoPedido.entregado;
+
+    // Solo se pregunta el importe real cuando el pedido salió de un catálogo: en
+    // un mandado escrito a mano no hay ningún precio del sistema con el que
+    // comparar, y preguntar por él sería un campo que no significa nada.
+    double? montoReal;
+    if (esEntrega && (vm.pedido?.tieneItems ?? false)) {
+      final declarado = await _preguntarImporteReal(vm.pedido!);
+      if (!mounted) return;
+      // Cerrar la hoja sin decidir **cancela la entrega**, no la deja pasar sin
+      // importe: "omitir" es un botón propio, y confundir las dos cosas es
+      // entregar por un gesto de retroceso.
+      if (declarado == null) return;
+      montoReal = declarado.valor;
+    }
+
     final ok = esEntrega
-        ? await vm.entregar(foto: _evidencia)
+        ? await vm.entregar(foto: _evidencia, montoRealProductos: montoReal)
         : await vm.avanzar();
     if (!mounted) return;
 
@@ -230,6 +245,17 @@ class _ActivoViewState extends State<_ActivoView> {
         ),
       );
     }
+  }
+
+  /// Pregunta cuánto cobró de verdad el negocio. `null` = el conductor cerró la
+  /// hoja sin decidir, y entonces no se entrega nada.
+  Future<_ImporteDeclarado?> _preguntarImporteReal(Pedido pedido) {
+    return showModalBottomSheet<_ImporteDeclarado>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _HojaImporteReal(estimado: pedido.montoCompraEstimado),
+    );
   }
 
   @override
@@ -797,6 +823,10 @@ class _DetallePedido extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(pedido.descripcion, style: AppText.body),
+        if (pedido.tieneItems) ...[
+          const Divider(height: AppSpacing.xl),
+          _ListaDeArticulos(pedido: pedido),
+        ],
         if (pedido.requiereCompra) ...[
           const SizedBox(height: AppSpacing.md),
           Container(
@@ -880,6 +910,220 @@ class _DetallePedido extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Lo que hay que comprar, artículo por artículo.
+///
+/// **Existe por las notas.** La descripción del pedido ya dice qué y cuánto —la
+/// genera el backend con los mismos datos—, pero es un párrafo corrido, y "2 ×
+/// Pollo asado (sin ají), 1 × Gaseosa 1.5 L, 3 × Arepa (bien asadas)" se lee mal
+/// de reojo con el casco puesto y con alguien esperando al otro lado del mostrador.
+/// En lista, cada nota queda pegada a su artículo.
+///
+/// Los precios son **los que el cliente vio al pedir**, no los de la caja del
+/// negocio, y por eso el pie lo dice: es lo que el cliente espera pagar, no lo que
+/// el conductor va a adelantar necesariamente.
+class _ListaDeArticulos extends StatelessWidget {
+  const _ListaDeArticulos({required this.pedido});
+
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('QUÉ HAY QUE COMPRAR · ${pedido.items.length}',
+            style: AppText.label),
+        const SizedBox(height: AppSpacing.sm),
+        for (final item in pedido.items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // La cantidad va primero y en grande: es el dato que se dicta en
+                // el mostrador, y el que se equivoca cuando se lee deprisa.
+                Container(
+                  constraints: const BoxConstraints(minWidth: 30),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('${item.cantidad}',
+                      style: AppText.label
+                          .copyWith(color: AppColors.primaryInk)),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.nombre, style: AppText.body),
+                      if (item.nota != null && item.nota!.trim().isNotEmpty)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.sticky_note_2_outlined,
+                                size: 14, color: AppColors.primaryInk),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                item.nota!.trim(),
+                                style: AppText.caption
+                                    .copyWith(color: AppColors.ink),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+                if (item.subtotal != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(Formato.moneda(item.subtotal),
+                      style: AppText.caption.copyWith(
+                        color: AppColors.inkMuted,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      )),
+                ],
+              ],
+            ),
+          ),
+        Text(
+          'Son los precios que vio el cliente al pedir. Si en el negocio te '
+          'cobran otra cosa, lo declaras al entregar.',
+          style: AppText.caption,
+        ),
+      ],
+    );
+  }
+}
+
+/// Lo que el conductor declaró: un importe, o nada.
+///
+/// Existe como clase y no como `double?` porque hay **tres** desenlaces y no dos:
+/// declaró un importe, decidió no declararlo, y cerró la hoja sin decidir. Con un
+/// nulo suelto los dos últimos serían indistinguibles, y uno entrega el pedido
+/// mientras el otro no debe hacer nada.
+class _ImporteDeclarado {
+  const _ImporteDeclarado(this.valor);
+
+  /// Nulo cuando el conductor eligió omitirlo: el backend se queda con el
+  /// estimado del catálogo y la entrega sigue igual.
+  final double? valor;
+}
+
+/// Cuánto cobró el negocio de verdad. **Opcional, y se nota en los dos botones.**
+///
+/// El estimado viene prellenado porque en la mayoría de los pedidos va a coincidir,
+/// y confirmarlo tiene que costar un toque. Lo que no se puede es hacerlo
+/// obligatorio: el conductor está en la puerta del cliente con el pedido en la
+/// mano, y un campo que bloquea la entrega se rellena con cualquier número.
+class _HojaImporteReal extends StatefulWidget {
+  const _HojaImporteReal({required this.estimado});
+
+  final double? estimado;
+
+  @override
+  State<_HojaImporteReal> createState() => _HojaImporteRealState();
+}
+
+class _HojaImporteRealState extends State<_HojaImporteReal> {
+  late final TextEditingController _monto = TextEditingController(
+      text: widget.estimado == null
+          ? ''
+          : widget.estimado!.round().toString());
+
+  String? _error;
+
+  @override
+  void dispose() {
+    _monto.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final texto = _monto.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (texto.isEmpty) {
+      setState(() => _error = 'Escribe cuánto cobraron, o toca "Cobraron otra '
+          'cosa y no la anoté".');
+      return;
+    }
+    final valor = double.tryParse(texto);
+    if (valor == null || valor <= 0) {
+      setState(() => _error = 'Ese importe no es válido.');
+      return;
+    }
+    Navigator.of(context).pop(_ImporteDeclarado(valor));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Cuánto cobraron por los productos?',
+                style: AppText.title),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              widget.estimado == null
+                  ? 'Lo que pagaste en el negocio. Sirve para cuadrar cuentas.'
+                  : 'El cliente vio '
+                      '${Formato.moneda(widget.estimado)}. Si en la caja te '
+                      'cobraron otra cosa, corrígelo aquí.',
+              style: AppText.caption,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _monto,
+              keyboardType: TextInputType.number,
+              autofocus: false,
+              decoration: InputDecoration(
+                labelText: 'Importe cobrado',
+                prefixText: r'$ ',
+                errorText: _error,
+              ),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _confirmar,
+                child: const Text('Confirmar y entregar'),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                // Omitir **entrega igual**: es la diferencia entre este botón y
+                // cerrar la hoja.
+                onPressed: () =>
+                    Navigator.of(context).pop(const _ImporteDeclarado(null)),
+                child: const Text('No lo anoté · entregar sin este dato'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -170,10 +170,15 @@ void main() {
     semantica.dispose();
   });
 
-  test('ninguna app pasa de cinco pestañas', () {
-    // Más de cinco estrecha cada objetivo por debajo del pulgar y convierte
-    // elegir en adivinar. El límite se comprueba sobre el shell real y no sobre
-    // una constante, que es lo único que puede quedarse desactualizado.
+  test('la barra tiene cuatro destinos y no pasa de cinco', () {
+    // Dos afirmaciones, y la segunda es la regla: más de cinco estrecha cada
+    // objetivo por debajo del pulgar y convierte elegir en adivinar. La primera
+    // es el inventario de hoy —Inicio · Billetera · Historial · Perfil— y está
+    // para que añadir una quinta pestaña sea una decisión y no un descuido: con
+    // solo el tope, la quinta entra sin que nada se entere.
+    //
+    // Se cuenta sobre el shell real y no sobre una constante del test, que es lo
+    // único que puede quedarse desactualizado sin que se note.
     final shells = Directory('lib/ui/features/shell')
         .listSync()
         .whereType<File>()
@@ -182,7 +187,11 @@ void main() {
 
     for (final f in shells) {
       final pestanas = 'DestinoNav('.allMatches(f.readAsStringSync()).length;
-      expect(pestanas, inInclusiveRange(3, 5), reason: '${f.path}: $pestanas');
+      expect(pestanas, lessThanOrEqualTo(5),
+          reason: '${f.path}: $pestanas pestañas. El tope es cinco.');
+      expect(pestanas, 4,
+          reason: '${f.path}: $pestanas pestañas. Si el cambio es intencionado, '
+              'actualiza este número; sigue habiendo sitio hasta cinco.');
     }
   });
 }

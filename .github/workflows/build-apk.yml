@@ -78,23 +78,41 @@ jobs:
       contents: read
       actions: write
     steps:
-      # Va PRIMERO, antes de instalar Java, Flutter y el NDK: si el entorno no
-      # está declarado, que falle en cinco segundos y no en cinco minutos.
+      # Va PRIMERO, antes de instalar Java, Flutter y el NDK: si el entorno no se
+      # puede resolver, que falle en cinco segundos y no en cinco minutos.
       #
       # `vars.API_BASE_URL` es una variable DEL ENTORNO de GitHub (`prod` /
-      # `test`), no del repo: es lo que hace que cada rama construya contra su
-      # backend. Sin ella no hay respaldo a producción — una app de pruebas
-      # hablando con el backend real no da error, no se ve en una captura, y lo
-      # que escribe es de verdad.
+      # `test`) y sigue mandando cuando está puesta: es la vía para apuntar una
+      # rama a otro backend sin tocar el workflow.
+      #
+      # **Sin ella hay default, y el default sale del ENTORNO — nunca uno solo.**
+      # El guardarraíl que aquí había (fallar en seco) protegía de un riesgo real:
+      # una app de pruebas hablando con el backend de producción no da error, no
+      # se ve en una captura, y lo que escribe es de verdad. Ese riesgo lo trae un
+      # default **único**, no un default por entorno: con la tabla de abajo, `main`
+      # solo puede caer en producción y `env/test` solo en pruebas, que es
+      # exactamente la garantía que daba la variable. Lo que se pierde es tener
+      # que declararla en GitHub antes del primer build, y eso costaba un rojo por
+      # una configuración que la rama ya contesta.
       - name: Resolver el entorno de destino
         env:
           ENTORNO: ${{ needs.contexto.outputs.entorno }}
           FLAVOR: ${{ needs.contexto.outputs.flavor }}
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          API_BASE_URL_DECLARADA: ${{ vars.API_BASE_URL }}
         run: |
-          if [ -z "${API_BASE_URL:-}" ]; then
-            echo "::error::Falta la variable API_BASE_URL en el environment '$ENTORNO' de GitHub. Sin ella el APK saldría sin backend (o, peor, contra el equivocado). Añádela en Settings → Environments → $ENTORNO → Variables."
-            exit 1
+          API_BASE_URL="${API_BASE_URL_DECLARADA:-}"
+          if [ -n "$API_BASE_URL" ]; then
+            echo "API_BASE_URL viene de la variable del environment '$ENTORNO'."
+          else
+            case "$ENTORNO" in
+              prod) API_BASE_URL="https://api.zumbeo.com/Api" ;;
+              test) API_BASE_URL="https://api-test.zumbeo.com/Api" ;;
+              *)
+                echo "::error::Entorno '$ENTORNO' desconocido: no hay default que aplicar."
+                exit 1
+                ;;
+            esac
+            echo "::warning::Sin la variable API_BASE_URL en el environment '$ENTORNO': se usa el default del entorno ($API_BASE_URL). Declárala en Settings → Environments → $ENTORNO → Variables si este entorno apunta a otro backend."
           fi
           echo "API_BASE_URL=$API_BASE_URL" >> "$GITHUB_ENV"
           echo "FLAVOR=$FLAVOR" >> "$GITHUB_ENV"

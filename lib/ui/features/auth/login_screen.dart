@@ -56,9 +56,11 @@ class _LoginViewState extends State<_LoginView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(motivo),
-          // Los motivos largos piden acción, no información: el 409 de "esta
-          // cuenta es de cliente" dice a qué app hay que ir, y cuatro segundos
-          // no alcanzan para leerlo y entenderlo.
+          // Los motivos largos piden acción, no información: el 409 que queda
+          // —la credencial de administración— dice por dónde sí se entra, y
+          // cuatro segundos no alcanzan para leerlo y entenderlo. El de «esta
+          // cuenta es de cliente» dejó de existir: entrar aquí sin perfil de
+          // conductor es el alta, no un error.
           duration: Duration(seconds: motivo.length > 60 ? 8 : 4),
         ),
       );

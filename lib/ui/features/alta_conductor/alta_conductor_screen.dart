@@ -582,6 +582,29 @@ class _PasoIdentidad extends StatelessWidget {
             'Dos fotos para confirmar quién eres. Con la cédula ya puedes '
             'enviar tu solicitud; la selfie hace falta para habilitarte.',
             style: TextStyle(color: AppColors.inkMuted)),
+        // De quién es la cuenta a la que se le añade el perfil. Quien llega aquí
+        // desde su cuenta de siempre —el camino normal— necesita ver que no se le
+        // está creando una segunda, y que su nombre, su celular, su correo y su
+        // cédula ya están y no se los van a volver a pedir.
+        if (vm.cuenta != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              const Icon(Icons.account_circle_outlined,
+                  size: 18, color: AppColors.inkMuted),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  'Con tu cuenta de Zumbeo: ${vm.cuenta!.nombre}'
+                  '${vm.cuenta!.telefono != null ? ' · ${vm.cuenta!.telefono}' : ''}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.caption.copyWith(color: AppColors.inkMuted),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         _DocCard(
           icon: Icons.badge_outlined,

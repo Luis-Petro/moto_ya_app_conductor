@@ -10,6 +10,13 @@ class AuthService {
 
   final ApiClient _api;
 
+  /// Marca del 409 de «este celular ya tiene cuenta».
+  ///
+  /// Es la única marca que esta app compara, y es un código y no un texto porque
+  /// comparar el mensaje deja de funcionar el día que alguien le corrige una tilde
+  /// en el servidor, sin que nada falle aquí.
+  static const codigoCuentaYaExiste = 'CUENTA_YA_EXISTE';
+
   Future<Result<Sesion>> register({
     required String nombre,
     String? telefono,
@@ -35,8 +42,11 @@ class AuthService {
     required String email,
     required String password,
   }) {
-    // El rol declara que se entra desde la app de conductores: el backend
-    // promueve CLIENTE→CONDUCTOR para que el JWT autorice /conductores/**.
+    // El rol declara la puerta: se entra desde la app de conductores. El backend
+    // comprueba que la cuenta pueda entrar por ahí y emite la sesión con esa
+    // capacidad. Sin perfil de conductor la sesión se emite igual y aterriza en el
+    // alta — entrar no habilita a nadie, eso sigue dependiendo de los cuatro
+    // documentos y del administrador.
     return _api.post<Sesion>(
       '/auth/login',
       body: {'email': email, 'password': password, 'rol': Rol.conductor.wire},

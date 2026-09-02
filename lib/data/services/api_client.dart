@@ -181,7 +181,7 @@ class ApiClient {
       404 => FailureKind.notFound,
       _ => FailureKind.server,
     };
-    return Failure(msg, statusCode: code, kind: kind);
+    return Failure(msg, statusCode: code, codigo: _extractCodigo(res.data), kind: kind);
   }
 
   Failure _failureFromDio(DioException e) {
@@ -215,6 +215,15 @@ class ApiClient {
       'No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
       kind: FailureKind.network,
     );
+  }
+
+  /// La marca del caso, si el servidor la mandó. Nula en casi todas las respuestas.
+  String? _extractCodigo(dynamic data) {
+    if (data is Map) {
+      final c = data['codigo'];
+      if (c is String && c.trim().isNotEmpty) return c;
+    }
+    return null;
   }
 
   String? _extractMessage(dynamic data) {

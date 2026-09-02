@@ -97,7 +97,7 @@ class _RegistroViewState extends State<_RegistroView> {
     }
     final vm = context.read<RegistroViewModel>();
     final telefono = normalizarTelefonoCo(_telefono.text);
-    final ok = await vm.registrar(
+    final resultado = await vm.registrar(
       nombres: _nombres.text.trim(),
       apellidos: _apellidos.text.trim(),
       cedula: _cedula.text.trim(),
@@ -106,20 +106,29 @@ class _RegistroViewState extends State<_RegistroView> {
       password: _password.text,
     );
     if (!mounted) return;
-    if (ok) {
-      // Cuenta creada: validar el teléfono con el código antes de operar.
-      context.push(
-        Rutas.otp,
-        extra: OtpArgs(
-          telefono: telefono,
-          nombre: '${_nombres.text.trim()} ${_apellidos.text.trim()}'.trim(),
-        ),
-      );
-    } else {
+    if (resultado == ResultadoRegistro.fallo) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.error ?? 'No pudimos crear tu cuenta')),
       );
+      return;
     }
+    if (resultado == ResultadoRegistro.yaExiste) {
+      // No es un error: es su propia cuenta. Se le dice qué pasó y se sigue al
+      // mismo sitio que un alta nueva — el código de ese número.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ya tienes cuenta con este celular. Te enviamos el código para entrar.'),
+        ),
+      );
+    }
+    // Validar el teléfono con el código antes de operar.
+    context.push(
+      Rutas.otp,
+      extra: OtpArgs(
+        telefono: telefono,
+        nombre: '${_nombres.text.trim()} ${_apellidos.text.trim()}'.trim(),
+      ),
+    );
   }
 
   @override

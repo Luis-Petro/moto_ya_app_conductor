@@ -121,6 +121,54 @@ void main() {
 
     expect(expirada, isFalse);
   });
+
+  /// El 409 de la puerta equivocada **nombra dónde sí entra esa persona**, y ese
+  /// motivo tiene que llegar entero a la pantalla.
+  ///
+  /// Es lo único que separa «tu credencial dejó de servir» —que manda a pedir que
+  /// se la reemitan, y se reemitiría una que estaba bien— de «te equivocaste de
+  /// puerta, entra por aquí». Si alguien pusiera el mensaje genérico por delante
+  /// del que manda el servidor, la dirección desaparecería sin que nada fallara.
+  test('el motivo de la puerta equivocada llega entero', () async {
+    final api = clienteQue(
+      (_) async => json(
+        '{"message":"Esta credencial es de administración y entra por el panel, '
+        'no por las apps ni por el portal del negocio."}',
+        409,
+      ),
+    );
+
+    final f = fallo(await api.post<dynamic>('/auth/login'));
+
+    expect(f.statusCode, 409);
+    expect(f.message, contains('panel'));
+    expect(f.message, isNot(contains('La operación ya no es válida')));
+  });
+
+  /// La marca del caso es lo que permite reaccionar distinto a dos errores del
+  /// mismo código HTTP. Hoy hay uno solo: el registro con un celular que ya tiene
+  /// cuenta, que lleva a esa persona a entrar con su código en vez de a un muro.
+  test('el código del error llega a la app cuando el servidor lo manda', () async {
+    final api = clienteQue(
+      (_) async => json(
+        '{"message":"Ya tienes una cuenta con este celular.",'
+        '"codigo":"CUENTA_YA_EXISTE"}',
+        409,
+      ),
+    );
+
+    final f = fallo(await api.post<dynamic>('/auth/register'));
+
+    expect(f.statusCode, 409);
+    expect(f.codigo, 'CUENTA_YA_EXISTE');
+  });
+
+  test('sin código en la respuesta, el fallo no se inventa ninguno', () async {
+    // Es la inmensa mayoría de errores: la marca es la excepción, no la norma.
+    final api = clienteQue((_) async => json('{"message":"La cédula ya está registrada"}', 409));
+
+    expect(fallo(await api.post<dynamic>('/auth/register')).codigo, isNull);
+  });
 }
 
 /// Adaptador que responde lo que le diga el test, sin salir a la red.

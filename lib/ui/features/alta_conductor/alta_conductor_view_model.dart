@@ -10,6 +10,7 @@ import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/municipio.dart';
+import '../../../domain/models/usuario.dart';
 
 /// Estado del alta del perfil de conductor.
 class AltaConductorViewModel extends ChangeNotifier {
@@ -97,6 +98,14 @@ class AltaConductorViewModel extends ChangeNotifier {
   Conductor? get conductor => _conductores.conductor;
   bool get perfilCompleto => _conductores.perfilCompleto;
 
+  /// La cuenta a la que se le está añadiendo el perfil de conductor.
+  ///
+  /// **Puede llevar años pidiendo domicilios**: entrar a esta app con la cuenta de
+  /// siempre es el camino normal, no una excepción. El alta no vuelve a pedir nada
+  /// que la cuenta ya tenga —nombre, celular, correo y cédula ya están—, y enseñar de
+  /// quién es evita la duda de si esto va a crear una segunda cuenta.
+  Usuario? cuenta;
+
   /// Resuelve el perfil actual y libera la pantalla enseguida; la ubicación se
   /// resuelve en segundo plano (el GPS puede tardar y no debe bloquear el alta).
   Future<void> cargar() async {
@@ -105,8 +114,8 @@ class AltaConductorViewModel extends ChangeNotifier {
     await _conductores.cargar(forzar: true);
     // Municipios disponibles: preselecciona el del usuario o el único que haya.
     municipios = (await _municipios.disponibles()).valueOrNull ?? const [];
-    final u = (await _usuarios.perfil()).valueOrNull;
-    municipioElegido = _municipios.porId(u?.municipioId) ??
+    cuenta = (await _usuarios.perfil()).valueOrNull;
+    municipioElegido = _municipios.porId(cuenta?.municipioId) ??
         (municipios.isNotEmpty ? municipios.first : null);
     cargando = false;
     notifyListeners();

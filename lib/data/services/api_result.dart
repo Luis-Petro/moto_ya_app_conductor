@@ -30,10 +30,25 @@ class Err<T> extends Result<T> {
 
 /// Error de dominio normalizado.
 class Failure {
-  const Failure(this.message, {this.statusCode, this.kind = FailureKind.unknown});
+  const Failure(
+    this.message, {
+    this.statusCode,
+    this.codigo,
+    this.kind = FailureKind.unknown,
+  });
 
   final String message;
   final int? statusCode;
+
+  /// Marca estable del caso, cuando el servidor la manda.
+  ///
+  /// Existe para los pocos sitios donde la app tiene que **reaccionar distinto** a
+  /// dos errores del mismo código HTTP — hoy solo uno: el registro con un celular
+  /// que ya tiene cuenta, que lleva a esa persona a entrar con su código en vez de
+  /// a un muro. Comparar el texto del mensaje también "funcionaría", y dejaría de
+  /// hacerlo el día que alguien le corrija una tilde en el servidor, sin que nada
+  /// fallara aquí.
+  final String? codigo;
   final FailureKind kind;
 
   bool get isNetwork => kind == FailureKind.network;

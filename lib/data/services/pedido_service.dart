@@ -88,14 +88,21 @@ class PedidoService {
   /// efecto al pasar a `ENTREGADO`. Va **fuera del JSON cuando es nulo** y no como
   /// `null`: el backend distingue "no lo declaró" de un valor, y mandar la clave
   /// vacía es la forma silenciosa de convertir lo primero en lo segundo.
+  ///
+  /// [adelantoNoReembolsado] sigue la **misma regla, y por el mismo motivo**: el
+  /// backend distingue "no declaró nada" de "declaró que sí le pagaron", y
+  /// mandar `false` por defecto convertiría el silencio de todo el mundo en una
+  /// afirmación sobre el cliente. Tampoco bloquea la entrega.
   Future<Result<Pedido>> avanzarEstado(int pedidoId, String estadoWire,
-      {double? montoRealProductos}) {
+      {double? montoRealProductos, bool? adelantoNoReembolsado}) {
     return _api.post<Pedido>(
       '/pedidos/$pedidoId/avanzar',
       body: {
         'estado': estadoWire,
         if (montoRealProductos != null)
           'montoRealProductos': montoRealProductos,
+        if (adelantoNoReembolsado != null)
+          'adelantoNoReembolsado': adelantoNoReembolsado,
       },
       parse: ApiMappers.pedido,
     );

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/historial_del_cliente.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/theme/app_colors.dart';
@@ -497,11 +498,24 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
                       size: 16, color: AppColors.primary),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      pedido.montoCompraEstimado != null
-                          ? 'Adelantas ${Formato.moneda(pedido.montoCompraEstimado)} · te los reembolsa el cliente'
-                          : 'Adelantas la compra · te la reembolsa el cliente',
-                      style: AppText.caption.copyWith(color: AppColors.ink),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pedido.montoCompraEstimado != null
+                              ? 'Adelantas ${Formato.moneda(pedido.montoCompraEstimado)} · te los reembolsa el cliente'
+                              : 'Adelantas la compra · te la reembolsa el cliente',
+                          style: AppText.caption.copyWith(color: AppColors.ink),
+                        ),
+                        // El historial del cliente va JUNTO al monto porque es la
+                        // pregunta que se hace quien va a poner la plata. La
+                        // decisión sigue siendo suya: puede rechazar la oferta
+                        // como cualquier otra, sin penalización distinta.
+                        if (historialDelCliente(pedido) case final rotulo?)
+                          Text(rotulo,
+                              style: AppText.caption
+                                  .copyWith(color: AppColors.inkMuted)),
+                      ],
                     ),
                   ),
                 ],

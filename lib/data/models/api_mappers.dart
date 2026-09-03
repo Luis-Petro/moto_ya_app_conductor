@@ -235,6 +235,10 @@ class ApiMappers {
       recargoEspera: _double(m['recargoEspera']),
       requiereCompra: (m['requiereCompra'] as bool?) ?? false,
       montoCompraEstimado: _double(m['montoCompraEstimado']),
+      // Nulo cuando el pedido no exige adelantar dinero, y también cuando el
+      // backend todavía no lo manda: una oferta sin este campo sigue mapeando y
+      // la tarjeta simplemente no pinta el rótulo.
+      pedidosConAdelantoDelCliente: _int(m['pedidosConAdelantoDelCliente']),
       requiereEspera: (m['requiereEspera'] as bool?) ?? false,
       minutosEsperaEstimados: _int(m['minutosEsperaEstimados']),
       estado: EstadoPedido.fromWire(m['estado'] as String?),
@@ -275,8 +279,14 @@ class ApiMappers {
   /// (`GET /pedidos/ofertas` devuelve `{pedido, expiraEn, segundosRestantes}`).
   static Oferta oferta(dynamic json) {
     final m = json as Map<String, dynamic>;
+    // El historial del cliente viaja en el SOBRE, no dentro del pedido: el
+    // backend serializa la entidad `Pedido` cruda en esta respuesta, así que un
+    // campo del cliente colgado de ella aparecería también en las respuestas al
+    // cliente. Aquí se junta con el pedido porque es donde se pinta.
+    final datos = Map<String, dynamic>.from(m['pedido'] as Map)
+      ..['pedidosConAdelantoDelCliente'] = m['pedidosConAdelantoDelCliente'];
     return Oferta(
-      pedido: pedido(m['pedido']),
+      pedido: pedido(datos),
       expiraEnMillis: _int(m['expiraEn']) ?? 0,
       segundosRestantes: _int(m['segundosRestantes']) ?? 0,
     );

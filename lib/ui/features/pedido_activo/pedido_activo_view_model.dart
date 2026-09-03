@@ -157,7 +157,14 @@ class PedidoActivoViewModel extends ChangeNotifier {
   /// y es **opcional a propósito**: si el conductor lo deja vacío la entrega sigue
   /// su curso con el estimado del catálogo. Un campo obligatorio aquí sería un
   /// trámite entre él y cobrar, con el cliente esperando en la puerta.
-  Future<bool> entregar({File? foto, double? montoRealProductos}) async {
+  /// [adelantoNoReembolsado] va **fuera del JSON cuando es nulo**: «no dijo
+  /// nada» y «dijo que sí le pagaron» son cosas distintas, y el silencio de todo
+  /// el mundo no puede convertirse en una afirmación. Tampoco bloquea entregar.
+  Future<bool> entregar({
+    File? foto,
+    double? montoRealProductos,
+    bool? adelantoNoReembolsado,
+  }) async {
     procesando = true;
     error = null;
     progresoSubida = null;
@@ -175,6 +182,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
       foto: multipart,
       coordenadas: posicion,
       montoRealProductos: montoRealProductos,
+      adelantoNoReembolsado: adelantoNoReembolsado,
       onProgreso: multipart == null
           ? null
           : (enviados, total) {

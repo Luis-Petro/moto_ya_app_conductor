@@ -59,6 +59,7 @@ class PedidoRepository {
     MultipartFile? foto,
     LatLng? coordenadas,
     double? montoRealProductos,
+    bool? adelantoNoReembolsado,
     void Function(int enviados, int total)? onProgreso,
   }) async {
     if (foto != null || coordenadas != null) {
@@ -71,7 +72,8 @@ class PedidoRepository {
       if (evidencia case Err<void>(failure: final f)) return Err<Pedido>(f);
     }
     return _service.avanzarEstado(pedidoId, EstadoPedido.entregado.wire,
-        montoRealProductos: montoRealProductos);
+        montoRealProductos: montoRealProductos,
+        adelantoNoReembolsado: adelantoNoReembolsado);
   }
 
   /// Pedido activo del conductor (último no terminado) vía el endpoint ligero

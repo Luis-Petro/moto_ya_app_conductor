@@ -26,6 +26,7 @@ class Pedido {
     this.recargoEspera,
     this.requiereCompra = false,
     this.montoCompraEstimado,
+    this.pedidosConAdelantoDelCliente,
     this.requiereEspera = false,
     this.minutosEsperaEstimados,
     required this.estado,
@@ -73,6 +74,18 @@ class Pedido {
 
   /// Monto estimado de la compra que el cliente reembolsa (no comisionable).
   final double? montoCompraEstimado;
+
+  /// Cuántos pedidos con compra adelantada ha completado este cliente.
+  ///
+  /// Es quien va a poner la plata el que decide: un tope que resuelve el sistema
+  /// en silencio le quita la última palabra a quien asume el riesgo. Solo llega
+  /// en pedidos **con compra adelantada** — sin plata de por medio es un dato
+  /// sobre una persona que no hace falta para decidir.
+  ///
+  /// Es un **agregado y nada más**: ni identidad del cliente, ni su tope, ni
+  /// ninguna marca de impago. `null` cuando el backend no lo manda (una versión
+  /// anterior), y entonces la tarjeta simplemente no pinta el rótulo.
+  final int? pedidosConAdelantoDelCliente;
 
   /// Hay que esperar o hacer cola en la recogida (el cliente lo declaró).
   final bool requiereEspera;
@@ -152,6 +165,7 @@ class Pedido {
       recargoEspera: recargoEspera,
       requiereCompra: requiereCompra,
       montoCompraEstimado: montoCompraEstimado,
+      pedidosConAdelantoDelCliente: pedidosConAdelantoDelCliente,
       requiereEspera: requiereEspera,
       minutosEsperaEstimados: minutosEsperaEstimados,
       estado: estado ?? this.estado,

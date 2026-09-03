@@ -32,6 +32,7 @@ import '../../core/widgets/proponer_lugar_sheet.dart';
 import '../../core/widgets/visor_foto.dart';
 import '../../router.dart';
 import '../../../domain/models/estado_pedido.dart';
+import '../../../domain/models/historial_del_cliente.dart';
 import '../../../domain/models/pedido.dart';
 import 'mapa_pedido_screen.dart';
 import 'pedido_activo_view_model.dart';
@@ -209,11 +210,17 @@ class _ActivoViewState extends State<_ActivoView> {
 
     final esEntrega = vm.proximoEstado == EstadoPedido.entregado;
 
-    // Solo se pregunta el importe real cuando el pedido salió de un catálogo: en
-    // un mandado escrito a mano no hay ningún precio del sistema con el que
-    // comparar, y preguntar por él sería un campo que no significa nada.
+    // La hoja se abre **siempre que el conductor haya puesto plata**, no solo con
+    // pedidos del catálogo: el caso donde un impago importa más es el mandado
+    // escrito a mano ("tráeme el mercado, son 150.000"), y limitarla al catálogo
+    // dejaba justamente ese sin forma de declararlo.
+    //
+    // Lo que sí sigue siendo solo del catálogo es preguntar **cuánto cobraron**:
+    // en un mandado a mano no hay ningún precio del sistema con el que comparar,
+    // y ese campo no significaría nada.
     double? montoReal;
-    if (esEntrega && (vm.pedido?.tieneItems ?? false)) {
+    bool noLeReembolsaron = false;
+    if (esEntrega && (vm.pedido?.requiereCompra ?? false)) {
       final declarado = await _preguntarImporteReal(vm.pedido!);
       if (!mounted) return;
       // Cerrar la hoja sin decidir **cancela la entrega**, no la deja pasar sin
@@ -221,10 +228,18 @@ class _ActivoViewState extends State<_ActivoView> {
       // entregar por un gesto de retroceso.
       if (declarado == null) return;
       montoReal = declarado.valor;
+      noLeReembolsaron = declarado.noLeReembolsaron;
     }
 
     final ok = esEntrega
-        ? await vm.entregar(foto: _evidencia, montoRealProductos: montoReal)
+        ? await vm.entregar(
+            foto: _evidencia,
+            montoRealProductos: montoReal,
+            // Solo cuando es `true`: "no dijo nada" y "dijo que sí le pagaron"
+            // son cosas distintas, y el silencio de todo el mundo no puede
+            // convertirse en una afirmación.
+            adelantoNoReembolsado: noLeReembolsaron ? true : null,
+          )
         : await vm.avanzar();
     if (!mounted) return;
 
@@ -254,7 +269,10 @@ class _ActivoViewState extends State<_ActivoView> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _HojaImporteReal(estimado: pedido.montoCompraEstimado),
+      builder: (_) => _HojaImporteReal(
+        estimado: pedido.montoCompraEstimado,
+        pideImporte: pedido.tieneItems,
+      ),
     );
   }
 
@@ -845,11 +863,23 @@ class _DetallePedido extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: Text(
-                    pedido.montoCompraEstimado != null
-                        ? 'Debes comprar por ~${Formato.moneda(pedido.montoCompraEstimado)}. El cliente te lo devuelve en la entrega.'
-                        : 'Este pedido incluye una compra que el cliente te devuelve en la entrega.',
-                    style: AppText.caption.copyWith(color: AppColors.ink),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pedido.montoCompraEstimado != null
+                            ? 'Debes comprar por ~${Formato.moneda(pedido.montoCompraEstimado)}. El cliente te lo devuelve en la entrega.'
+                            : 'Este pedido incluye una compra que el cliente te devuelve en la entrega.',
+                        style: AppText.caption.copyWith(color: AppColors.ink),
+                      ),
+                      // El mismo rótulo de la oferta, aquí también: es donde el
+                      // conductor vuelve a ver el monto que tiene que poner, y
+                      // sale del mismo sitio para que no puedan divergir.
+                      if (historialDelCliente(pedido) case final rotulo?)
+                        Text(rotulo,
+                            style: AppText.caption
+                                .copyWith(color: AppColors.inkMuted)),
+                    ],
                   ),
                 ),
               ],
@@ -1012,11 +1042,23 @@ class _ListaDeArticulos extends StatelessWidget {
 /// nulo suelto los dos últimos serían indistinguibles, y uno entrega el pedido
 /// mientras el otro no debe hacer nada.
 class _ImporteDeclarado {
-  const _ImporteDeclarado(this.valor);
+  const _ImporteDeclarado(this.valor, {this.noLeReembolsaron = false});
 
   /// Nulo cuando el conductor eligió omitirlo: el backend se queda con el
   /// estimado del catálogo y la entrega sigue igual.
   final double? valor;
+
+  /// El cliente **no le devolvió** la plata que adelantó.
+  ///
+  /// Es una señal sobre el historial de esa persona, no un cobro: no le reclama
+  /// nada a nadie, no bloquea al cliente y no abre ninguna disputa. Lo único que
+  /// hace es devolverlo al primer escalón del tope de adelanto, y el
+  /// administrador puede revertirlo.
+  ///
+  /// **Solo se manda cuando es `true`.** «No dijo nada» y «dijo que sí le
+  /// reembolsaron» son cosas distintas, y mandar un `false` por defecto
+  /// convertiría el silencio de todo el mundo en una afirmación.
+  final bool noLeReembolsaron;
 }
 
 /// Cuánto cobró el negocio de verdad. **Opcional, y se nota en los dos botones.**
@@ -1026,9 +1068,15 @@ class _ImporteDeclarado {
 /// obligatorio: el conductor está en la puerta del cliente con el pedido en la
 /// mano, y un campo que bloquea la entrega se rellena con cualquier número.
 class _HojaImporteReal extends StatefulWidget {
-  const _HojaImporteReal({required this.estimado});
+  const _HojaImporteReal({required this.estimado, required this.pideImporte});
 
   final double? estimado;
+
+  /// Si se pregunta **cuánto cobraron**. Solo con pedidos del catálogo: en un
+  /// mandado escrito a mano no hay precio del sistema con el que comparar. Sin
+  /// él la hoja queda reducida a la pregunta del reembolso, que sí aplica a
+  /// cualquier pedido donde el conductor puso plata.
+  final bool pideImporte;
 
   @override
   State<_HojaImporteReal> createState() => _HojaImporteRealState();
@@ -1049,6 +1097,11 @@ class _HojaImporteRealState extends State<_HojaImporteReal> {
   }
 
   void _confirmar() {
+    if (!widget.pideImporte) {
+      Navigator.of(context)
+          .pop(_ImporteDeclarado(null, noLeReembolsaron: _noLeReembolsaron));
+      return;
+    }
     final texto = _monto.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (texto.isEmpty) {
       setState(() => _error = 'Escribe cuánto cobraron, o toca "Cobraron otra '
@@ -1060,8 +1113,13 @@ class _HojaImporteRealState extends State<_HojaImporteReal> {
       setState(() => _error = 'Ese importe no es válido.');
       return;
     }
-    Navigator.of(context).pop(_ImporteDeclarado(valor));
+    Navigator.of(context)
+        .pop(_ImporteDeclarado(valor, noLeReembolsaron: _noLeReembolsaron));
   }
+
+  /// El cliente no le devolvió la plata. Opcional y **nunca bloquea entregar**:
+  /// el conductor está en la puerta con el pedido en la mano.
+  bool _noLeReembolsaron = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1077,32 +1135,61 @@ class _HojaImporteRealState extends State<_HojaImporteReal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('¿Cuánto cobraron por los productos?',
+            Text(
+                widget.pideImporte
+                    ? '¿Cuánto cobraron por los productos?'
+                    : 'Antes de entregar',
                 style: AppText.title),
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              widget.estimado == null
-                  ? 'Lo que pagaste en el negocio. Sirve para cuadrar cuentas.'
-                  : 'El cliente vio '
-                      '${Formato.moneda(widget.estimado)}. Si en la caja te '
-                      'cobraron otra cosa, corrígelo aquí.',
-              style: AppText.caption,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _monto,
-              keyboardType: TextInputType.number,
-              autofocus: false,
-              decoration: InputDecoration(
-                labelText: 'Importe cobrado',
-                prefixText: r'$ ',
-                errorText: _error,
+            if (widget.pideImporte) ...[
+              Text(
+                widget.estimado == null
+                    ? 'Lo que pagaste en el negocio. Sirve para cuadrar cuentas.'
+                    : 'El cliente vio '
+                        '${Formato.moneda(widget.estimado)}. Si en la caja te '
+                        'cobraron otra cosa, corrígelo aquí.',
+                style: AppText.caption,
               ),
-              onChanged: (_) {
-                if (_error != null) setState(() => _error = null);
-              },
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _monto,
+                keyboardType: TextInputType.number,
+                autofocus: false,
+                decoration: InputDecoration(
+                  labelText: 'Importe cobrado',
+                  prefixText: r'$ ',
+                  errorText: _error,
+                ),
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+              ),
+            ] else
+              Text(
+                widget.estimado == null
+                    ? 'Adelantaste el dinero de la compra.'
+                    : 'Adelantaste ${Formato.moneda(widget.estimado)} de tu '
+                        'bolsillo.',
+                style: AppText.caption,
+              ),
+            const SizedBox(height: AppSpacing.sm),
+            // La casilla del impago va aquí, junto al importe, porque es el
+            // mismo momento: el conductor acaba de cobrar (o de no cobrar) en la
+            // puerta. La etiqueta se lee de un vistazo con el casco puesto — sin
+            // "adelanto", sin "reembolso" y sin explicar la escalera.
+            CheckboxListTile(
+              value: _noLeReembolsaron,
+              onChanged: (v) => setState(() => _noLeReembolsaron = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              activeColor: AppColors.primary,
+              title: const Text('El cliente no me pagó la compra',
+                  style: AppText.subtitle),
+              subtitle: const Text(
+                  'Lo revisa Zumbeo. No le cobra nada a nadie por ahora.',
+                  style: AppText.caption),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.sm),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -1110,17 +1197,21 @@ class _HojaImporteRealState extends State<_HojaImporteReal> {
                 child: const Text('Confirmar y entregar'),
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                // Omitir **entrega igual**: es la diferencia entre este botón y
-                // cerrar la hoja.
-                onPressed: () =>
-                    Navigator.of(context).pop(const _ImporteDeclarado(null)),
-                child: const Text('No lo anoté · entregar sin este dato'),
+            if (widget.pideImporte) ...[
+              const SizedBox(height: AppSpacing.xs),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  // Omitir **entrega igual**: es la diferencia entre este botón y
+                  // cerrar la hoja. La casilla del impago viaja igual: no depende
+                  // de haber anotado el importe.
+                  onPressed: () => Navigator.of(context).pop(
+                      _ImporteDeclarado(null,
+                          noLeReembolsaron: _noLeReembolsaron)),
+                  child: const Text('No lo anoté · entregar sin este dato'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

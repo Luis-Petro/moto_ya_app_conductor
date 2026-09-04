@@ -26,9 +26,47 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:775887932405:android:e1c9b9e7194f32e1e62ebc",
+        "android_client_info": {
+          "package_name": "com.zumbeo.cliente.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD-hoJurfVz1WxK6hP2Vx-h6iMh9HmzlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:775887932405:android:7768a061cef056afe62ebc",
         "android_client_info": {
           "package_name": "com.zumbeo.conductor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAD-hoJurfVz1WxK6hP2Vx-h6iMh9HmzlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:775887932405:android:c10cfe9be1950282e62ebc",
+        "android_client_info": {
+          "package_name": "com.zumbeo.conductor.test"
         }
       },
       "oauth_client": [],

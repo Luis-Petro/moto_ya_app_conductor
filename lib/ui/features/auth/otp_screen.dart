@@ -53,6 +53,17 @@ class _OtpViewState extends State<_OtpView> {
   Timer? _timer;
   int _segundos = 42;
 
+  /// Hay una verificación en vuelo.
+  ///
+  /// Sin esta guarda el código se verifica **dos veces**: el autocompletado del
+  /// SMS llena las cuatro cajas y dispara `onChanged`, y acto seguido la persona
+  /// pulsa «Verificar» sobre unas cajas que ya se ven llenas. El código es de un
+  /// solo uso en el backend (`OtpService` lo borra al acertar), así que la
+  /// primera llamada acierta y la segunda recibe un 401 — y lo que queda en
+  /// pantalla es el acuse de la segunda: «el código no es correcto» sobre un
+  /// código que sí lo era.
+  bool _enVuelo = false;
+
   @override
   void initState() {
     super.initState();
@@ -79,17 +90,28 @@ class _OtpViewState extends State<_OtpView> {
   }
 
   Future<void> _verificar() async {
+    if (_enVuelo) return;
+    _enVuelo = true;
     final vm = context.read<OtpViewModel>();
-    final ok = await vm.verificar(_controller.text);
-    if (!mounted) return;
-    if (ok) {
+    // **El router se toma ANTES del await y se navega con él, no con el
+    // `context`.** Guardar la sesión notifica al `refreshListenable` del router,
+    // y su redirect saca esta ruta de las de acceso: la pantalla se desmonta
+    // mientras la verificación está en vuelo, y con `if (!mounted) return` la
+    // navegación de abajo se pierde.
+    final router = GoRouter.of(context);
+    try {
+      final ok = await vm.verificar(_controller.text);
+      if (!ok) {
+        // Limpiar las cajas para reintentar de una: el error queda visible
+        // bajo el código (más claro que solo un snackbar).
+        if (mounted) setState(() => _controller.clear());
+        return;
+      }
       // Nuevo conductor: pasa por el alta de perfil (que redirige a Inicio si
       // ya estuviera completo).
-      context.go(Rutas.alta);
-    } else {
-      // Limpiar las cajas para reintentar de una: el error queda visible
-      // bajo el código (más claro que solo un snackbar).
-      setState(() => _controller.clear());
+      router.go(Rutas.alta);
+    } finally {
+      _enVuelo = false;
     }
   }
 
@@ -141,8 +163,16 @@ class _OtpViewState extends State<_OtpView> {
               }),
               if (vm.error != null) ...[
                 const SizedBox(height: AppSpacing.md),
+                // **El motivo lo dice el servidor.** Con un texto fijo, un 401
+                // por código vencido, un 429 por código quemado tras cinco
+                // intentos y un 502 porque ningún canal pudo enviar se veían
+                // los tres iguales. El peor es el 429: el código ya no existe y
+                // la pantalla invitaba a «revisarlo e intentarlo de nuevo», así
+                // que la salida obvia —volver a teclear el mismo— no podía
+                // funcionar nunca.
                 Text(
-                  'El código no es correcto. Revísalo e inténtalo de nuevo.',
+                  vm.error ??
+                      'El código no es correcto. Revísalo e inténtalo de nuevo.',
                   textAlign: TextAlign.center,
                   style: AppText.body.copyWith(
                       color: AppColors.dangerInk,

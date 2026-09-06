@@ -81,6 +81,15 @@ class InicioViewModel extends ChangeNotifier {
   /// Nombre del municipio del conductor (para el encabezado).
   String? municipioNombre;
 
+  /// Centro del municipio, cuando el catálogo lo declara.
+  ///
+  /// Es el respaldo del encuadre del mapa de zonas cuando no hay ni celdas ni
+  /// ubicación: el municipio es el ámbito en el que se trabaja, y encuadrar ahí
+  /// dice bastante más que el punto de respaldo genérico de la app. Nulo es un
+  /// caso normal —un municipio del catálogo puede no tener coordenadas—, y por
+  /// eso quien lo usa sigue teniendo su propio respaldo detrás.
+  LatLng? centroMunicipio;
+
   LatLng? ubicacion;
   bool permisoUbicacionDenegado = false;
 
@@ -273,6 +282,7 @@ class InicioViewModel extends ChangeNotifier {
       }
     }
     municipioNombre = municipio?.nombre;
+    centroMunicipio = municipio?.centro;
   }
 
   Future<void> _cargarMetricas() async {

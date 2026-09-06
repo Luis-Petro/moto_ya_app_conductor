@@ -167,36 +167,48 @@ void main() {
       'lib/ui/features/inicio/inicio_screen.dart',
     ).readAsStringSync();
 
+    /// El bloque de demanda salió de la pantalla a su propio archivo cuando pasó
+    /// a alto fijo: recibiendo los cinco datos que usa en vez del view model
+    /// entero, se puede montar de verdad en un test — lo hace
+    /// `mapa_de_zonas_test.dart`. Aquí se quedan las decisiones que solo se
+    /// pueden vigilar sobre el código.
+    final mapa = File(
+      'lib/ui/features/inicio/mapa_de_zonas.dart',
+    ).readAsStringSync();
+
     test(
       'el área del mapa tiene rama propia mientras la demanda está en vuelo',
       () {
         // Sin esta rama, `demanda == null` con la consulta en vuelo no caía en
         // ninguna de las tres siguientes y dejaba medio alto de pantalla vacío.
-        expect(inicio, contains('if (d == null && vm.cargandoDemanda)'));
+        expect(mapa, contains('null when widget.cargando =>'));
         // Y va **antes** que la rama de error: si no, `demanda == null` mientras
-        // carga se contaría como "no pudimos cargar las zonas".
+        // carga se contaría como "no pudimos cargar las zonas". En un `switch`
+        // de patrones el orden de los casos sigue decidiendo, igual que en la
+        // cadena de `else if` que había antes.
         expect(
-          inicio.indexOf('if (d == null && vm.cargandoDemanda)'),
-          lessThan(inicio.indexOf('else if (d == null)')),
+          mapa.indexOf('null when widget.cargando =>'),
+          lessThan(mapa.indexOf('null => _AvisoDemanda(')),
         );
       },
     );
 
     test('los cuatro desenlaces del área del mapa siguen siendo distintos', () {
-      expect(inicio, contains("'No pudimos cargar las zonas de demanda.'"));
-      expect(inicio, contains('Todavía no hay ningún pedido registrado'));
-      expect(inicio, contains('_conAltoDeMapa(_mapa(d))'));
+      expect(mapa, contains("'No pudimos cargar las zonas de demanda.'"));
+      expect(mapa, contains('Todavía no hay ningún pedido registrado'));
+      expect(mapa, contains('final z => _mapaDeZonas(z)'));
     });
 
     test('el mapa se construye solo en su rama', () {
       // La versión anterior calculaba el mapa en una variable al principio del
       // build y lo descartaba en dos de las tres ramas — construyendo el
-      // encuadre que lanzaba.
-      expect(inicio, contains('Widget _mapa(DemandaZonas d)'));
-      expect(inicio, isNot(contains('final mapa = d == null')));
+      // encuadre que lanzaba. Las ramas de un `switch` de expresión también son
+      // perezosas: solo se evalúa la que casa.
+      expect(mapa, contains('Widget _mapaDeZonas(DemandaZonas d)'));
+      expect(mapa, isNot(contains('final mapa = d == null')));
       // Y nadie llama a fromPoints por su cuenta: pasa por el helper con guarda.
-      expect(inicio, isNot(contains('LatLngBounds.fromPoints(')));
-      expect(inicio, contains('encuadreDePuntos('));
+      expect(mapa, isNot(contains('LatLngBounds.fromPoints(')));
+      expect(mapa, contains('encuadreDePuntos('));
     });
 
     test('el esqueleto de carga recibe la identidad de la sesión', () {

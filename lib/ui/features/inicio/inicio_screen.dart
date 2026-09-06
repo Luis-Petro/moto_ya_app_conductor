@@ -1,5 +1,6 @@
+﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -15,12 +16,10 @@ import '../../../data/services/notificacion_local_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
-import '../../../domain/models/demanda_zonas.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_elevation.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/widgets/carrusel_banners.dart';
@@ -28,12 +27,11 @@ import '../../core/widgets/beta_chip.dart';
 import '../../core/widgets/brand.dart';
 import '../../core/widgets/elegir_foto_sheet.dart';
 import '../../core/widgets/estado_badge.dart';
-import '../../core/widgets/lugares_layer.dart';
-import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../core/widgets/skeleton.dart';
 import 'inicio_view_model.dart';
+import 'mapa_de_zonas.dart';
 
 class InicioScreen extends StatelessWidget {
   const InicioScreen({super.key});
@@ -106,17 +104,6 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
       if (vm.bateria == PermisoBateria.denegado) const _BateriaBanner(),
     ];
 
-    // Los avisos (revisión, foto, pedido activo, oferta) son transitorios pero
-    // empujan: con alguno en pantalla el mapa ya no puede quedarse con "lo que
-    // sobre" —sobraría casi nada— y pasa a un alto fijo con scroll.
-    final hayAvisos =
-        vm.enRevision ||
-        vm.rechazado ||
-        !vm.tieneFotoPerfil ||
-        vm.pedidosActivos.isNotEmpty ||
-        vm.ofertaActual != null ||
-        vm.sinVisibilidad ||
-        vm.bateria == PermisoBateria.denegado;
     return Scaffold(
       body: SafeArea(
         child: vm.cargando
@@ -189,27 +176,27 @@ class _InicioViewState extends State<_InicioView> with WidgetsBindingObserver {
                           _ToggleEnLinea(vm: vm),
                           const SizedBox(height: AppSpacing.md),
                           _Ganancias(vm: vm),
+                          const SizedBox(height: AppSpacing.md),
+                          // El mapa es una tarjeta más de esta lista, con su
+                          // alto fijo. Era un sliver aparte que cambiaba de
+                          // naturaleza según hubiera avisos —todo el resto de la
+                          // pantalla o 260 px—, así que la llegada de un banner
+                          // reorganizaba la pantalla entera y movía el encuadre
+                          // debajo del dedo del conductor.
+                          MapaDeZonas(
+                            demanda: vm.demanda,
+                            cargando: vm.cargandoDemanda,
+                            ubicacion: vm.ubicacion,
+                            centroMunicipio: vm.centroMunicipio,
+                            onReintentar: vm.cargarDemanda,
+                          ),
                         ]),
                       ),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.md,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
-                      ),
-                      // Sin avisos el mapa ocupa exactamente el alto que queda:
-                      // se ve entero, con su leyenda, sin hacer scroll. Es la
-                      // pantalla donde el conductor decide dónde pararse.
-                      sliver: hayAvisos
-                          ? SliverToBoxAdapter(
-                              child: _ZonasDemanda(vm: vm, alturaMapa: 260),
-                            )
-                          : SliverFillRemaining(
-                              hasScrollBody: true,
-                              child: _ZonasDemanda(vm: vm),
-                            ),
+                    // El padding inferior del contenido, que antes ponía el
+                    // sliver del mapa.
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: AppSpacing.lg),
                     ),
                   ],
                 ),
@@ -1177,251 +1164,3 @@ class _Metrica extends StatelessWidget {
   }
 }
 
-/// Dónde han salido pedidos, con datos del backend.
-///
-/// Antes esto dibujaba tres círculos alrededor del conductor con offsets fijos:
-/// parecía información y no lo era. Nunca se pinta un mapa inventado sobre el
-/// que alguien podría decidir dónde pararse a esperar.
-///
-/// El backend ensancha la ventana si en las últimas horas no hubo pedidos (en un
-/// municipio de 5 pedidos al día casi nunca los hay) y devuelve cuál usó: el
-/// encabezado pinta ese periodo. Solo queda vacío si no hay ni un pedido.
-class _ZonasDemanda extends StatelessWidget {
-  const _ZonasDemanda({required this.vm, this.alturaMapa});
-  final InicioViewModel vm;
-
-  /// Alto del mapa. `null` = toma todo el espacio que le quede a la pantalla
-  /// (el caso normal, sin avisos arriba); un valor fijo cuando hay avisos y el
-  /// contenido ya excede la pantalla.
-  final double? alturaMapa;
-
-  /// El área del mapa.
-  ///
-  /// Antes esto era una variable calculada al principio del `build`, así que se
-  /// construía **siempre que `demanda != null`** — incluso cuando la rama de
-  /// "todavía no hay pedidos" la descartaba. Y ese es justo el caso en que
-  /// `LatLngBounds.fromPoints` recibía la lista vacía y lanzaba. Que sea un
-  /// método y se llame solo desde su rama es lo que lo hace imposible;
-  /// [encuadreDePuntos] es el cinturón.
-  Widget _mapa(DemandaZonas d) => ClipRRect(
-    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-    child: Stack(
-      children: [
-        Positioned.fill(
-          child: FlutterMap(
-            options: MapOptions(
-              initialCameraFit: encuadreDePuntos([
-                for (final c in d.celdas) c.centro,
-                if (vm.ubicacion != null) vm.ubicacion!,
-              ]),
-              minZoom: zoomMinimoMapa,
-              maxZoom: zoomMaximoMapa,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-              ),
-            ),
-            children: [
-              osmTileLayer(),
-              // Las manchas de demanda dicen "por aquí se pide"; los
-              // lugares dicen dónde es "por aquí". Una mancha sobre
-              // calles sin nombre no le sirve para decidir dónde
-              // pararse a esperar.
-              const LugaresLayer(),
-              CircleLayer(
-                circles: [
-                  for (final c in d.celdas)
-                    CircleMarker(
-                      point: c.centro,
-                      // ~media celda de la rejilla del backend (0.005°).
-                      radius: 280,
-                      useRadiusInMeter: true,
-                      color: _color(c.nivel).withValues(alpha: 0.18),
-                      borderColor: _color(c.nivel).withValues(alpha: 0.35),
-                      borderStrokeWidth: 1,
-                    ),
-                ],
-              ),
-              if (vm.ubicacion != null)
-                MarkerLayer(markers: [usuarioMarker(vm.ubicacion!)]),
-              osmAttribution(),
-            ],
-          ),
-        ),
-        // La leyenda va encima del mapa, no debajo: como fila aparte se
-        // llevaba una línea entera de la pantalla y era justo la que
-        // quedaba cortada.
-        const Positioned(
-          left: AppSpacing.sm,
-          top: AppSpacing.sm,
-          child: _Leyenda(),
-        ),
-      ],
-    ),
-  );
-
-  /// Da al hijo el alto del área del mapa: todo lo que quede de pantalla cuando
-  /// no hay avisos arriba, o el alto fijo cuando sí los hay.
-  Widget _conAltoDeMapa(Widget hijo) => alturaMapa == null
-      ? Expanded(child: hijo)
-      : SizedBox(height: alturaMapa, child: hijo);
-
-  @override
-  Widget build(BuildContext context) {
-    final d = vm.demanda;
-
-    return Column(
-      mainAxisSize: alturaMapa == null ? MainAxisSize.max : MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Dónde están pidiendo',
-              style: AppText.subtitle.copyWith(fontWeight: AppText.fuerte),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                d != null && d.tieneDatos
-                    // El periodo lo decide el servidor: si no hubo pedidos en
-                    // las últimas horas, ensancha la ventana. Pintarlo es lo
-                    // que evita leer lo de la semana pasada como si fuera ahora.
-                    ? '${d.totalPedidos} pedidos · ${d.periodoLabel}'
-                    : 'Últimas horas',
-                style: AppText.caption,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (vm.cargandoDemanda)
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        // La consulta de demanda es la más lenta del Inicio: el backend ensancha
-        // la ventana (2 h → 24 h → 7 d → 30 d → 1 año → todo) hasta juntar cinco
-        // pedidos. Sin esta rama, `demanda == null` con la consulta en vuelo no
-        // caía en ninguna de las tres de abajo y dejaba medio alto de pantalla en
-        // blanco — que es la mitad del reporte de "el home queda en blanco".
-        // Va condicionada a `d == null` a propósito: al refrescar con datos ya en
-        // pantalla, cambiar el mapa por un esqueleto sería un paso atrás (para eso
-        // está el indicador pequeño del encabezado).
-        if (d == null && vm.cargandoDemanda)
-          _conAltoDeMapa(
-            const Skeleton(
-              height: double.infinity,
-              radius: AppSpacing.radiusMd,
-            ),
-          )
-        else if (d == null)
-          _AvisoDemanda(
-            icono: Icons.cloud_off_outlined,
-            texto: 'No pudimos cargar las zonas de demanda.',
-            accion: vm.cargarDemanda,
-          )
-        else if (!d.tieneDatos)
-          const _AvisoDemanda(
-            icono: Icons.query_stats_outlined,
-            texto:
-                'Todavía no hay ningún pedido registrado en tu zona. En cuanto '
-                'entre el primero, aparece en el mapa.',
-          )
-        else
-          _conAltoDeMapa(_mapa(d)),
-      ],
-    );
-  }
-
-  static Color _color(NivelDemanda n) => switch (n) {
-    NivelDemanda.alta => AppColors.danger,
-    NivelDemanda.media => AppColors.warning,
-    NivelDemanda.baja => AppColors.success,
-  };
-}
-
-/// Leyenda de niveles, en una pastilla sobre el mapa.
-class _Leyenda extends StatelessWidget {
-  const _Leyenda();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(color: AppColors.line),
-        // Flota sobre el mapa: tiene que leerse igual sobre una calle blanca
-        // que sobre una zona verde, y el borde solo no lo consigue.
-        boxShadow: AppElevation.flotante,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final n in NivelDemanda.values) ...[
-            if (n != NivelDemanda.values.first)
-              const SizedBox(width: AppSpacing.sm),
-            _PuntoLeyenda(color: _ZonasDemanda._color(n), label: n.label),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PuntoLeyenda extends StatelessWidget {
-  const _PuntoLeyenda({required this.color, required this.label});
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.35),
-            border: Border.all(color: color),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: AppText.caption),
-      ],
-    );
-  }
-}
-
-class _AvisoDemanda extends StatelessWidget {
-  const _AvisoDemanda({required this.icono, required this.texto, this.accion});
-  final IconData icono;
-  final String texto;
-  final VoidCallback? accion;
-
-  @override
-  Widget build(BuildContext context) {
-    return MotoCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icono, size: 20, color: AppColors.inkMuted),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(texto, style: AppText.body),
-          ),
-          if (accion != null)
-            TextButton(onPressed: accion, child: const Text('Reintentar')),
-        ],
-      ),
-    );
-  }
-}

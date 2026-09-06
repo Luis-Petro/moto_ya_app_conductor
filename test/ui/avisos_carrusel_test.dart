@@ -16,9 +16,13 @@ void main() {
       File('lib/ui/features/inicio/inicio_screen.dart').readAsStringSync();
 
   /// La declaración de la lista de avisos, que es la que decide quién entra.
+  ///
+  /// Corta en el `return Scaffold(` que la sigue. Cortaba en un `final hayAvisos`
+  /// que ya no existe: era el flag que decidía si el mapa tomaba todo el alto
+  /// sobrante o 260 px, y desapareció cuando el mapa pasó a alto fijo.
   final lista = inicio.substring(
     inicio.indexOf('final avisos = <Widget>['),
-    inicio.indexOf('final hayAvisos'),
+    inicio.indexOf('return Scaffold('),
   );
 
   final carrusel = inicio.substring(

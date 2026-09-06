@@ -11,9 +11,19 @@ import 'api_result.dart';
 /// ya verificó en la calle, y ese es el motor real del catálogo en municipios
 /// donde OpenStreetMap está prácticamente vacío de comercio.
 class LugarService {
-  LugarService(this._api);
+  LugarService(this._api, {Duration? frescuraDelVacio, Duration? plazoDeGuarda})
+      : frescuraDelVacio = frescuraDelVacio ?? frescuraCatalogoVacio,
+        plazoDeGuarda = plazoDeGuarda ?? plazoDeGuardaDelCatalogo;
 
   final ApiClient _api;
+
+  /// Cuánto se recuerda un catálogo vacío. Se puede acortar al construir el
+  /// servicio: comprobar que el vacío se olvida no puede costar un minuto de
+  /// reloj real.
+  final Duration frescuraDelVacio;
+
+  /// Cuánto se espera a un intento antes de darlo por perdido y soltarlo.
+  final Duration plazoDeGuarda;
 
   Future<Result<List<Lugar>>> buscar({
     required int municipioId,
@@ -58,15 +68,48 @@ class LugarService {
   /// fallo de red, un 400 por municipio inválido y un catálogo genuinamente sin
   /// nada se veían exactamente igual: un mapa sin marcadores y ni una pista de
   /// por qué. Quien llama decide si reintenta.
+  ///
+  /// **Un intento que no vuelve caduca.** Hasta ahora la entrada de [_enVuelo]
+  /// solo se borraba cuando la petición terminaba: una que se quedara colgada
+  /// —un interceptor que no llama a `handler.next`, un socket que no cierra— la
+  /// dejaba puesta para siempre y **todos** los que preguntaran después en esa
+  /// sesión se enganchaban al mismo futuro muerto. La app entera sin catálogo y
+  /// sin un solo error. El plazo de guarda va holgadamente por encima del
+  /// `receiveTimeout` del `ApiClient`, así que en una red lenta normal ya habrá
+  /// fallado antes por su cuenta; esto solo cubre lo que no vuelve nunca.
   Future<List<Lugar>?> catalogoDeMapa(int municipioId) {
     final cacheado = _cache[municipioId];
-    if (cacheado != null && cacheado.fresco) {
+    if (cacheado != null && _estaFresco(cacheado)) {
       return Future.value(cacheado.lugares);
     }
     // Una sola petición aunque dos pantallas la pidan a la vez: al abrir la app
     // el mapa de zonas y el del pedido activo arrancan casi al mismo tiempo.
-    return _enVuelo[municipioId] ??= _traerCatalogo(municipioId)
-        .whenComplete(() => _enVuelo.remove(municipioId));
+    final enVuelo = _enVuelo[municipioId];
+    if (enVuelo != null) return enVuelo;
+    final futuro = _traerCatalogo(municipioId)
+        .timeout(plazoDeGuarda, onTimeout: () {
+          _trazar(municipioId, 'venció',
+              detalle: 'sin respuesta en $plazoDeGuarda');
+          return _cache[municipioId]?.lugares;
+        })
+        // Se suelta también al vencer, que es el punto entero: el siguiente que
+        // pregunte tiene que lanzar un intento de verdad, no heredar este.
+        //
+        // **Cuerpo de bloque, no flecha, y esto no es estilo.** `whenComplete`
+        // espera a lo que le devuelvas, y `Map.remove` devuelve **el valor que
+        // quitó** — que aquí es este mismo futuro. Con `=> _enVuelo.remove(...)`
+        // el futuro se quedaba esperándose a sí mismo: `_traerCatalogo`
+        // terminaba, la caché se llenaba, y `catalogoDeMapa` **no completaba
+        // nunca**. Quien preguntara primero en la sesión se quedaba esperando
+        // para siempre —sin marcadores, sin fallo que contar y sin nada que
+        // reintentar— y todos los demás recibían el catálogo al instante desde
+        // la caché. En esta app el que pregunta primero es **siempre** el mapa
+        // del Inicio, que se monta antes que ninguna otra pantalla con mapa.
+        .whenComplete(() {
+      _enVuelo.remove(municipioId);
+    });
+    _enVuelo[municipioId] = futuro;
+    return futuro;
   }
 
   Future<List<Lugar>?> _traerCatalogo(int municipioId) async {
@@ -75,24 +118,43 @@ class LugarService {
       ok: (lugares) {
         _cache[municipioId] = _CatalogoCacheado(lugares);
         if (lugares.isEmpty) {
-          debugPrint(
-            'LugarService: el municipio $municipioId no tiene lugares activos. '
-            'Los mapas saldrán sin marcadores; se cargan desde el panel.',
-          );
+          _trazar(municipioId, 'vacío',
+              detalle: 'el municipio no tiene lugares activos; se cargan desde '
+                  'el panel. Se recuerda $frescuraDelVacio');
+        } else {
+          _trazar(municipioId, 'llegó', lugares: lugares.length);
         }
         return lugares;
       },
       err: (f) {
-        // En release el conductor no ve nada: un mapa sin marcadores sigue
-        // siendo un mapa. Pero que esto se pueda romper sin dejar rastro es lo
-        // que hizo que "a veces carga y a veces no" no tuviera por dónde empezar.
-        debugPrint(
-          'LugarService: no se pudo traer el catálogo del municipio $municipioId '
-          '(${f.statusCode} ${f.message}). No se cachea el fallo.',
-        );
+        _trazar(municipioId, 'falló',
+            detalle: '${f.statusCode} ${f.message}. No se cachea el fallo');
         return _cache[municipioId]?.lugares;
       },
     );
+  }
+
+  /// Un catálogo **con lugares** se recuerda diez minutos; uno **vacío**, mucho
+  /// menos. Ver el motivo en [frescuraCatalogoVacio].
+  bool _estaFresco(_CatalogoCacheado c) =>
+      DateTime.now().difference(c.traidoEn) <
+      (c.lugares.isEmpty ? frescuraDelVacio : frescuraCatalogo);
+
+  /// Una línea por intento, con prefijo estable para poder filtrarla.
+  ///
+  /// Sale también en un **APK de release** —lo que desaparece al compilar son
+  /// los `assert` y lo guardado tras `kDebugMode`, no esto—, que es justo donde
+  /// hace falta: "a veces no cargan los sitios" se reporta desde un teléfono con
+  /// la app instalada, y hasta ahora los cuatro desenlaces de aquí producían el
+  /// mismo píxel (un mapa sin marcadores) sin dejar forma de saber cuál fue.
+  ///
+  /// No lleva ningún dato personal: id de municipio, desenlace y un conteo.
+  void _trazar(int municipioId, String desenlace,
+      {int? lugares, String? detalle}) {
+    final cuenta = lugares == null ? '' : ' · $lugares lugares';
+    final extra = detalle == null ? '' : ' · $detalle';
+    debugPrint(
+        'LugarService: municipio $municipioId · $desenlace$cuenta$extra');
   }
 
   final Map<int, _CatalogoCacheado> _cache = {};
@@ -124,16 +186,28 @@ class LugarService {
   }
 }
 
-/// Cuánto se considera fresco el catálogo en memoria. Diez minutos es más de lo
-/// que dura un pedido, y menos de lo que tarda un administrador en aprobar un
-/// lugar y querer verlo.
-const Duration _frescuraCatalogo = Duration(minutes: 10);
+/// Cuánto se considera fresco un catálogo **con lugares**. Diez minutos es más
+/// de lo que dura un pedido, y menos de lo que tarda un administrador en aprobar
+/// un lugar y querer verlo.
+const Duration frescuraCatalogo = Duration(minutes: 10);
+
+/// Cuánto se recuerda un catálogo **vacío**, que es mucho menos.
+///
+/// Un vacío es una afirmación bastante más frágil que una lista de cuarenta
+/// sitios: deja de ser cierta en cuanto el administrador activa el primer lugar,
+/// y guardarla con la vigencia del catálogo bueno convierte una respuesta vacía
+/// desafortunada en diez minutos de mapa mudo en todas las pantallas a la vez.
+/// Un minuto cubre el arranque —que es cuando varias preguntan casi a la vez— y
+/// deja que el siguiente regreso al Inicio vuelva a preguntar de verdad.
+const Duration frescuraCatalogoVacio = Duration(seconds: 60);
+
+/// Plazo de guarda del futuro compartido de [LugarService.catalogoDeMapa]. Ver
+/// el motivo allí.
+const Duration plazoDeGuardaDelCatalogo = Duration(seconds: 30);
 
 class _CatalogoCacheado {
   _CatalogoCacheado(this.lugares) : traidoEn = DateTime.now();
 
   final List<Lugar> lugares;
   final DateTime traidoEn;
-
-  bool get fresco => DateTime.now().difference(traidoEn) < _frescuraCatalogo;
 }

@@ -19,6 +19,7 @@ import '../data/services/dispositivo_service.dart';
 import '../data/services/location_service.dart';
 import '../data/services/lugar_service.dart';
 import '../data/services/municipio_service.dart';
+import '../data/services/vehiculo_service.dart';
 import '../data/services/notificacion_local_service.dart';
 import '../data/services/notificacion_service.dart';
 import '../data/services/ofertas_service.dart';
@@ -60,6 +61,7 @@ void configurarDependencias() {
   locator.registerLazySingleton(() => TrackingService(locator()));
   locator.registerLazySingleton(() => OfertasService(locator()));
   locator.registerLazySingleton(() => MunicipioService(locator()));
+  locator.registerLazySingleton(() => VehiculoService(locator()));
   locator.registerLazySingleton(() => LugarService(locator()));
   locator.registerLazySingleton(() => FeedbackService(locator()));
   locator.registerLazySingleton(() => AppVersionService(locator()));

@@ -44,14 +44,14 @@ void main() {
       );
       expect(identidad, contains('Foto de tu cédula'));
       expect(identidad, contains('Selfie tuya'));
-      expect(identidad, isNot(contains('Foto de tu moto')));
+      expect(identidad, isNot(contains('Foto de tu vehículo')));
 
       final moto = alta.substring(
         alta.indexOf('class _PasoMoto'),
         alta.indexOf('class _PasoIdentidad'),
       );
       expect(moto, contains('Tarjeta de propiedad'));
-      expect(moto, contains('Foto de tu moto'));
+      expect(moto, contains('Foto de tu vehículo'));
       expect(moto, isNot(contains('Foto de tu cédula')));
     });
 
@@ -89,15 +89,31 @@ void main() {
         alta.indexOf('void _elegirMarca('),
         alta.indexOf('bool _valido('),
       );
-      expect(elegir, contains('_modelo = null'));
+      expect(elegir, contains('_modeloId = null'));
     });
 
-    test('el modelo va deshabilitado mientras no haya marca', () {
-      expect(alta, contains('onChanged: modelos.isEmpty ? null : onModelo'));
+    test('cambiar el tipo limpia la marca y el modelo', () {
+      // Las marcas de un tipo no son las de otro: dejar el modelo anterior
+      // debajo de un tipo nuevo enseña un árbol que no existe.
+      final elegir = alta.substring(
+        alta.indexOf('void _elegirTipo('),
+        alta.indexOf('void _elegirMarca('),
+      );
+      expect(elegir, contains('_marcaId = null'));
+      expect(elegir, contains('_modeloId = null'));
     });
 
-    test('se envía el vehículo compuesto', () {
-      expect(alta, contains('vehiculo: _vehiculo!'));
+    test('cada nivel va deshabilitado mientras no haya elegido el anterior', () {
+      expect(alta, contains("hintText: tipoId == null ? 'Elige primero el tipo'"));
+      expect(alta, contains('onChanged: marcaId == null || marcaEsLibre ? null : onModelo'));
+    });
+
+    test('se envía la referencia al catálogo, y el texto solo sin ella', () {
+      // Con referencia el texto lo compone el SERVIDOR: dos fuentes para lo
+      // mismo divergen, y esta app componía siempre "$marca $modelo".
+      expect(alta, contains('vehiculo: _vehiculoLibre'));
+      expect(alta, contains('modeloVehiculoId: _modeloVehiculoId'));
+      expect(alta, isNot(contains('componerVehiculo')));
     });
 
     test('el paso de revisión deja volver a cualquier paso', () {

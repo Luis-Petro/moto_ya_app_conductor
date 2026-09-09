@@ -10,8 +10,9 @@ import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/vehiculo_service.dart';
 import '../../../di/locator.dart';
-import '../../../domain/models/catalogo_motos.dart';
+import '../../../domain/models/catalogo_vehiculos.dart';
 import '../../../domain/models/municipio.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_elevation.dart';
@@ -19,6 +20,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/encabezado.dart';
+import '../../core/widgets/imagen_de_vehiculo.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../router.dart';
@@ -36,6 +38,7 @@ class AltaConductorScreen extends StatelessWidget {
         locator<LocationService>(),
         locator<MunicipioRepository>(),
         locator<UsuarioRepository>(),
+        locator<VehiculoService>(),
       )..cargar(),
       child: const _AltaView(),
     );
@@ -53,12 +56,15 @@ class _AltaViewState extends State<_AltaView> {
   final _licencia = TextEditingController();
   final _placa = TextEditingController();
 
-  /// Marca y modelo escritos a mano, cuando la moto no está en la lista.
+  /// Marca y modelo escritos a mano, cuando el vehículo no está en el catálogo.
   final _marcaLibre = TextEditingController();
   final _modeloLibre = TextEditingController();
 
-  String? _marca;
-  String? _modelo;
+  /// Lo elegido en cada nivel: el id del catálogo, [_kOtro] para «Otro»/«Otra»,
+  /// o `null` si todavía no se eligió nada.
+  int? _tipoId;
+  int? _marcaId;
+  int? _modeloId;
 
   final _picker = ImagePicker();
   bool _saltoAplicado = false;
@@ -80,28 +86,97 @@ class _AltaViewState extends State<_AltaView> {
     super.dispose();
   }
 
-  // ── Moto ──
+  // ── El vehículo ──
 
-  /// La moto compuesta, o null si falta marca o modelo.
-  String? get _vehiculo {
-    final marca = _marca == kOtro ? _marcaLibre.text : _marca;
-    final modelo = (_modelo == kOtro || _marca == kOtro)
-        ? _modeloLibre.text
-        : _modelo;
-    return componerVehiculo(marca, modelo);
+  /// Sentinel de "Otro"/"Otra" en los tres desplegables. Los ids reales del
+  /// catálogo son positivos, así que no puede chocar con ninguno.
+  static const int _kOtro = -1;
+
+  /// El tipo elegido del catálogo, o el que se está desplegando.
+  TipoVehiculo? get _tipo => _tipoId == null || _tipoId == _kOtro
+      ? null
+      : _catalogo?.tipos.where((t) => t.id == _tipoId).firstOrNull;
+
+  MarcaVehiculo? get _marcaElegida => _marcaId == null || _marcaId == _kOtro
+      ? null
+      : _tipo?.marcas.where((m) => m.id == _marcaId).firstOrNull;
+
+  ModeloVehiculo? get _modeloElegido => _modeloId == null || _modeloId == _kOtro
+      ? null
+      : _marcaElegida?.modelos.where((m) => m.id == _modeloId).firstOrNull;
+
+  /// La referencia que se manda al servidor, o `null` si el vehículo se escribió
+  /// a mano. Es lo único que viaja cuando el conductor eligió de la lista: el
+  /// texto lo compone el servidor.
+  int? get _modeloVehiculoId => _modeloElegido?.id;
+
+  /// El texto que se manda **solo cuando no hay referencia**.
+  ///
+  /// Antes esta app componía siempre `"$marca $modelo"` en el teléfono, y por eso
+  /// el servidor nunca supo qué recibía: «Bajaj Boxer CT 100», «bajais boxer» y
+  /// «BOXER 100» llegaban como si fueran datos.
+  String? get _vehiculoLibre {
+    if (_modeloVehiculoId != null) {
+      return null;
+    }
+    final marca = _marcaId == _kOtro || _tipoId == _kOtro
+        ? _marcaLibre.text.trim()
+        : (_marcaElegida?.nombre ?? '');
+    final modelo = _modeloEsLibre
+        ? _modeloLibre.text.trim()
+        : (_modeloElegido?.nombre ?? '');
+    if (marca.isEmpty || modelo.isEmpty) {
+      return null;
+    }
+    return '$marca $modelo';
   }
 
-  /// Con "Otra" en la marca no hay lista de modelos que ofrecer: el modelo pasa
-  /// también a campo libre.
-  bool get _modeloEsLibre => _marca == kOtro || _modelo == kOtro;
+  /// Lo que se enseña en la pantalla de revisión. Con referencia se compone aquí
+  /// **solo para verlo**: lo que se guarda lo compone el servidor.
+  String? get _vehiculoParaVer {
+    final m = _modeloElegido;
+    if (m != null) {
+      return '${_marcaElegida!.nombre} ${m.nombre}';
+    }
+    return _vehiculoLibre;
+  }
 
-  void _elegirMarca(String? m) {
+  /// El vehículo está definido: por referencia o por texto completo.
+  bool get _vehiculoDefinido =>
+      _modeloVehiculoId != null || _vehiculoLibre != null;
+
+  /// Con "Otra" en un nivel, los que dependen de él pasan también a texto libre:
+  /// si la marca no está en el catálogo, sus modelos tampoco pueden estarlo.
+  bool get _marcaEsLibre => _tipoId == _kOtro || _marcaId == _kOtro;
+  bool get _modeloEsLibre => _marcaEsLibre || _modeloId == _kOtro;
+
+  /// Sin catálogo el paso entero cae a texto libre y el alta sigue. No es un
+  /// respaldo de cortesía: es un requisito — al otro lado hay una persona que
+  /// quiere empezar a trabajar hoy.
+  bool _soloTextoLibre(AltaConductorViewModel vm) => !vm.hayCatalogo;
+
+  CatalogoVehiculos? get _catalogo => _catalogoVm;
+  CatalogoVehiculos? _catalogoVm;
+
+  void _elegirTipo(int? id) {
     setState(() {
-      _marca = m;
-      // Cambiar de marca invalida el modelo: una Boxer no es una Yamaha.
-      _modelo = null;
+      _tipoId = id;
+      // Cambiar de tipo limpia marca y modelo: las marcas de un tipo no son las
+      // de otro, y dejar el modelo anterior enseña un árbol que no existe.
+      _marcaId = null;
+      _modeloId = null;
       _modeloLibre.clear();
-      if (m != kOtro) _marcaLibre.clear();
+      if (id != _kOtro) _marcaLibre.clear();
+    });
+  }
+
+  void _elegirMarca(int? id) {
+    setState(() {
+      _marcaId = id;
+      // Cambiar de marca invalida el modelo: una Boxer no es una Yamaha.
+      _modeloId = null;
+      _modeloLibre.clear();
+      if (id != _kOtro) _marcaLibre.clear();
     });
   }
 
@@ -109,13 +184,13 @@ class _AltaViewState extends State<_AltaView> {
 
   /// Qué le falta al conductor para poder enviar (se muestra bajo el botón).
   List<String> _faltantes(AltaConductorViewModel vm) => [
-        if (_vehiculo == null) 'decirnos cuál es tu moto',
+        if (!_vehiculoDefinido) 'decirnos cuál es tu vehículo',
         if (_placa.text.trim().length < 5) 'la placa completa',
         if (!vm.tieneCedula) 'la foto de tu cédula',
       ];
 
   bool get _motoLista =>
-      _vehiculo != null && _placa.text.trim().length >= 5;
+      _vehiculoDefinido && _placa.text.trim().length >= 5;
 
   /// Hitos del alta: cuenta creada, datos de la moto y los cuatro documentos.
   /// El primero ya está cumplido al llegar aquí, así que el conductor nunca ve
@@ -166,7 +241,10 @@ class _AltaViewState extends State<_AltaView> {
     if (!_valido(vm)) return;
     final ok = await vm.guardar(
       licencia: _licencia.text.trim(),
-      vehiculo: _vehiculo!,
+      // Uno de los dos, nunca los dos: con referencia el texto lo compone el
+      // servidor a partir del catálogo.
+      vehiculo: _vehiculoLibre,
+      modeloVehiculoId: _modeloVehiculoId,
       placa: _placa.text.trim().toUpperCase(),
     );
     if (!mounted) return;
@@ -257,6 +335,9 @@ class _AltaViewState extends State<_AltaView> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AltaConductorViewModel>();
+    // El árbol se copia aquí para que los getters de este State puedan resolver
+    // lo elegido sin recibirlo por parámetro en cada uno.
+    _catalogoVm = vm.catalogo;
 
     // Si el perfil ya está completo, saltar directo a Inicio.
     if (!vm.cargando && vm.perfilCompleto && !_saltoAplicado) {
@@ -320,23 +401,31 @@ class _AltaViewState extends State<_AltaView> {
                     ),
                     _PasoMoto(
                       vm: vm,
-                      marca: _marca,
-                      modelo: _modelo,
+                      soloTextoLibre: _soloTextoLibre(vm),
+                      tipoId: _tipoId,
+                      marcaId: _marcaId,
+                      modeloId: _modeloId,
+                      tipo: _tipo,
+                      marcaElegida: _marcaElegida,
+                      modeloElegido: _modeloElegido,
                       marcaLibre: _marcaLibre,
                       modeloLibre: _modeloLibre,
+                      marcaEsLibre: _marcaEsLibre,
                       modeloEsLibre: _modeloEsLibre,
                       placa: _placa,
                       licencia: _licencia,
+                      onTipo: _elegirTipo,
                       onMarca: _elegirMarca,
-                      onModelo: (m) => setState(() => _modelo = m),
+                      onModelo: (m) => setState(() => _modeloId = m),
                       onCambio: () => setState(() {}),
+                      onReintentarCatalogo: vm.cargarCatalogo,
                       onPapeles: () => _tomarPapeles(vm),
                       onFotoMoto: () => _tomarFotoMoto(vm),
                     ),
                     _PasoRevision(
                       vm: vm,
                       motoLista: _motoLista,
-                      vehiculo: _vehiculo,
+                      vehiculo: _vehiculoParaVer,
                       placa: _placa.text.trim().toUpperCase(),
                       onIrAPaso: (p) {
                         setState(() => _paso = p);
@@ -363,7 +452,7 @@ class _AltaViewState extends State<_AltaView> {
 
   static String _tituloPaso(int paso) => switch (paso) {
         0 => 'Tu identidad',
-        1 => 'Tu moto',
+        1 => 'Tu vehículo',
         _ => 'Revisar y enviar',
       };
 
@@ -374,7 +463,9 @@ class _AltaViewState extends State<_AltaView> {
       return 'La foto de tu cédula es la única obligatoria para enviar.';
     }
     if (_paso == 1) {
-      if (_vehiculo == null) return 'Elige la marca y el modelo de tu moto.';
+      if (!_vehiculoDefinido) {
+        return 'Dinos qué vehículo tienes: el tipo, la marca y el modelo.';
+      }
       if (_placa.text.trim().length < 5) return 'Escribe la placa completa.';
       return null;
     }
@@ -394,104 +485,88 @@ class _AltaViewState extends State<_AltaView> {
   }
 }
 
-/// Paso 2 · la moto: marca, modelo, placa, municipio, licencia y **sus dos
-/// fotos**.
+/// Paso 2 · el vehículo: tipo, marca, modelo, placa, municipio, licencia y
+/// **sus dos fotos**.
 ///
-/// La tarjeta de propiedad y la foto de la moto viven aquí, junto a la placa que
-/// aparece en las dos. Estaban a dos pasos de distancia y eso obligaba a ir y
-/// volver para comprobar que coincidían.
+/// La tarjeta de propiedad y la foto del vehículo viven aquí, junto a la placa
+/// que aparece en las dos. Estaban a dos pasos de distancia y eso obligaba a ir
+/// y volver para comprobar que coincidían.
+///
+/// **Los tres desplegables salen del catálogo del servidor**, no de una lista
+/// compilada dentro de la app: cargar una marca en el panel la pone aquí sin
+/// publicar una versión. Cada nivel queda deshabilitado hasta que se elija el
+/// anterior, y los tres conservan su salida a texto libre.
+///
+/// **Añadir un nivel no añade un paso**: los tres son la misma pregunta —«cuál
+/// es tu vehículo»— y partirla dejaría la placa y sus dos documentos separados
+/// del dato que documentan.
 class _PasoMoto extends StatelessWidget {
   const _PasoMoto({
     required this.vm,
-    required this.marca,
-    required this.modelo,
+    required this.soloTextoLibre,
+    required this.tipoId,
+    required this.marcaId,
+    required this.modeloId,
+    required this.tipo,
+    required this.marcaElegida,
+    required this.modeloElegido,
     required this.marcaLibre,
     required this.modeloLibre,
+    required this.marcaEsLibre,
     required this.modeloEsLibre,
     required this.placa,
     required this.licencia,
+    required this.onTipo,
     required this.onMarca,
     required this.onModelo,
     required this.onCambio,
+    required this.onReintentarCatalogo,
     required this.onPapeles,
     required this.onFotoMoto,
   });
 
   final AltaConductorViewModel vm;
-  final String? marca;
-  final String? modelo;
+  final bool soloTextoLibre;
+  final int? tipoId;
+  final int? marcaId;
+  final int? modeloId;
+  final TipoVehiculo? tipo;
+  final MarcaVehiculo? marcaElegida;
+  final ModeloVehiculo? modeloElegido;
   final TextEditingController marcaLibre;
   final TextEditingController modeloLibre;
+  final bool marcaEsLibre;
   final bool modeloEsLibre;
   final TextEditingController placa;
   final TextEditingController licencia;
-  final ValueChanged<String?> onMarca;
-  final ValueChanged<String?> onModelo;
+  final ValueChanged<int?> onTipo;
+  final ValueChanged<int?> onMarca;
+  final ValueChanged<int?> onModelo;
   final VoidCallback onCambio;
+  final VoidCallback onReintentarCatalogo;
   final VoidCallback onPapeles;
   final VoidCallback onFotoMoto;
 
+  /// La silueta con la que se pinta lo que no tiene imagen. Del **tipo**
+  /// elegido, y genérica mientras no haya ninguno.
+  IconoVehiculo get _silueta => tipo?.icono ?? IconoVehiculo.otro;
+
   @override
   Widget build(BuildContext context) {
-    final modelos = modelosDe(marca);
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
-        const Text('Cuéntanos de tu moto', style: AppText.display),
+        const Text('Cuéntanos de tu vehículo', style: AppText.display),
         const SizedBox(height: AppSpacing.xs),
         const Text(
-            'Los datos y las dos fotos de la moto. Aprovecha que estás junto a '
-            'ella y hazlo todo de una vez.',
+            'Los datos y las dos fotos del vehículo. Aprovecha que estás junto '
+            'a él y hazlo todo de una vez.',
             style: TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: AppSpacing.xl),
-        const _Label('Marca'),
-        DropdownButtonFormField<String>(
-          value: marca,
-          isExpanded: true,
-          items: [
-            for (final m in marcasMoto)
-              DropdownMenuItem(value: m, child: Text(m)),
-          ],
-          onChanged: onMarca,
-          decoration: const InputDecoration(
-            hintText: 'Elige la marca',
-            prefixIcon: Icon(Icons.two_wheeler_rounded),
-          ),
-        ),
-        if (marca == kOtro) ...[
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: marcaLibre,
-            textCapitalization: TextCapitalization.words,
-            onChanged: (_) => onCambio(),
-            decoration: const InputDecoration(hintText: '¿Qué marca es?'),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.lg),
-        const _Label('Modelo'),
-        DropdownButtonFormField<String>(
-          value: modelo,
-          isExpanded: true,
-          items: [
-            for (final m in modelos) DropdownMenuItem(value: m, child: Text(m)),
-          ],
-          // Sin marca no hay modelos que ofrecer: un desplegable vacío que se
-          // abre y no muestra nada parece la app rota.
-          onChanged: modelos.isEmpty ? null : onModelo,
-          decoration: InputDecoration(
-            hintText: marca == null ? 'Elige primero la marca' : 'Elige el modelo',
-            prefixIcon: const Icon(Icons.confirmation_number_outlined),
-          ),
-        ),
-        if (modeloEsLibre) ...[
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: modeloLibre,
-            textCapitalization: TextCapitalization.words,
-            onChanged: (_) => onCambio(),
-            decoration: const InputDecoration(hintText: '¿Qué modelo es?'),
-          ),
-        ],
+        if (soloTextoLibre)
+          ..._camposLibres(context)
+        else
+          ..._desplegables(context),
         const SizedBox(height: AppSpacing.lg),
         const _Label('Placa'),
         TextField(
@@ -542,13 +617,247 @@ class _PasoMoto extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         _DocCard(
           icon: Icons.two_wheeler_outlined,
-          titulo: 'Foto de tu moto',
+          titulo: 'Foto de tu vehículo',
           subtitulo: 'De lado o desde atrás, con la placa que se pueda leer.',
           etiqueta: 'Para habilitarte',
           etiquetaColor: AppColors.accent,
           archivo: vm.fotoMoto,
           accion: 'Tomar foto',
           onElegir: onFotoMoto,
+        ),
+      ],
+    );
+  }
+
+  /// Los tres desplegables encadenados, con «Otro» al final de cada uno.
+  ///
+  /// **Las imágenes se piden solo de lo que está en pantalla.** Los modelos que
+  /// se construyen son los de la marca elegida y ninguno más, así que las fotos
+  /// de los modelos de las demás marcas no se bajan nunca. Es la lección de la
+  /// rejilla de aliados, donde construir la rejilla completa *era* descargar la
+  /// foto de cada producto del municipio.
+  List<Widget> _desplegables(BuildContext context) {
+    final tipos = vm.catalogo?.tipos ?? const <TipoVehiculo>[];
+    final marcas = tipo?.marcas ?? const <MarcaVehiculo>[];
+    final modelos = marcaElegida?.modelos ?? const <ModeloVehiculo>[];
+    return [
+      // ── Tipo ──
+      const _Label('Tipo de vehículo'),
+      DropdownButtonFormField<int>(
+        value: tipoId,
+        isExpanded: true,
+        items: [
+          for (final t in tipos)
+            DropdownMenuItem(
+              value: t.id,
+              child: _FilaDelCatalogo(
+                nombre: t.nombre,
+                imagenUrl: t.imagenUrl,
+                icono: t.icono,
+              ),
+            ),
+          const DropdownMenuItem(
+            value: _AltaViewState._kOtro,
+            child: Text('Otro'),
+          ),
+        ],
+        onChanged: onTipo,
+        decoration: const InputDecoration(
+          hintText: 'Elige el tipo',
+          prefixIcon: Icon(Icons.category_outlined),
+        ),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      // ── Marca ──
+      const _Label('Marca'),
+      DropdownButtonFormField<int>(
+        value: marcaId,
+        isExpanded: true,
+        items: [
+          for (final m in marcas)
+            DropdownMenuItem(
+              value: m.id,
+              child: _FilaDelCatalogo(
+                nombre: m.nombre,
+                imagenUrl: m.imagenUrl,
+                icono: _silueta,
+              ),
+            ),
+          const DropdownMenuItem(
+            value: _AltaViewState._kOtro,
+            child: Text('Otra'),
+          ),
+        ],
+        // Sin tipo elegido no hay marcas que ofrecer: un desplegable que se abre
+        // y no muestra nada parece la app rota.
+        onChanged: tipoId == null || tipoId == _AltaViewState._kOtro
+            ? null
+            : onMarca,
+        decoration: InputDecoration(
+          hintText: tipoId == null ? 'Elige primero el tipo' : 'Elige la marca',
+          prefixIcon: const Icon(Icons.sell_outlined),
+        ),
+      ),
+      if (marcaEsLibre) ...[
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: marcaLibre,
+          textCapitalization: TextCapitalization.words,
+          onChanged: (_) => onCambio(),
+          decoration: const InputDecoration(hintText: '¿Qué marca es?'),
+        ),
+      ],
+      const SizedBox(height: AppSpacing.lg),
+      // ── Modelo ──
+      const _Label('Modelo'),
+      DropdownButtonFormField<int>(
+        value: modeloId,
+        isExpanded: true,
+        items: [
+          for (final m in modelos)
+            DropdownMenuItem(
+              value: m.id,
+              child: _FilaDelCatalogo(
+                nombre: m.nombre,
+                imagenUrl: m.imagenUrl,
+                icono: _silueta,
+              ),
+            ),
+          const DropdownMenuItem(
+            value: _AltaViewState._kOtro,
+            child: Text('Otro'),
+          ),
+        ],
+        onChanged: marcaId == null || marcaEsLibre ? null : onModelo,
+        decoration: InputDecoration(
+          hintText:
+              marcaId == null ? 'Elige primero la marca' : 'Elige el modelo',
+          prefixIcon: const Icon(Icons.confirmation_number_outlined),
+        ),
+      ),
+      if (modeloEsLibre) ...[
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: modeloLibre,
+          textCapitalization: TextCapitalization.words,
+          onChanged: (_) => onCambio(),
+          decoration: const InputDecoration(hintText: '¿Qué modelo es?'),
+        ),
+      ],
+      // Lo elegido, con su imagen a la vista. Es una sola imagen más, y es la
+      // que confirma que se eligió lo que se quería.
+      if (modeloElegido != null) ...[
+        const SizedBox(height: AppSpacing.lg),
+        MotoCard(
+          child: Row(
+            children: [
+              ImagenDeVehiculo(
+                url: modeloElegido!.imagenUrl,
+                icono: _silueta,
+                tamano: 72,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${marcaElegida!.nombre} ${modeloElegido!.nombre}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.subtitle),
+                    Text(tipo!.nombre, style: AppText.caption),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ];
+  }
+
+  /// El paso sin catálogo: dos campos de texto y el alta sigue.
+  ///
+  /// **No es un respaldo de cortesía, es un requisito.** Un catálogo que no
+  /// llegó no puede impedirle registrarse a nadie: al otro lado hay una persona
+  /// que quiere empezar a trabajar hoy, y un bache de red no puede costarle el
+  /// día. Reintentar se ofrece solo cuando la consulta **falló** — reintentar un
+  /// catálogo que el servidor dice que está vacío no arregla nada.
+  List<Widget> _camposLibres(BuildContext context) {
+    return [
+      MotoCard(
+        color: AppColors.primarySurface,
+        child: Row(
+          children: [
+            Icon(
+                vm.cargandoCatalogo
+                    ? Icons.hourglass_top_rounded
+                    : Icons.edit_note_rounded,
+                color: AppColors.primary),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                vm.cargandoCatalogo
+                    ? 'Estamos cargando la lista de vehículos…'
+                    : 'No pudimos cargar la lista de vehículos. Escríbelo a '
+                        'mano y sigue: tu solicitud se envía igual.',
+                style: AppText.body,
+              ),
+            ),
+            if (vm.catalogoFallo && !vm.cargandoCatalogo)
+              TextButton(
+                onPressed: onReintentarCatalogo,
+                child: const Text('Reintentar'),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      const _Label('Marca'),
+      TextField(
+        controller: marcaLibre,
+        textCapitalization: TextCapitalization.words,
+        onChanged: (_) => onCambio(),
+        decoration: const InputDecoration(
+          hintText: '¿Qué marca es?',
+          prefixIcon: Icon(Icons.sell_outlined),
+        ),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      const _Label('Modelo'),
+      TextField(
+        controller: modeloLibre,
+        textCapitalization: TextCapitalization.words,
+        onChanged: (_) => onCambio(),
+        decoration: const InputDecoration(
+          hintText: '¿Qué modelo es?',
+          prefixIcon: Icon(Icons.confirmation_number_outlined),
+        ),
+      ),
+    ];
+  }
+}
+
+/// Una fila del desplegable: la imagen —o la silueta de su tipo— y el nombre.
+class _FilaDelCatalogo extends StatelessWidget {
+  const _FilaDelCatalogo({
+    required this.nombre,
+    required this.imagenUrl,
+    required this.icono,
+  });
+
+  final String nombre;
+  final String? imagenUrl;
+  final IconoVehiculo icono;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        ImagenDeVehiculo(url: imagenUrl, icono: icono),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(nombre, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ],
     );

@@ -34,14 +34,21 @@ class ConductorRepository extends ChangeNotifier {
     return res;
   }
 
+  /// Llega el texto del vehículo **o** la referencia al modelo del catálogo, no
+  /// los dos: con referencia, el texto lo compone el servidor.
   Future<Result<Conductor>> crearPerfil({
     String? licencia,
-    required String vehiculo,
+    String? vehiculo,
+    int? modeloVehiculoId,
     required String placa,
     required LatLng ubicacion,
   }) async {
     final res = await _service.crearPerfil(
-        licencia: licencia, vehiculo: vehiculo, placa: placa, ubicacion: ubicacion);
+        licencia: licencia,
+        vehiculo: vehiculo,
+        modeloVehiculoId: modeloVehiculoId,
+        placa: placa,
+        ubicacion: ubicacion);
     _guardarSiOk(res);
     return res;
   }

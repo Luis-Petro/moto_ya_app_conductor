@@ -2,6 +2,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../domain/models/billetera.dart';
 import '../../domain/models/calificacion.dart';
+import '../../domain/models/catalogo_vehiculos.dart';
 import '../../domain/models/categoria_servicio.dart';
 import '../../domain/models/conductor.dart';
 import '../../domain/models/demanda_zonas.dart';
@@ -56,6 +57,63 @@ class ApiMappers {
       nombre: (m['nombre'] as String?) ?? '',
       centro: (lat != null && lng != null) ? LatLng(lat, lng) : null,
     );
+  }
+
+  /// El árbol del catálogo de vehículos.
+  ///
+  /// **Tolerante con lo que no reconoce, y a propósito**: una fila sin nombre se
+  /// descarta y las demás siguen, y un `icono` que esta app no conoce cae en la
+  /// silueta genérica en vez de lanzar. Es lo que permite que el panel cree un
+  /// tipo nuevo sin publicar una versión de la app — y lo que impide que un dato
+  /// raro deje a alguien sin poder registrarse.
+  static CatalogoVehiculos catalogoVehiculos(dynamic json) {
+    final m = json as Map<String, dynamic>;
+    final tipos = <TipoVehiculo>[];
+    for (final t in (m['tipos'] as List? ?? const [])) {
+      final tm = t as Map<String, dynamic>;
+      final nombreTipo = (tm['nombre'] as String?)?.trim();
+      final idTipo = _int(tm['id']);
+      if (idTipo == null || nombreTipo == null || nombreTipo.isEmpty) {
+        continue;
+      }
+      final marcas = <MarcaVehiculo>[];
+      for (final ma in (tm['marcas'] as List? ?? const [])) {
+        final mm = ma as Map<String, dynamic>;
+        final nombreMarca = (mm['nombre'] as String?)?.trim();
+        final idMarca = _int(mm['id']);
+        if (idMarca == null || nombreMarca == null || nombreMarca.isEmpty) {
+          continue;
+        }
+        final modelos = <ModeloVehiculo>[];
+        for (final mo in (mm['modelos'] as List? ?? const [])) {
+          final om = mo as Map<String, dynamic>;
+          final nombreModelo = (om['nombre'] as String?)?.trim();
+          final idModelo = _int(om['id']);
+          if (idModelo == null || nombreModelo == null || nombreModelo.isEmpty) {
+            continue;
+          }
+          modelos.add(ModeloVehiculo(
+            id: idModelo,
+            nombre: nombreModelo,
+            imagenUrl: om['imagenUrl'] as String?,
+          ));
+        }
+        marcas.add(MarcaVehiculo(
+          id: idMarca,
+          nombre: nombreMarca,
+          imagenUrl: mm['imagenUrl'] as String?,
+          modelos: modelos,
+        ));
+      }
+      tipos.add(TipoVehiculo(
+        id: idTipo,
+        nombre: nombreTipo,
+        icono: IconoVehiculo.desde(tm['icono'] as String?),
+        imagenUrl: tm['imagenUrl'] as String?,
+        marcas: marcas,
+      ));
+    }
+    return CatalogoVehiculos(tipos: tipos);
   }
 
   static Lugar lugar(dynamic json) {

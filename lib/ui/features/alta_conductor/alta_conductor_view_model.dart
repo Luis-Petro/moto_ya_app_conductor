@@ -8,6 +8,8 @@ import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/vehiculo_service.dart';
+import '../../../domain/models/catalogo_vehiculos.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/municipio.dart';
 import '../../../domain/models/usuario.dart';
@@ -15,12 +17,13 @@ import '../../../domain/models/usuario.dart';
 /// Estado del alta del perfil de conductor.
 class AltaConductorViewModel extends ChangeNotifier {
   AltaConductorViewModel(this._conductores, this._location, this._municipios,
-      this._usuarios);
+      this._usuarios, this._vehiculos);
 
   final ConductorRepository _conductores;
   final LocationService _location;
   final MunicipioRepository _municipios;
   final UsuarioRepository _usuarios;
+  final VehiculoService _vehiculos;
 
   bool cargando = true;
   bool guardando = false;
@@ -90,6 +93,37 @@ class AltaConductorViewModel extends ChangeNotifier {
   List<Municipio> municipios = const [];
   Municipio? municipioElegido;
 
+  // ── El catálogo de vehículos ──────────────────────────────────────────────
+
+  /// El árbol que administra el panel, o `null` mientras no haya llegado.
+  CatalogoVehiculos? catalogo;
+
+  bool cargandoCatalogo = false;
+
+  /// Si la última consulta falló. Distinto de un catálogo vacío, y las dos cosas
+  /// llevan al mismo sitio —texto libre—, pero solo esta ofrece reintentar:
+  /// reintentar un catálogo que el servidor dice que está vacío no arregla nada.
+  bool catalogoFallo = false;
+
+  /// El catálogo se pudo consultar y tiene algo que ofrecer.
+  bool get hayCatalogo => !(catalogo?.estaVacio ?? true);
+
+  /// Trae el catálogo. **Un fallo aquí no puede bloquear el alta**: al otro lado
+  /// hay una persona que quiere empezar a trabajar hoy, y un bache de red no
+  /// puede costarle el día. Es la misma regla que hace que un tope de adelanto
+  /// desconocido no bloquee un pedido y que el paso de municipio deje pasar con
+  /// el catálogo caído.
+  Future<void> cargarCatalogo() async {
+    cargandoCatalogo = true;
+    catalogoFallo = false;
+    notifyListeners();
+    final res = await _vehiculos.catalogo();
+    catalogo = res.valueOrNull;
+    catalogoFallo = !res.isSuccess;
+    cargandoCatalogo = false;
+    notifyListeners();
+  }
+
   void elegirMunicipio(Municipio? m) {
     municipioElegido = m;
     notifyListeners();
@@ -120,6 +154,9 @@ class AltaConductorViewModel extends ChangeNotifier {
     cargando = false;
     notifyListeners();
     _resolverUbicacion(); // background: no se espera
+    // El catálogo también va aparte y sin esperarse: el paso del vehículo es el
+    // segundo, así que suele haber llegado, y si no, el paso cae a texto libre.
+    cargarCatalogo();
   }
 
   Future<void> _resolverUbicacion() async {
@@ -133,9 +170,14 @@ class AltaConductorViewModel extends ChangeNotifier {
   /// Reintentable: si el perfil ya quedó creado en un intento anterior (p. ej.
   /// falló la subida de la cédula), continúa directo con los documentos en vez
   /// de chocar con el 409 de "el conductor ya tiene perfil".
+  /// [vehiculo] es el texto escrito a mano y [modeloVehiculoId] la referencia al
+  /// catálogo. Llega **uno de los dos**: con referencia, el texto lo compone el
+  /// servidor a partir del catálogo, y mandarlo también sería una segunda fuente
+  /// para lo mismo — de esas, una divergirá.
   Future<bool> guardar({
     String? licencia,
-    required String vehiculo,
+    String? vehiculo,
+    int? modeloVehiculoId,
     required String placa,
   }) async {
     if (cedula == null) {
@@ -157,6 +199,7 @@ class AltaConductorViewModel extends ChangeNotifier {
       final res = await _conductores.crearPerfil(
         licencia: (licencia == null || licencia.isEmpty) ? null : licencia,
         vehiculo: vehiculo,
+        modeloVehiculoId: modeloVehiculoId,
         placa: placa,
         ubicacion: ubicacion,
       );

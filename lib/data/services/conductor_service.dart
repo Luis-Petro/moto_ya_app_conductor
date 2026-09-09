@@ -21,9 +21,20 @@ class ConductorService {
   /// Alta del perfil de conductor. El backend exige `lat`/`lng` (ubicación
   /// inicial): sin ellas el conductor quedaría en (0,0) y el matching por
   /// cercanía nunca lo encontraría. La licencia es opcional por ahora.
+  /// Da de alta el perfil.
+  ///
+  /// [modeloVehiculoId] es la referencia al catálogo cuando el conductor lo
+  /// eligió de la lista; [vehiculo] es el texto cuando lo escribió a mano. Se
+  /// manda **uno de los dos**: con referencia, el texto lo compone el servidor
+  /// —hasta ahora lo unía esta app en el teléfono, y por eso el backend nunca
+  /// supo qué recibía— y dos fuentes para lo mismo acaban divergiendo.
+  ///
+  /// Los dos campos van con `if`: mandar `null` explícito y no mandar nada son
+  /// cosas distintas del otro lado.
   Future<Result<Conductor>> crearPerfil({
     String? licencia,
-    required String vehiculo,
+    String? vehiculo,
+    int? modeloVehiculoId,
     required String placa,
     required LatLng ubicacion,
   }) {
@@ -31,7 +42,8 @@ class ConductorService {
       '/conductores',
       body: {
         if (licencia != null) 'licencia': licencia,
-        'vehiculo': vehiculo,
+        if (vehiculo != null) 'vehiculo': vehiculo,
+        if (modeloVehiculoId != null) 'modeloVehiculoId': modeloVehiculoId,
         'placa': placa,
         'lat': ubicacion.latitude,
         'lng': ubicacion.longitude,

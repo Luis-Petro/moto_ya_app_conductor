@@ -48,7 +48,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
         // flutter_local_notifications usa java.time, que no existe por debajo de
-        // API 26, y el minSdk es 23. Sin esto el build de release falla al
+        // API 26, y el minSdk es 24. Sin esto el build de release falla al
         // compilar el plugin — no en tiempo de ejecución, donde sería peor.
         isCoreLibraryDesugaringEnabled = true
     }
@@ -59,8 +59,10 @@ android {
 
     defaultConfig {
         applicationId = "com.zumbeo.conductor"
-        // minSdk 23: requerido por firebase_messaging, geolocator y flutter_secure_storage.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        // minSdk 24: lo exige la protección automática de Play (rechaza bundles con
+        // un mínimo menor). firebase_messaging, geolocator y flutter_secure_storage
+        // piden 23.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = 36
         // El versionCode lo puede sobreescribir el CI (--build-number) porque Play
         // exige uno mayor en cada subida; el versionName sigue saliendo del

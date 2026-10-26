@@ -21,3 +21,6 @@
 *.jar binary
 *.keystore binary
 *.apk binary
+
+# Bitácora del Segundo Cerebro: las líneas añadidas a la vez se conservan todas.
+BITACORA.md merge=union

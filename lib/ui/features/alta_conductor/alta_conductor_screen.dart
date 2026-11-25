@@ -390,6 +390,18 @@ class _AltaViewState extends State<_AltaView> {
       );
     }
 
+    if (vm.errorCarga != null) {
+      return Scaffold(
+        appBar: encabezado('Completa tu perfil',
+            onAtras: () => context.go(Rutas.inicio)),
+        body: ErrorRetry(
+          message: vm.errorCarga!,
+          onRetry: vm.cargar,
+          esRed: vm.errorCargaEsRed,
+        ),
+      );
+    }
+
     if (!_borradorAplicado) {
       _borradorAplicado = true;
       _aplicarBorrador(vm.borrador);

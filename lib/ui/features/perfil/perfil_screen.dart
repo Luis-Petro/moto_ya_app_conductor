@@ -136,7 +136,11 @@ class _PerfilViewState extends State<_PerfilView> {
                 left: AppSpacing.xl,
                 right: AppSpacing.xl,
                 top: AppSpacing.xl,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+                // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    AppSpacing.xl,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -267,7 +271,11 @@ class _PerfilViewState extends State<_PerfilView> {
                 left: AppSpacing.xl,
                 right: AppSpacing.xl,
                 top: AppSpacing.xl,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+                // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    AppSpacing.xl,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -428,7 +436,11 @@ class _PerfilViewState extends State<_PerfilView> {
                 left: AppSpacing.xl,
                 right: AppSpacing.xl,
                 top: AppSpacing.xl,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + AppSpacing.xl,
+                // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(ctx).viewInsets.bottom +
+                    MediaQuery.of(ctx).padding.bottom +
+                    AppSpacing.xl,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

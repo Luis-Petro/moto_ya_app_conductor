@@ -39,6 +39,10 @@ class AltaConductorViewModel extends ChangeNotifier {
   bool guardando = false;
   String? error;
 
+  /// No se pudo averiguar si el conductor ya tiene perfil. Ver [cargar].
+  String? errorCarga;
+  bool errorCargaEsRed = false;
+
   /// True cuando el backend rechazó con 403: el JWT guardado no tiene rol
   /// CONDUCTOR (sesión emitida antes de la promoción de rol). La pantalla debe
   /// cerrar sesión para forzar un login fresco.
@@ -212,8 +216,21 @@ class AltaConductorViewModel extends ChangeNotifier {
   /// resuelve en segundo plano (el GPS puede tardar y no debe bloquear el alta).
   Future<void> cargar() async {
     cargando = true;
+    errorCarga = null;
     notifyListeners();
-    await _conductores.cargar(forzar: true);
+    final res = await _conductores.cargar(forzar: true);
+    // Solo un 404 significa "todavía no tiene perfil". Cualquier otro fallo
+    // (sin señal, servidor caído) es **no saber**, y ahí no se puede enseñar el
+    // alta: a un conductor ya registrado le aparecía el formulario vacío, con
+    // sus cuatro documentos "pendientes", y parecía que se le había borrado todo.
+    if (res case Err(failure: final f)
+        when f.statusCode != 404 && _conductores.conductor == null) {
+      errorCarga = f.message;
+      errorCargaEsRed = f.isNetwork;
+      cargando = false;
+      notifyListeners();
+      return;
+    }
     // Municipios disponibles: preselecciona el del usuario o el único que haya.
     municipios = (await _municipios.disponibles()).valueOrNull ?? const [];
     cuenta = (await _usuarios.perfil()).valueOrNull;

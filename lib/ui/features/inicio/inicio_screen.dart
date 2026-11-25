@@ -556,7 +556,8 @@ class _OfertaBanner extends StatelessWidget {
       onTap: () async {
         // Pasa la ventana del servidor para el countdown real de la tarjeta.
         await context.push(
-          Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes),
+          Rutas.pedidoEntrante(pedido.id,
+              segundos: vm.segundosRestantesOferta),
         );
         vm.descartarOferta();
         // Responder (o rechazar) mueve la tasa de aceptación en el backend: sin
@@ -639,9 +640,19 @@ class _ToggleEnLinea extends StatelessWidget {
       borderColor: activo
           ? AppColors.accent
           : (deshabilitado ? AppColors.danger : AppColors.line),
-      onTap: (deshabilitado || vm.cambiandoEstado)
+      // Bloqueada o sin habilitar, la tarjeta **lleva a donde se arregla**.
+      // Era el elemento más grande del Inicio diciendo "paga tu deuda" y no
+      // respondía al toque: había que adivinar que era en otra pestaña.
+      onTap: vm.cambiandoEstado
           ? null
-          : () => _alternar(context, vm, !enLinea),
+          : bloqueado
+              ? () {
+                  context.go(Rutas.billetera);
+                  locator<TabActiva>().cambiar(TabActiva.billetera);
+                }
+              : noHabilitado
+                  ? () => context.push(Rutas.documentos)
+                  : () => _alternar(context, vm, !enLinea),
       child: Row(
         children: [
           Icon(
@@ -669,9 +680,14 @@ class _ToggleEnLinea extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   bloqueado
-                      ? 'Paga tu deuda para recibir pedidos'
+                      ? 'Toca aquí para pagar y volver a recibir pedidos'
+                      // Rechazada no es "en revisión": quien lee eso se queda
+                      // esperando en vez de corregir lo que le pidieron.
+                      : vm.rechazado
+                      ? 'No fue aprobada. Toca aquí para corregir tus documentos'
                       : noHabilitado
-                      ? 'En revisión: aún no puedes recibir pedidos'
+                      ? 'En revisión: aún no puedes recibir pedidos. Toca '
+                            'para ver tus documentos'
                       : (enLinea
                             ? 'Recibiendo pedidos de tu zona'
                             : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
@@ -689,6 +705,8 @@ class _ToggleEnLinea extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
+          else if (deshabilitado)
+            const Icon(Icons.chevron_right_rounded, color: AppColors.danger)
           else
             // Se mantiene por legibilidad del estado; el toque real lo captura
             // la tarjeta entera.
@@ -751,6 +769,31 @@ class _ToggleEnLinea extends StatelessWidget {
       if (!context.mounted) return;
       if (!await _explicarUbicacion(context)) return;
       if (!context.mounted) return;
+    }
+    // Desconectarse con un pedido encima se confirma: la tarjeta entera es el
+    // botón y está en una lista que se desplaza, así que un roce bastaba.
+    if (!valor && vm.pedidosActivos.isNotEmpty) {
+      final seguir = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Tienes un pedido en curso'),
+          content: const Text(
+            'Si te desconectas no te llegan más pedidos. El que llevas sigue '
+            'igual y lo puedes terminar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Seguir en línea'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Desconectarme'),
+            ),
+          ],
+        ),
+      );
+      if (seguir != true || !context.mounted) return;
     }
     final r = await vm.alternarEnLinea(valor);
     if (!context.mounted) return;

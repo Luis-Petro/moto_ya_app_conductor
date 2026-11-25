@@ -29,6 +29,10 @@ class BilleteraViewModel extends ChangeNotifier {
   /// "revisa tu internet" a quien recibió un rechazo del servidor.
   bool errorEsRed = false;
   String? aviso;
+
+  /// El [aviso] cuenta un fallo. Iba siempre en la tarjeta verde con el visto
+  /// bueno, y "el pago no se pudo confirmar" de un vistazo se leía como pagado.
+  bool avisoEsError = false;
   Billetera? billetera;
 
   /// Datos de destino (Nequi/Bre-B) a donde transferir, administrados por el panel.
@@ -147,6 +151,7 @@ class BilleteraViewModel extends ChangeNotifier {
     _vigilandoPagoId = null;
     if (p.confirmado) {
       final reactivado = _bloqueadoAlPagar && !(billetera?.bloqueado ?? false);
+      avisoEsError = false;
       aviso = reactivado
           ? 'Pago confirmado. Tu cuenta se reactivó: ya puedes recibir pedidos.'
           : 'Pago confirmado. Tu saldo se actualizó.';
@@ -154,7 +159,8 @@ class BilleteraViewModel extends ChangeNotifier {
       // "En línea" (Inicio) se desbloquee de inmediato, sin esperar al tab.
       if (reactivado) _conductores.cargar(forzar: true);
     } else {
-      aviso = 'El pago no se pudo confirmar. Revisa los datos e inténtalo de nuevo.';
+      avisoEsError = true;
+      aviso = 'El pago NO se confirmó. Revisa los datos y regístralo de nuevo.';
     }
     _sincronizarPoll();
   }
@@ -209,6 +215,7 @@ class BilleteraViewModel extends ChangeNotifier {
         urlPago: i?.urlPago,
         instrucciones: i?.instrucciones,
       );
+      avisoEsError = false;
       aviso =
           'Pago iniciado con ${medioSeleccionado.label}. Confirmaremos y actualizaremos tu saldo al recibirlo.';
       // Reconciliar: releer saldo y pagos, y refrescar el estado del conductor.

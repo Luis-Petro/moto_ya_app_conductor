@@ -139,6 +139,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
                       const SizedBox(height: AppSpacing.lg),
                       _PagoConfirmado(
                         mensaje: vm.aviso!,
+                        esError: vm.avisoEsError,
                         onCerrar: vm.descartarIntencion,
                       ),
                     ],
@@ -979,34 +980,47 @@ class _FilaPago extends StatelessWidget {
 
 /// Aviso de pago confirmado (el saldo/estado ya se actualizaron), descartable.
 class _PagoConfirmado extends StatelessWidget {
-  const _PagoConfirmado({required this.mensaje, required this.onCerrar});
+  const _PagoConfirmado({
+    required this.mensaje,
+    required this.onCerrar,
+    this.esError = false,
+  });
   final String mensaje;
   final VoidCallback onCerrar;
 
+  /// El mensaje cuenta un fallo: va en rojo y con icono de error. El color es
+  /// lo que se lee a pleno sol, antes que el texto.
+  final bool esError;
+
   @override
   Widget build(BuildContext context) {
+    final (fondo, borde, tinta) = esError
+        ? (AppColors.dangerSurface, AppColors.danger, AppColors.dangerInk)
+        : (AppColors.successSurface, AppColors.success, AppColors.successInk);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.successSurface,
+        color: fondo,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(color: AppColors.success),
+        border: Border.all(color: borde),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          Icon(esError ? Icons.error_outline_rounded : Icons.check_circle,
+              color: borde, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               mensaje,
-              style: AppText.caption.copyWith(color: AppColors.successInk, fontWeight: AppText.medio),
+              style: AppText.caption
+                  .copyWith(color: tinta, fontWeight: AppText.medio),
             ),
           ),
           InkWell(
             onTap: onCerrar,
-            child: const Icon(
+            child: Icon(
               Icons.close_rounded,
-              color: AppColors.success,
+              color: borde,
               size: 18,
             ),
           ),

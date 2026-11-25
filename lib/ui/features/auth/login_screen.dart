@@ -247,7 +247,11 @@ class _RecuperarSheetState extends State<_RecuperarSheet> {
         left: AppSpacing.xl,
         right: AppSpacing.xl,
         top: AppSpacing.xl,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(context).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    AppSpacing.xl,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -349,7 +353,11 @@ class _CelularSheetState extends State<_CelularSheet> {
         left: AppSpacing.xl,
         right: AppSpacing.xl,
         top: AppSpacing.xl,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(context).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    AppSpacing.xl,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -100,6 +100,25 @@ class InicioViewModel extends ChangeNotifier {
   /// Oferta dirigida vigente para el conductor (con la ventana del servidor).
   Oferta? ofertaActual;
 
+  /// Cuándo llegó [ofertaActual]. Sus `segundosRestantes` son una foto de ese
+  /// instante y no se vuelven a pedir mientras la oferta sea la misma.
+  DateTime? _ofertaVistaEn;
+
+  /// Lo que le queda **ahora** a la oferta del banner, o `null` si no se sabe.
+  ///
+  /// El banner le pasaba a la pantalla de la oferta los segundos de cuando llegó:
+  /// quien lo tocaba veinte segundos tarde veía el reloj entero, y el servidor
+  /// cerraba la oferta con tiempo todavía en pantalla. Con `null` la pantalla le
+  /// pregunta la ventana al servidor, que es quien manda.
+  int? get segundosRestantesOferta {
+    final oferta = ofertaActual;
+    final vista = _ofertaVistaEn;
+    if (oferta == null || vista == null) return null;
+    final quedan =
+        oferta.segundosRestantes - DateTime.now().difference(vista).inSeconds;
+    return quedan > 0 ? quedan : null;
+  }
+
   /// Pedidos en curso asignados al conductor (ACEPTADO/EN_COMPRA/EN_CAMINO), del
   /// más antiguo al más reciente. Se muestran siempre para que pueda continuar el
   /// flujo aunque no llegue push.
@@ -287,7 +306,11 @@ class InicioViewModel extends ChangeNotifier {
 
   Future<void> _cargarMetricas() async {
     final res = await _pedidos.mios();
-    final lista = res.valueOrNull ?? const <Pedido>[];
+    final lista = res.valueOrNull;
+    // Un fallo de red no es "hoy no ganaste nada": se conservan las cifras que
+    // había. Esto corre cada vez que se vuelve a la pestaña, así que con mala
+    // señal las ganancias del día bajaban a $0 sin ningún aviso.
+    if (lista == null) return;
     final hoy = DateTime.now();
     var suma = 0.0;
     var cuenta = 0;
@@ -319,6 +342,25 @@ class InicioViewModel extends ChangeNotifier {
   /// notificaciones activas (se solicitan si faltan); apagarse nunca las exige.
   /// Devuelve el desenlace para que la UI muestre el aviso correspondiente.
   Future<ResultadoEnLinea> alternarEnLinea(bool valor) async {
+    // Ponerse en línea pasa por permisos y por el GPS (hasta 8 segundos) antes
+    // de llegar al servidor. Sin marcarlo desde el primer instante la tarjeta no
+    // cambiaba y seguía tocable: se tocaba otra vez y arrancaban dos intentos.
+    if (_alternando) return ResultadoEnLinea.ok;
+    _alternando = true;
+    cambiandoEstado = true;
+    notifyListeners();
+    try {
+      return await _alternarEnLinea(valor);
+    } finally {
+      _alternando = false;
+      cambiandoEstado = false;
+      notifyListeners();
+    }
+  }
+
+  bool _alternando = false;
+
+  Future<ResultadoEnLinea> _alternarEnLinea(bool valor) async {
     if (!valor) {
       return await _aplicarEnLinea(false)
           ? ResultadoEnLinea.ok
@@ -492,6 +534,7 @@ class InicioViewModel extends ChangeNotifier {
         final nueva = lista.isEmpty ? null : lista.first;
         if (nueva?.pedidoId != ofertaActual?.pedidoId) {
           ofertaActual = nueva;
+          _ofertaVistaEn = DateTime.now();
           if (nueva != null) _sonarOferta(nueva);
           _notificar();
         }

@@ -82,7 +82,8 @@ void main() {
     when(() => conductores.perfilCompleto)
         .thenAnswer((_) => perfil?.perfilCompleto ?? false);
     when(() => conductores.cargar(forzar: any(named: 'forzar')))
-        .thenAnswer((_) async => const Err(Failure('sin perfil')));
+        .thenAnswer(
+            (_) async => const Err(Failure('sin perfil', statusCode: 404)));
     when(() => conductores.crearPerfil(
           licencia: any(named: 'licencia'),
           vehiculo: any(named: 'vehiculo'),
@@ -291,6 +292,30 @@ void main() {
       await vm.cargar();
       await vm.recuperarFotoPerdida(foto('suelta'));
       expect(vm.documentosListos, 0);
+    });
+  });
+
+  group('Sin señal al abrir', () {
+    test('no se enseña el alta vacía: no se sabe si ya tiene perfil', () async {
+      // A un conductor ya registrado le salía el formulario en blanco con sus
+      // cuatro documentos "pendientes", como si se le hubiera borrado todo.
+      when(() => conductores.cargar(forzar: any(named: 'forzar'))).thenAnswer(
+          (_) async =>
+              const Err(Failure('Sin conexión.', kind: FailureKind.network)));
+      final vm = nuevoVm();
+      await vm.cargar();
+
+      expect(vm.errorCarga, 'Sin conexión.');
+      expect(vm.errorCargaEsRed, isTrue);
+      expect(vm.cargando, isFalse);
+    });
+
+    test('un 404 sí es "sin perfil": el alta se abre', () async {
+      when(() => conductores.cargar(forzar: any(named: 'forzar'))).thenAnswer(
+          (_) async => const Err(Failure('No existe', statusCode: 404)));
+      final vm = nuevoVm();
+      await vm.cargar();
+      expect(vm.errorCarga, isNull);
     });
   });
 

@@ -17,6 +17,7 @@ import '../../core/widgets/elegir_foto_sheet.dart';
 import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
+import '../../core/widgets/soporte.dart';
 import 'billetera_view_model.dart';
 
 /// Logos oficiales de los medios de pago (identidad visual reconocible).
@@ -73,6 +74,7 @@ class _BilleteraViewState extends State<_BilleteraView> {
     }
   }
 
+
   /// Historial completo en una hoja: se consulta de vez en cuando (una duda,
   /// un reclamo), no en cada pago.
   Future<void> _verHistorial(
@@ -88,15 +90,28 @@ class _BilleteraViewState extends State<_BilleteraView> {
   }
 
   /// Ficha de la transacción iniciada: monto, destino, referencia y siguiente paso.
+  ///
+  /// La hoja termina pidiendo el comprobante. La pantalla del pago prometía
+  /// "al terminar te pedimos la foto del comprobante" y nadie la pedía: quedaba
+  /// como un botón pequeño de "Adjuntar" en una tarjeta de más abajo.
   Future<void> _mostrarTransaccion(
     BuildContext context,
     IntencionPago intencion,
-  ) {
-    final datos = context.read<BilleteraViewModel>().datosPago;
-    return showModalBottomSheet<void>(
+  ) async {
+    final vm = context.read<BilleteraViewModel>();
+    final pago = vm.pagoPendiente;
+    final adjuntar = await showModalBottomSheet<bool>(
       context: context,
-      builder: (_) => _TransaccionSheet(intencion: intencion, datos: datos),
+      isScrollControlled: true,
+      builder: (_) => _TransaccionSheet(
+        intencion: intencion,
+        datos: vm.datosPago,
+        faltaComprobante: pago != null && !pago.tieneComprobante,
+      ),
     );
+    if (adjuntar == true && pago != null && context.mounted) {
+      await _adjuntarComprobante(context, vm, pago.id);
+    }
   }
 
   @override
@@ -139,20 +154,41 @@ class _BilleteraViewState extends State<_BilleteraView> {
                       const SizedBox(height: AppSpacing.lg),
                       _PagoConfirmado(
                         mensaje: vm.aviso!,
+                        esError: vm.avisoEsError,
                         onCerrar: vm.descartarIntencion,
                       ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
-                    PrimaryButton(
-                      label: vm.bloqueado
-                          ? 'Pagar y reactivar mi cuenta'
-                          : (b.enDeuda
-                                ? 'Registrar un pago'
+                    // Con un pago ya en revisión, el botón grande invitaba a
+                    // registrar el mismo pago otra vez. Pasa a secundario y lo
+                    // dice: "otro".
+                    if (vm.pagoPendiente != null)
+                      SizedBox(
+                        height: AppSpacing.minTouchTarget,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _abrirPago(context, vm, b),
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Registrar otro pago'),
+                        ),
+                      )
+                    else
+                      PrimaryButton(
+                        label: vm.bloqueado
+                            ? 'Pagar y reactivar mi cuenta'
+                            : (b.enDeuda
+                                ? 'Pagar mis comisiones'
                                 : 'Abonar a mi saldo'),
-                      icon: b.enDeuda
-                          ? Icons.lock_open_rounded
-                          : Icons.savings_outlined,
-                      onPressed: () => _abrirPago(context, vm, b),
+                        icon: b.enDeuda
+                            ? Icons.lock_open_rounded
+                            : Icons.savings_outlined,
+                        onPressed: () => _abrirPago(context, vm, b),
+                      ),
+                    const SizedBox(height: AppSpacing.md),
+                    const BotonSoporte(
+                      compacto: true,
+                      etiqueta: '¿Dudas con tu pago? Escríbenos',
+                      mensaje: 'Hola, soy conductor de Zumbeo y tengo una duda '
+                          'con el pago de mis comisiones.',
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     // El historial no vive en la pantalla principal: es
@@ -219,6 +255,12 @@ class _PagoSheetState extends State<_PagoSheet> {
       _titularOrigen.text.trim().isNotEmpty &&
       (!_porCorresponsal || _corresponsal.text.trim().isNotEmpty);
 
+  /// Hay a dónde transferir con el medio elegido. Sin esto el botón quedaba
+  /// activo aunque la cuenta de destino no hubiera cargado o no existiera, y se
+  /// podía registrar un pago hecho a ninguna parte.
+  bool _hayDestino(BilleteraViewModel vm) =>
+      vm.datosPago?.tieneDatos(vm.medioSeleccionado) ?? false;
+
   Future<void> _pagar(BilleteraViewModel vm) async {
     final ok = await vm.pagar(
       _montoIngresado,
@@ -255,16 +297,32 @@ class _PagoSheetState extends State<_PagoSheet> {
                 b.enDeuda ? 'Pagar comisiones' : 'Abonar a mi saldo',
                 style: AppText.title,
               ),
+              const SizedBox(height: AppSpacing.xs),
+              // Lo primero que hay que entender: **la app no mueve la plata**.
+              // El botón de abajo se llamaba "Pagar $17.000" y solo registraba
+              // un aviso; quien no hubiera transferido antes se iba creyendo
+              // que había pagado y seguía bloqueado.
+              const Text(
+                'La plata la envías tú desde Nequi o tu banco. Aquí nos avisas '
+                'para que la confirmemos.',
+                style: AppText.body,
+              ),
               const SizedBox(height: AppSpacing.md),
-              const _Etiqueta('PAGAR CON'),
+              const _Etiqueta('PASO 1 · ENVÍA LA PLATA A ESTA CUENTA'),
               const SizedBox(height: AppSpacing.xs),
               _Medios(vm: vm),
-              if (vm.datosPago != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                _DestinoPago(datos: vm.datosPago!, medio: vm.medioSeleccionado),
-              ],
+              const SizedBox(height: AppSpacing.sm),
+              if (vm.datosPago != null)
+                _DestinoPago(datos: vm.datosPago!, medio: vm.medioSeleccionado)
+              else
+                // La cuenta no cargó: se dice y se puede reintentar. Antes el
+                // bloque simplemente no aparecía.
+                _SinCuentaDestino(
+                  cargando: vm.cargando || vm.cargandoDatosPago,
+                  onReintentar: vm.cargar,
+                ),
               const SizedBox(height: AppSpacing.md),
-              const _Etiqueta('MONTO A PAGAR'),
+              const _Etiqueta('PASO 2 · ¿CUÁNTO ENVIASTE?'),
               const SizedBox(height: AppSpacing.xs),
               TextField(
                 controller: _monto,
@@ -283,7 +341,7 @@ class _PagoSheetState extends State<_PagoSheet> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              const _Etiqueta('¿DESDE DÓNDE ENVÍAS?'),
+              const _Etiqueta('PASO 3 · ¿DESDE DÓNDE LA ENVIASTE?'),
               const SizedBox(height: AppSpacing.xs),
               // El nombre que llega al extracto no es el mismo si el conductor
               // transfiere desde su cuenta que si consigna en un corresponsal:
@@ -349,16 +407,20 @@ class _PagoSheetState extends State<_PagoSheet> {
               const _AvisoComprobante(),
               const SizedBox(height: AppSpacing.md),
               PrimaryButton(
-                label: vm.bloqueado
-                    ? 'Pagar ${Formato.moneda(_montoIngresado)} y reactivar'
-                    : (b.enDeuda
-                          ? 'Pagar ${Formato.moneda(_montoIngresado)}'
-                          : 'Abonar ${Formato.moneda(_montoIngresado)}'),
-                icon: b.enDeuda
-                    ? Icons.lock_open_rounded
-                    : Icons.savings_outlined,
+                // "Ya transferí", no "Pagar": dice lo que el conductor tiene
+                // que haber hecho antes de tocarlo.
+                label: 'Ya transferí ${Formato.moneda(_montoIngresado)}',
+                icon: Icons.check_circle_outline,
                 loading: vm.pagando,
-                onPressed: _datosCompletos ? () => _pagar(vm) : null,
+                onPressed: _datosCompletos && _hayDestino(vm)
+                    ? () => _pagar(vm)
+                    : null,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Tócalo solo después de enviar la plata.',
+                textAlign: TextAlign.center,
+                style: AppText.caption,
               ),
             ],
           ),
@@ -464,8 +526,8 @@ class _AvisoComprobante extends StatelessWidget {
           SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Al terminar te pedimos la foto del comprobante: con ella '
-              'confirmamos el mismo día.',
+              'Guarda el comprobante de la transferencia: en el siguiente '
+              'paso te pedimos la foto. Con ella confirmamos el mismo día.',
               style: AppText.caption,
             ),
           ),
@@ -642,28 +704,70 @@ class _EstadoCuenta extends StatelessWidget {
   }
 }
 
+/// Pide la foto del comprobante y la adjunta al pago.
+Future<void> _adjuntarComprobante(
+  BuildContext context,
+  BilleteraViewModel vm,
+  int pagoId,
+) async {
+  final source = await elegirFotoSheet(
+    context,
+    titulo: 'Comprobante de la transferencia',
+    contexto: 'La captura de la app del banco o la foto del recibo del '
+        'corresponsal. Que se vean el monto y la fecha.',
+  );
+  if (source == null) return;
+  final err = await vm.adjuntarComprobante(pagoId, source);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(err ?? 'Comprobante enviado. Gracias.')),
+  );
+}
+
+/// La cuenta a la que se paga todavía no está: cargando, o no se pudo cargar.
+class _SinCuentaDestino extends StatelessWidget {
+  const _SinCuentaDestino({required this.cargando, required this.onReintentar});
+  final bool cargando;
+  final VoidCallback onReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warningSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              cargando
+                  ? 'Cargando la cuenta a la que se paga…'
+                  : 'No pudimos cargar la cuenta a la que se paga.',
+              style: AppText.caption.copyWith(color: AppColors.ink),
+            ),
+          ),
+          if (cargando)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            TextButton(onPressed: onReintentar, child: const Text('Reintentar')),
+        ],
+      ),
+    );
+  }
+}
+
 /// Pago registrado y pendiente de confirmación, con acceso a su detalle si
 /// todavía tenemos las instrucciones del proveedor en esta sesión.
 class _PagoEnProceso extends StatelessWidget {
   const _PagoEnProceso({required this.pago, this.onVer});
   final PagoRealizado pago;
   final VoidCallback? onVer;
-
-  /// Pide la foto del comprobante y la adjunta al pago.
-  Future<void> _adjuntar(BuildContext context, BilleteraViewModel vm) async {
-    final source = await elegirFotoSheet(
-      context,
-      titulo: 'Comprobante de la transferencia',
-      contexto: 'La captura de la app del banco o la foto del recibo del '
-          'corresponsal. Que se vean el monto y la fecha.',
-    );
-    if (source == null) return;
-    final err = await vm.adjuntarComprobante(pago.id, source);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(err ?? 'Comprobante enviado. Gracias.')),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -691,7 +795,8 @@ class _PagoEnProceso extends StatelessWidget {
                       style: AppText.caption.copyWith(color: AppColors.ink, fontWeight: AppText.medio),
                     ),
                     const Text(
-                      'Lo confirmamos al verificar la transferencia.',
+                      'Todavía no está confirmado: lo revisa el '
+                      'administrador. Tu cuenta se actualiza sola.',
                       style: AppText.caption,
                     ),
                   ],
@@ -737,13 +842,27 @@ class _PagoEnProceso extends StatelessWidget {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              else
+              else if (pago.tieneComprobante)
                 TextButton(
-                  onPressed: () => _adjuntar(context, vm),
-                  child: Text(pago.tieneComprobante ? 'Cambiar' : 'Adjuntar'),
+                  onPressed: () => _adjuntarComprobante(context, vm, pago.id),
+                  child: const Text('Cambiar'),
                 ),
             ],
           ),
+          // Sin comprobante, adjuntarlo es **la** acción de esta tarjeta: va en
+          // un botón entero y no en un "Adjuntar" pequeño al final de la fila.
+          if (!pago.tieneComprobante && !vm.subiendoComprobante) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              height: AppSpacing.minTouchTarget,
+              child: FilledButton.icon(
+                onPressed: () => _adjuntarComprobante(context, vm, pago.id),
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('Adjuntar comprobante'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -979,34 +1098,47 @@ class _FilaPago extends StatelessWidget {
 
 /// Aviso de pago confirmado (el saldo/estado ya se actualizaron), descartable.
 class _PagoConfirmado extends StatelessWidget {
-  const _PagoConfirmado({required this.mensaje, required this.onCerrar});
+  const _PagoConfirmado({
+    required this.mensaje,
+    required this.onCerrar,
+    this.esError = false,
+  });
   final String mensaje;
   final VoidCallback onCerrar;
 
+  /// El mensaje cuenta un fallo: va en rojo y con icono de error. El color es
+  /// lo que se lee a pleno sol, antes que el texto.
+  final bool esError;
+
   @override
   Widget build(BuildContext context) {
+    final (fondo, borde, tinta) = esError
+        ? (AppColors.dangerSurface, AppColors.danger, AppColors.dangerInk)
+        : (AppColors.successSurface, AppColors.success, AppColors.successInk);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.successSurface,
+        color: fondo,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-        border: Border.all(color: AppColors.success),
+        border: Border.all(color: borde),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          Icon(esError ? Icons.error_outline_rounded : Icons.check_circle,
+              color: borde, size: 20),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               mensaje,
-              style: AppText.caption.copyWith(color: AppColors.successInk, fontWeight: AppText.medio),
+              style: AppText.caption
+                  .copyWith(color: tinta, fontWeight: AppText.medio),
             ),
           ),
           InkWell(
             onTap: onCerrar,
-            child: const Icon(
+            child: Icon(
               Icons.close_rounded,
-              color: AppColors.success,
+              color: borde,
               size: 18,
             ),
           ),
@@ -1108,9 +1240,22 @@ class _DestinoPago extends StatelessWidget {
                         ),
                     ],
                   )
-                : Text(
-                    'Aún no hay una cuenta ${esNequi ? 'Nequi' : 'Bre-B'} configurada. Contacta al administrador.',
-                    style: AppText.caption,
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Aún no hay una cuenta ${esNequi ? 'Nequi' : 'Bre-B'} '
+                        'para recibir pagos. Prueba con el otro medio o '
+                        'escríbenos.',
+                        style: AppText.caption,
+                      ),
+                      const BotonSoporte(
+                        compacto: true,
+                        mensaje: 'Hola, soy conductor de Zumbeo. Quiero pagar '
+                            'mis comisiones y no aparece la cuenta para '
+                            'transferir.',
+                      ),
+                    ],
                   ),
           ),
           if (tiene)
@@ -1210,8 +1355,16 @@ class _MedioChip extends StatelessWidget {
 /// Detalle de la transacción iniciada: monto, medio, referencia, estado y
 /// siguiente paso (enlace del proveedor si existe).
 class _TransaccionSheet extends StatelessWidget {
-  const _TransaccionSheet({required this.intencion, this.datos});
+  const _TransaccionSheet({
+    required this.intencion,
+    this.datos,
+    this.faltaComprobante = false,
+  });
   final IntencionPago intencion;
+
+  /// El pago aún no tiene comprobante: la hoja termina pidiéndolo. Devuelve
+  /// `true` por el `pop` cuando el conductor quiere adjuntarlo ya.
+  final bool faltaComprobante;
 
   /// Datos de destino, para repetir aquí a nombre de quién está la cuenta: es
   /// el dato que el conductor coteja en la app del banco al transferir.
@@ -1262,7 +1415,9 @@ class _TransaccionSheet extends StatelessWidget {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
-                    'Pago por ${intencion.medioPago.label}',
+                    // "Aviso registrado", no "Pago": todavía no hay nada
+                    // confirmado, y decir "pago" a secas se leía como "listo".
+                    'Aviso de pago por ${intencion.medioPago.label}',
                     style: AppText.title,
                   ),
                 ),
@@ -1281,7 +1436,7 @@ class _TransaccionSheet extends StatelessWidget {
             _DatoFila(
               label: 'Estado',
               valor: intencion.pendiente
-                  ? 'Pendiente de confirmación'
+                  ? 'En revisión · aún no confirmado'
                   : intencion.estado,
             ),
             if (intencion.referenciaExterna != null)
@@ -1305,9 +1460,13 @@ class _TransaccionSheet extends StatelessWidget {
               ),
             ],
             const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'Cuando el pago se confirme, tu saldo y tu cuenta se actualizan solos.',
-              style: AppText.caption,
+            Text(
+              faltaComprobante
+                  ? 'Falta un paso: la foto del comprobante. Con ella lo '
+                      'confirmamos el mismo día; sin ella puede tardar más.'
+                  : 'Cuando el pago se confirme, tu saldo y tu cuenta se '
+                      'actualizan solos.',
+              style: AppText.caption.copyWith(color: AppColors.ink),
             ),
             const SizedBox(height: AppSpacing.lg),
             if (intencion.urlPago != null)
@@ -1316,7 +1475,18 @@ class _TransaccionSheet extends StatelessWidget {
                 icon: Icons.open_in_new_rounded,
                 onPressed: () => _abrirEnlace(context),
               )
-            else
+            else if (faltaComprobante) ...[
+              PrimaryButton(
+                label: 'Adjuntar comprobante',
+                icon: Icons.photo_camera_outlined,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Lo adjunto después'),
+              ),
+            ] else
               PrimaryButton(
                 label: 'Entendido',
                 onPressed: () => Navigator.of(context).pop(),

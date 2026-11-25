@@ -15,6 +15,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/elegir_foto_sheet.dart';
 import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/soporte.dart';
 import '../../router.dart';
 import 'perfil_view_model.dart';
 
@@ -94,6 +95,52 @@ class _DocumentosViewState extends State<_DocumentosView> {
                     child: ListView(
                       padding: const EdgeInsets.all(AppSpacing.xl),
                       children: [
+                        // El motivo del rechazo solo salía en un aviso del
+                        // Inicio recortado a dos líneas. Aquí, que es donde se
+                        // corrige, las cuatro filas decían "Subida" en verde y
+                        // no había forma de saber qué estaba mal.
+                        if (conductor.rechazado) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              color: AppColors.dangerSurface,
+                              borderRadius:
+                                  BorderRadius.circular(AppSpacing.radiusSm),
+                              border: Border.all(color: AppColors.danger),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Tu cuenta no fue aprobada',
+                                    style: AppText.subtitle.copyWith(
+                                        color: AppColors.dangerInk)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  (conductor.motivoRechazo?.trim().isNotEmpty ??
+                                          false)
+                                      ? 'Motivo: ${conductor.motivoRechazo!.trim()}'
+                                      : 'Revisa que las cuatro fotos se lean '
+                                          'bien y vuelve a subir la que esté mal.',
+                                  style: AppText.body,
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Vuelve a subir la foto que esté mal con '
+                                  '"Reemplazar" para que te revisemos otra vez.',
+                                  style: AppText.caption,
+                                ),
+                                const BotonSoporte(
+                                  compacto: true,
+                                  etiqueta: '¿Dudas? Escríbenos',
+                                  mensaje: 'Hola, soy conductor de Zumbeo. Mi '
+                                      'cuenta no fue aprobada y tengo una duda.',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
                         Text(
                           'Con estas cuatro fotos el administrador puede habilitarte '
                           'para recibir pedidos. Que se lean bien es lo único que '
@@ -155,9 +202,14 @@ class _Documentos extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           const Text(
             'Tus documentos ya fueron verificados y no se pueden cambiar desde la '
-            'app. Si alguno quedó mal (borroso, vencido), pídele al administrador '
-            'que devuelva tu cuenta a revisión.',
+            'app. Si alguno quedó mal (borroso, vencido), escríbenos para '
+            'devolver tu cuenta a revisión.',
             style: AppText.caption,
+          ),
+          const BotonSoporte(
+            compacto: true,
+            mensaje: 'Hola, soy conductor de Zumbeo. Necesito cambiar un '
+                'documento que ya fue verificado.',
           ),
         ],
         if (faltantes.isNotEmpty) ...[
@@ -229,7 +281,7 @@ class _FilaDocumento extends StatelessWidget {
                       ? 'Verificada'
                       : tiene
                           ? 'Subida'
-                          : 'Pendiente',
+                          : 'Falta subirla',
                   style: AppText.caption.copyWith(
                       fontWeight: AppText.medio,
                       color: tiene ? AppColors.successInk : AppColors.warningInk)),

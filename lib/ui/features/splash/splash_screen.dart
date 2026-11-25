@@ -6,6 +6,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/services/api_result.dart';
 import '../../../di/locator.dart';
+import '../../core/widgets/async_view.dart';
 import '../../core/widgets/brand.dart';
 import '../../router.dart';
 
@@ -25,6 +26,15 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _resolver();
+  }
+
+  /// No se pudo cargar el perfil al arrancar (y no es un "sin perfil").
+  String? _fallo;
+  bool _falloEsRed = false;
+
+  void _reintentar() {
+    setState(() => _fallo = null);
     _resolver();
   }
 
@@ -52,6 +62,17 @@ class _SplashScreenState extends State<SplashScreen> {
         context.go(Rutas.login);
         return;
       }
+      // Solo un 404 es "sin perfil". Sin señal o con el servidor caído no se
+      // sabe si lo tiene, y mandarlo al alta era enseñarle a un conductor ya
+      // registrado un formulario vacío con todos sus documentos "pendientes".
+      // Se queda aquí, con un botón para reintentar.
+      if (res case Err(failure: final f) when f.statusCode != 404) {
+        setState(() {
+          _fallo = f.message;
+          _falloEsRed = f.isNetwork;
+        });
+        return;
+      }
       context.go(conductores.perfilCompleto ? Rutas.inicio : Rutas.alta);
       return;
     }
@@ -64,6 +85,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_fallo != null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: ErrorRetry(
+            message: _fallo!,
+            onRetry: _reintentar,
+            esRed: _falloEsRed,
+          ),
+        ),
+      );
+    }
     return const Scaffold(
       backgroundColor: Colors.white,
       body: Center(

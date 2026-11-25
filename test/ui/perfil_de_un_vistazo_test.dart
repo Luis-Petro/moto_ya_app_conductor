@@ -130,7 +130,10 @@ void main() {
     test('con los documentos en firme no ofrece reemplazarlos', () {
       // Un botón que siempre responde 409 es peor que no tenerlo.
       expect(documentos, contains('conductor.documentosEnFirme'));
-      expect(documentos, contains('devuelva tu cuenta a revisión'));
+      // Y dice cómo pedir la corrección, con un botón que lleva a soporte:
+      // "pídele al administrador" no decía por dónde.
+      expect(documentos, contains('devolver tu cuenta a revisión'));
+      expect(documentos, contains('BotonSoporte('));
       expect(documentos, contains('else if (!enFirme)'));
     });
 

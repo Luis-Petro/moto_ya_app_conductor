@@ -90,22 +90,21 @@ class _LoginViewState extends State<_LoginView> {
   }
 
   Future<void> _ingresarConCelular() async {
+    final vm = context.read<LoginViewModel>();
+    // El envío ocurre **dentro de la hoja**, con el botón girando. Antes la hoja
+    // se cerraba y la pantalla quedaba quieta hasta que volvía la petición: con
+    // datos lentos se tocaba otra vez y salían varios SMS con varios códigos.
     final telefono = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const _CelularSheet(),
+      builder: (_) => _CelularSheet(
+        onEnviar: (telefono) async => await vm.solicitarOtp(telefono)
+            ? null
+            : (vm.error ?? 'No pudimos enviar el código'),
+      ),
     );
     if (telefono == null || !mounted) return;
-    final vm = context.read<LoginViewModel>();
-    final ok = await vm.solicitarOtp(telefono);
-    if (!mounted) return;
-    if (ok) {
-      context.push(Rutas.otp, extra: OtpArgs(telefono: telefono));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos enviar el código')),
-      );
-    }
+    context.push(Rutas.otp, extra: OtpArgs(telefono: telefono));
   }
 
   @override
@@ -247,7 +246,11 @@ class _RecuperarSheetState extends State<_RecuperarSheet> {
         left: AppSpacing.xl,
         right: AppSpacing.xl,
         top: AppSpacing.xl,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(context).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    AppSpacing.xl,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -319,7 +322,11 @@ class _Label extends StatelessWidget {
 
 /// Hoja inferior para capturar el celular y enviar el código de acceso.
 class _CelularSheet extends StatefulWidget {
-  const _CelularSheet();
+  const _CelularSheet({required this.onEnviar});
+
+  /// Pide el código para ese celular. Devuelve el error, o `null` si salió.
+  final Future<String?> Function(String telefonoE164) onEnviar;
+
   @override
   State<_CelularSheet> createState() => _CelularSheetState();
 }
@@ -334,12 +341,29 @@ class _CelularSheetState extends State<_CelularSheet> {
     super.dispose();
   }
 
-  void _enviar() {
+  bool _enviando = false;
+
+  Future<void> _enviar() async {
+    if (_enviando) return;
     if (!telefonoCoValido(_telefono.text)) {
       setState(() => _error = 'Celular inválido');
       return;
     }
-    Navigator.of(context).pop(normalizarTelefonoCo(_telefono.text));
+    final telefono = normalizarTelefonoCo(_telefono.text);
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+    final error = await widget.onEnviar(telefono);
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        _enviando = false;
+        _error = error;
+      });
+      return;
+    }
+    Navigator.of(context).pop(telefono);
   }
 
   @override
@@ -349,7 +373,11 @@ class _CelularSheetState extends State<_CelularSheet> {
         left: AppSpacing.xl,
         right: AppSpacing.xl,
         top: AppSpacing.xl,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
+        // `padding.bottom` es la barra de navegación del sistema: sin sumarla, el
+                // botón de la hoja quedaba detrás de ◁ ○ □. Con el teclado abierto vale 0.
+                bottom: MediaQuery.of(context).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    AppSpacing.xl,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -366,7 +394,11 @@ class _CelularSheetState extends State<_CelularSheet> {
                       AppText.caption.copyWith(color: AppColors.dangerInk)),
             ),
           const SizedBox(height: AppSpacing.lg),
-          PrimaryButton(label: 'Enviar código', onPressed: _enviar),
+          PrimaryButton(
+            label: 'Enviar código',
+            loading: _enviando,
+            onPressed: _enviar,
+          ),
         ],
       ),
     );

@@ -130,6 +130,14 @@ class Env {
     defaultValue: true,
   );
 
+  /// WhatsApp de soporte de Zumbeo, en formato de `wa.me`: indicativo y número,
+  /// sin `+` ni espacios. Se puede cambiar por build con
+  /// `--dart-define=SOPORTE_WHATSAPP=…` sin tocar código.
+  static const String soporteWhatsapp = String.fromEnvironment(
+    'SOPORTE_WHATSAPP',
+    defaultValue: '573504859462',
+  );
+
   /// Client ID de Google para la verificación server-side del idToken.
   static const String googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',

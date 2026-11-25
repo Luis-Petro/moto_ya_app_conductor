@@ -36,6 +36,10 @@ class HistorialViewModel extends ChangeNotifier {
   bool cargando = true;
   String? error;
 
+  /// Si el último fallo fue de red, para no decirle "revisa tu internet" a
+  /// quien recibió un rechazo del servidor.
+  bool errorEsRed = false;
+
   /// Pedidos entregados agrupados por día (más reciente primero).
   List<GrupoDia> grupos = const [];
 
@@ -66,6 +70,7 @@ class HistorialViewModel extends ChangeNotifier {
     final res = await _pedidos.mios();
     res.when(
       ok: (lista) {
+        error = null;
         final entregados =
             lista.where((p) => p.estado == EstadoPedido.entregado).toList()
               ..sort((a, b) => (b.entregadoEn ?? b.creadoEn ?? DateTime(0))
@@ -74,7 +79,10 @@ class HistorialViewModel extends ChangeNotifier {
         grupos = _agruparPorDia(entregados.take(30).toList());
         _calcularSemana(entregados);
       },
-      err: (f) => error = f.message,
+      err: (f) {
+        error = f.message;
+        errorEsRed = f.isNetwork;
+      },
     );
     cargando = false;
     notifyListeners();

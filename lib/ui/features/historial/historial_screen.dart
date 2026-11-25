@@ -44,11 +44,39 @@ class _HistorialView extends StatelessWidget {
       body: SafeArea(
         child: vm.cargando
             ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
+            // Falló la carga y no hay nada que mostrar: se dice. Antes caía en
+            // "Aún no tienes pedidos" con los ingresos en $0, y un conductor
+            // con doscientas entregas creía que se le había borrado todo.
+            : vm.error != null && vm.grupos.isEmpty
+                ? ErrorRetry(
+                    message: vm.error!,
+                    onRetry: vm.cargar,
+                    esRed: vm.errorEsRed,
+                  )
+                : RefreshIndicator(
                 onRefresh: vm.cargar,
                 child: ListView(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
+                    // Hay datos de antes pero no se pudieron refrescar.
+                    if (vm.error != null) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.cloud_off_rounded,
+                              size: 16, color: AppColors.warningInk),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'No se pudo actualizar. Desliza hacia abajo '
+                              'para reintentar.',
+                              style: AppText.caption
+                                  .copyWith(color: AppColors.warningInk),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                     _Reputacion(vm: vm),
                     const SizedBox(height: AppSpacing.lg),
                     _Ingresos(vm: vm),
@@ -168,7 +196,12 @@ class _Ingresos extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Ingresos esta semana', style: AppText.caption),
+              // "Ganancias", como en el Inicio: es la misma cifra neta, y con
+              // otro nombre parecían dos cuentas distintas.
+              const Expanded(
+                child: Text('Ganancias esta semana (ya sin la comisión)',
+                    style: AppText.caption),
+              ),
               Text(Formato.moneda(vm.totalSemana), style: AppText.moneySm),
             ],
           ),

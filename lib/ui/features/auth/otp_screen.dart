@@ -17,9 +17,13 @@ import 'otp_view_model.dart';
 
 /// Argumentos de la pantalla de verificación OTP.
 class OtpArgs {
-  const OtpArgs({required this.telefono, this.nombre});
+  const OtpArgs({required this.telefono, this.nombre, this.envioFallo = false});
   final String telefono;
   final String? nombre;
+
+  /// El SMS no salió al llegar aquí. La pantalla no puede afirmar "enviamos un
+  /// código" ni bloquear el reenvío esperando un mensaje que no existe.
+  final bool envioFallo;
 }
 
 class OtpScreen extends StatelessWidget {
@@ -34,14 +38,15 @@ class OtpScreen extends StatelessWidget {
         args.telefono,
         args.nombre,
       ),
-      child: _OtpView(telefono: args.telefono),
+      child: _OtpView(telefono: args.telefono, envioFallo: args.envioFallo),
     );
   }
 }
 
 class _OtpView extends StatefulWidget {
-  const _OtpView({required this.telefono});
+  const _OtpView({required this.telefono, this.envioFallo = false});
   final String telefono;
+  final bool envioFallo;
 
   @override
   State<_OtpView> createState() => _OtpViewState();
@@ -52,6 +57,9 @@ class _OtpViewState extends State<_OtpView> {
   final _controller = TextEditingController();
   Timer? _timer;
   int _segundos = 42;
+
+  /// Todavía no ha salido ningún código (falló el envío al llegar aquí).
+  late bool _sinCodigo = widget.envioFallo;
 
   /// Hay una verificación en vuelo.
   ///
@@ -67,7 +75,12 @@ class _OtpViewState extends State<_OtpView> {
   @override
   void initState() {
     super.initState();
-    _iniciarCuentaRegresiva();
+    // Sin código enviado no hay nada que esperar: "Reenviar" disponible ya.
+    if (_sinCodigo) {
+      _segundos = 0;
+    } else {
+      _iniciarCuentaRegresiva();
+    }
   }
 
   @override
@@ -119,9 +132,17 @@ class _OtpViewState extends State<_OtpView> {
     final vm = context.read<OtpViewModel>();
     final ok = await vm.reenviar();
     if (!mounted) return;
-    if (ok) _iniciarCuentaRegresiva();
+    if (ok) {
+      setState(() => _sinCodigo = false);
+      _iniciarCuentaRegresiva();
+    }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? 'Código reenviado' : 'No pudimos reenviar')),
+      SnackBar(
+        content: Text(ok
+            ? 'Código enviado'
+            // El motivo lo dice el servidor (sin señal, demasiados intentos…).
+            : (vm.errorReenvio ?? 'No pudimos enviar el código')),
+      ),
     );
   }
 
@@ -138,7 +159,12 @@ class _OtpViewState extends State<_OtpView> {
       // Retroceso explícito: a esta pantalla se llega desde el registro y desde
       // el login por celular, y `AppBar()` sola solo pinta la flecha si hay algo
       // que desapilar. Quien se equivocó de número quedaba encerrado.
-      appBar: encabezado(null, onAtras: () => context.go(Rutas.login)),
+      // Si hay pantalla debajo (el formulario de registro), se **vuelve a ella**:
+      // con `go(login)` quien se equivocó de número perdía los seis campos que
+      // acababa de llenar, y el botón de atrás del sistema hacía otra cosa.
+      appBar: encabezado(null,
+          onAtras: () =>
+              context.canPop() ? context.pop() : context.go(Rutas.login)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -153,9 +179,16 @@ class _OtpViewState extends State<_OtpView> {
               const SizedBox(height: AppSpacing.lg),
               const Text('Verifica tu celular', style: AppText.display),
               const SizedBox(height: AppSpacing.sm),
-              Text('Enviamos un código de 4 dígitos al\n$_telefonoVisible',
+              Text(
+                  _sinCodigo
+                      ? 'No pudimos enviar el código al\n$_telefonoVisible\n'
+                          'Toca "Enviar código" para intentarlo otra vez.'
+                      : 'Enviamos un código de 4 dígitos al\n$_telefonoVisible',
                   textAlign: TextAlign.center,
-                  style: AppText.body.copyWith(color: AppColors.inkMuted)),
+                  style: AppText.body.copyWith(
+                      color: _sinCodigo
+                          ? AppColors.dangerInk
+                          : AppColors.inkMuted)),
               const SizedBox(height: AppSpacing.xl),
               _CajasCodigo(controller: _controller, largo: _largo, onChanged: () {
                 setState(() {});
@@ -188,7 +221,7 @@ class _OtpViewState extends State<_OtpView> {
               else
                 TextButton(
                   onPressed: vm.reenviando ? null : _reenviar,
-                  child: const Text('Reenviar código'),
+                  child: Text(_sinCodigo ? 'Enviar código' : 'Reenviar código'),
                 ),
               const Spacer(),
               PrimaryButton(

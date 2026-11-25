@@ -16,6 +16,7 @@ import '../../../data/services/notificacion_local_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
@@ -391,6 +392,24 @@ class _ActivoBanner extends StatelessWidget {
   final InicioViewModel vm;
   final Pedido pedido;
 
+  /// El paso en que va el pedido, dicho como instrucción y con el sitio.
+  static String _queSigue(Pedido p) {
+    String con(String verbo, String? sitio) =>
+        sitio == null || sitio.trim().isEmpty ? verbo : '$verbo · ${sitio.trim()}';
+    return switch (p.estado) {
+      EstadoPedido.aceptado => con(
+          p.requiereCompra ? 'Ve a comprar' : 'Ve a recoger',
+          p.direccionRecogida,
+        ),
+      EstadoPedido.enCompra => con(
+          p.requiereCompra ? 'Compra el pedido' : 'Recoge el pedido',
+          p.direccionRecogida,
+        ),
+      EstadoPedido.enCamino => con('Llévalo al cliente', p.direccionDestino),
+      _ => p.categoria.label,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = pedido;
@@ -429,7 +448,9 @@ class _ActivoBanner extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        p.categoria.label,
+                        // Lo que toca hacer, no la categoría: "Comida ·
+                        // Aceptado" no le decía al conductor qué seguía.
+                        _queSigue(p),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         // Token propio y no un blanco translúcido del framework:
@@ -535,7 +556,8 @@ class _OfertaBanner extends StatelessWidget {
       onTap: () async {
         // Pasa la ventana del servidor para el countdown real de la tarjeta.
         await context.push(
-          Rutas.pedidoEntrante(pedido.id, segundos: oferta.segundosRestantes),
+          Rutas.pedidoEntrante(pedido.id,
+              segundos: vm.segundosRestantesOferta),
         );
         vm.descartarOferta();
         // Responder (o rechazar) mueve la tasa de aceptación en el backend: sin
@@ -618,9 +640,19 @@ class _ToggleEnLinea extends StatelessWidget {
       borderColor: activo
           ? AppColors.accent
           : (deshabilitado ? AppColors.danger : AppColors.line),
-      onTap: (deshabilitado || vm.cambiandoEstado)
+      // Bloqueada o sin habilitar, la tarjeta **lleva a donde se arregla**.
+      // Era el elemento más grande del Inicio diciendo "paga tu deuda" y no
+      // respondía al toque: había que adivinar que era en otra pestaña.
+      onTap: vm.cambiandoEstado
           ? null
-          : () => _alternar(context, vm, !enLinea),
+          : bloqueado
+              ? () {
+                  context.go(Rutas.billetera);
+                  locator<TabActiva>().cambiar(TabActiva.billetera);
+                }
+              : noHabilitado
+                  ? () => context.push(Rutas.documentos)
+                  : () => _alternar(context, vm, !enLinea),
       child: Row(
         children: [
           Icon(
@@ -648,9 +680,14 @@ class _ToggleEnLinea extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   bloqueado
-                      ? 'Paga tu deuda para recibir pedidos'
+                      ? 'Toca aquí para pagar y volver a recibir pedidos'
+                      // Rechazada no es "en revisión": quien lee eso se queda
+                      // esperando en vez de corregir lo que le pidieron.
+                      : vm.rechazado
+                      ? 'No fue aprobada. Toca aquí para corregir tus documentos'
                       : noHabilitado
-                      ? 'En revisión: aún no puedes recibir pedidos'
+                      ? 'En revisión: aún no puedes recibir pedidos. Toca '
+                            'para ver tus documentos'
                       : (enLinea
                             ? 'Recibiendo pedidos de tu zona'
                             : 'Los pedidos de tu zona se le ofrecen a otros conductores'),
@@ -668,6 +705,8 @@ class _ToggleEnLinea extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
+          else if (deshabilitado)
+            const Icon(Icons.chevron_right_rounded, color: AppColors.danger)
           else
             // Se mantiene por legibilidad del estado; el toque real lo captura
             // la tarjeta entera.
@@ -726,10 +765,39 @@ class _ToggleEnLinea extends StatelessWidget {
   ) async {
     // Ponerse en línea es lo que dispara la petición de ubicación: si aún no está
     // concedida, primero se explica para qué.
-    if (valor && await vm.necesitaExplicarUbicacion()) {
-      if (!context.mounted) return;
-      if (!await _explicarUbicacion(context)) return;
-      if (!context.mounted) return;
+    if (valor) {
+      if (await vm.necesitaExplicarUbicacion()) {
+        if (!context.mounted) return;
+        if (!await _explicarUbicacion(context)) return;
+        if (!context.mounted) return;
+      }
+    } else if (vm.pedidosActivos.isNotEmpty) {
+      // Desconectarse con un pedido encima se confirma: la tarjeta entera es el
+      // botón y está en una lista que se desplaza, así que un roce bastaba.
+      //
+      // Va en la rama `else` y no después del `if`: así este `context` no se
+      // usa tras ningún `await` (el analizador de Flutter 3.32 lo marca).
+      final seguir = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Tienes un pedido en curso'),
+          content: const Text(
+            'Si te desconectas no te llegan más pedidos. El que llevas sigue '
+            'igual y lo puedes terminar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Seguir en línea'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Desconectarme'),
+            ),
+          ],
+        ),
+      );
+      if (seguir != true || !context.mounted) return;
     }
     final r = await vm.alternarEnLinea(valor);
     if (!context.mounted) return;
@@ -1123,15 +1191,42 @@ class _Ganancias extends StatelessWidget {
           // competían, y el número es lo único que hay que leer aquí.
           const Text('Ganancias de hoy', style: AppText.caption),
           Text(Formato.moneda(vm.gananciasHoy), style: AppText.money),
+          // La cifra es lo que le queda, no lo que cobró. Sin decirlo, quien
+          // recibió $5.000 del cliente y ve $4.250 cree que la app le quedó
+          // debiendo.
+          const Text('Lo que te queda, ya descontada la comisión de Zumbeo',
+              style: AppText.caption),
           const SizedBox(height: AppSpacing.sm),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _Metrica(valor: '${vm.pedidosHoy}', etiqueta: 'pedidos'),
-              _Metrica(valor: tiempo, etiqueta: 'en línea'),
-              _Metrica(
-                valor: acept != null ? '${acept.round()}%' : '—',
-                etiqueta: 'aceptación',
+              // "esta vez": el contador arranca al conectarse y vuelve a cero
+              // al reabrir la app; "en línea" a secas parecía el total del día.
+              _Metrica(valor: tiempo, etiqueta: 'en línea esta vez'),
+              InkWell(
+                // "aceptación 95%" no decía de qué. Un toque lo explica.
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Pedidos aceptados'),
+                    content: const Text(
+                      'De los pedidos que te han ofrecido, el porcentaje que '
+                      'aceptaste.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Entendido'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: _Metrica(
+                  valor: acept != null ? '${acept.round()}%' : '—',
+                  etiqueta: 'aceptados',
+                  conAyuda: true,
+                ),
               ),
             ],
           ),
@@ -1142,9 +1237,16 @@ class _Ganancias extends StatelessWidget {
 }
 
 class _Metrica extends StatelessWidget {
-  const _Metrica({required this.valor, required this.etiqueta});
+  const _Metrica({
+    required this.valor,
+    required this.etiqueta,
+    this.conAyuda = false,
+  });
   final String valor;
   final String etiqueta;
+
+  /// Pinta una "i" junto a la etiqueta: avisa de que tocarla la explica.
+  final bool conAyuda;
 
   @override
   Widget build(BuildContext context) {
@@ -1152,7 +1254,17 @@ class _Metrica extends StatelessWidget {
     // los dos sitios, o la tarjeta cuenta dos historias distintas.
     return Column(
       children: [
-        Text(etiqueta, style: AppText.caption),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(etiqueta, style: AppText.caption),
+            if (conAyuda) ...[
+              const SizedBox(width: 3),
+              const Icon(Icons.info_outline_rounded,
+                  size: 13, color: AppColors.inkMuted),
+            ],
+          ],
+        ),
         Text(
           valor,
           maxLines: 1,

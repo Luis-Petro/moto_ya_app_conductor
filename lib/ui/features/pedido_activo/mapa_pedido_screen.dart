@@ -48,15 +48,16 @@ Future<void> abrirMapaDelPedido(
 
 /// Los marcadores del pedido en curso, iguales en la franja y en el mapa entero.
 ///
-/// - El punto al que se va **ahora** lleva rótulo ("Recoge aquí" / "Entrega
-///   aquí") y color pleno; el otro queda apagado. Los dos pines siguen en el
-///   mapa —el conductor quiere saber hacia dónde sigue el viaje—, pero solo uno
-///   dice "ve aquí".
+/// - El punto al que se va **ahora** lleva la pastilla llena ("Recoge aquí" /
+///   "Entrega aquí"). El otro lleva una pastilla blanca que dice qué es
+///   ("Después" / "Ya recogido"): antes iba translúcido y sin nombre, y sobre
+///   los lugares del catálogo se perdía — una casa lavada entre iconos naranjas
+///   no se sabía si era del pedido o un local más.
 /// - El conductor es la moto de la mascota, no un punto: un punto naranja sobre
 ///   una ruta naranja se confundía con un vértice de la línea.
-/// - La moto va **debajo** de los pines: cuando el conductor llega a la tienda
-///   la moto se le monta encima, y lo que tiene que seguir leyéndose es el
-///   rótulo del sitio.
+/// - Orden de pintado: moto, luego el punto secundario, y **encima de todo el
+///   objetivo actual**. Cuando el conductor llega a la tienda la moto se le
+///   monta encima, y lo que tiene que seguir leyéndose es el rótulo del sitio.
 List<Marker> marcadoresDelPedido(
   Pedido pedido, {
   required bool vaARecogida,
@@ -65,7 +66,30 @@ List<Marker> marcadoresDelPedido(
   double densidad = 3,
   bool rotularConductor = false,
 }) {
-  const apagado = 0.55;
+  final recogida = pedido.origen == null
+      ? null
+      : marcadorIlustrado(
+          pedido.origen!,
+          marcadorRecogida,
+          semantica: 'Punto de recogida',
+          rotulo: vaARecogida ? 'Recoge aquí' : 'Ya recogido',
+          rotuloSuave: !vaARecogida,
+          colorRotulo: AppColors.accent,
+          densidad: densidad,
+          // Lo ya recogido sí se atenúa: es pasado, y no hay que volver.
+          opacidad: vaARecogida ? 1 : 0.7,
+        );
+  final entrega = pedido.destino == null
+      ? null
+      : marcadorIlustrado(
+          pedido.destino!,
+          marcadorEntrega,
+          semantica: 'Punto de entrega',
+          rotulo: vaARecogida ? 'Después' : 'Entrega aquí',
+          rotuloSuave: vaARecogida,
+          colorRotulo: AppColors.primaryInk,
+          densidad: densidad,
+        );
   return [
     if (posicion != null)
       marcadorIlustrado(
@@ -77,26 +101,9 @@ List<Marker> marcadoresDelPedido(
         densidad: densidad,
         rumbo: rumbo,
       ),
-    if (pedido.origen != null)
-      marcadorIlustrado(
-        pedido.origen!,
-        marcadorRecogida,
-        semantica: 'Punto de recogida',
-        rotulo: vaARecogida ? 'Recoge aquí' : null,
-        colorRotulo: AppColors.accent,
-        densidad: densidad,
-        opacidad: vaARecogida ? 1 : apagado,
-      ),
-    if (pedido.destino != null)
-      marcadorIlustrado(
-        pedido.destino!,
-        marcadorEntrega,
-        semantica: 'Punto de entrega',
-        rotulo: vaARecogida ? null : 'Entrega aquí',
-        colorRotulo: AppColors.primaryInk,
-        densidad: densidad,
-        opacidad: vaARecogida ? apagado : 1,
-      ),
+    // El objetivo actual va el último: es el que no puede quedar tapado.
+    for (final m in vaARecogida ? [entrega, recogida] : [recogida, entrega])
+      if (m != null) m,
   ];
 }
 

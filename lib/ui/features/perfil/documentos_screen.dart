@@ -15,6 +15,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/elegir_foto_sheet.dart';
 import '../../core/widgets/encabezado.dart';
 import '../../core/widgets/moto_card.dart';
+import '../../core/widgets/soporte.dart';
 import '../../router.dart';
 import 'perfil_view_model.dart';
 
@@ -129,6 +130,12 @@ class _DocumentosViewState extends State<_DocumentosView> {
                                   '"Reemplazar" para que te revisemos otra vez.',
                                   style: AppText.caption,
                                 ),
+                                const BotonSoporte(
+                                  compacto: true,
+                                  etiqueta: '¿Dudas? Escríbenos',
+                                  mensaje: 'Hola, soy conductor de Zumbeo. Mi '
+                                      'cuenta no fue aprobada y tengo una duda.',
+                                ),
                               ],
                             ),
                           ),
@@ -195,9 +202,14 @@ class _Documentos extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           const Text(
             'Tus documentos ya fueron verificados y no se pueden cambiar desde la '
-            'app. Si alguno quedó mal (borroso, vencido), pídele al administrador '
-            'que devuelva tu cuenta a revisión.',
+            'app. Si alguno quedó mal (borroso, vencido), escríbenos para '
+            'devolver tu cuenta a revisión.',
             style: AppText.caption,
+          ),
+          const BotonSoporte(
+            compacto: true,
+            mensaje: 'Hola, soy conductor de Zumbeo. Necesito cambiar un '
+                'documento que ya fue verificado.',
           ),
         ],
         if (faltantes.isNotEmpty) ...[

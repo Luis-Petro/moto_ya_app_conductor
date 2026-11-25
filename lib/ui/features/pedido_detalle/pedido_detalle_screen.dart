@@ -283,7 +283,7 @@ class _Tarifa extends StatelessWidget {
               color: AppColors.inkMuted),
           if (pedido.requiereCompra) ...[
             const SizedBox(height: AppSpacing.sm),
-            _FilaMonto('Compra a reembolsar (no comisionable)',
+            _FilaMonto('Compra (te la devuelve el cliente)',
                 Formato.moneda(pedido.montoCompraEstimado), color: AppColors.inkMuted),
           ],
           const Divider(height: AppSpacing.lg),

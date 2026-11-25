@@ -35,11 +35,16 @@ class OtpViewModel extends ChangeNotifier {
     return ok;
   }
 
+  /// Por qué falló el último reenvío, dicho por el servidor.
+  String? errorReenvio;
+
   Future<bool> reenviar() async {
     _reenviando = true;
+    errorReenvio = null;
     notifyListeners();
     final res = await _auth.solicitarOtp(telefono);
     _reenviando = false;
+    errorReenvio = res.when(ok: (_) => null, err: (f) => f.message);
     notifyListeners();
     return res.isSuccess;
   }

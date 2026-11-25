@@ -30,11 +30,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const _slides = [
     _Slide('assets/images/onboarding_1.webp', 'Gana dinero en tu municipio',
-        'Recibe pedidos cercanos y decide cuándo conectarte. Sin suscripción inicial.'),
+        'Recibe pedidos cercanos y decide cuándo conectarte. Sin mensualidad.'),
     _Slide('assets/images/onboarding_2.webp', 'Tú pones tu tarifa',
         'Acepta la tarifa sugerida o propón la tuya. Ves tu ganancia neta antes de aceptar.'),
-    _Slide('assets/images/onboarding_3.webp', 'Cobra y liquida fácil',
-        'Solo pagas el 15% de comisión sobre el servicio. Liquídala con Nequi o Bre-B.'),
+    // "Liquidar" es palabra de contador. "Pagar" la entiende cualquiera.
+    _Slide('assets/images/onboarding_3.webp', 'Cobra y paga fácil',
+        'Solo pagas el 15% de comisión sobre el servicio. La pagas por Nequi o Bre-B.'),
   ];
 
   @override

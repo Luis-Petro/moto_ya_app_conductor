@@ -22,6 +22,10 @@ class BilleteraViewModel extends ChangeNotifier {
   final TabActiva _tab;
 
   bool cargando = true;
+
+  /// Se está pidiendo la cuenta a la que se paga. La hoja de pago lo necesita
+  /// para distinguir "cargando" de "no se pudo cargar".
+  bool cargandoDatosPago = false;
   bool pagando = false;
   String? error;
 
@@ -131,8 +135,11 @@ class BilleteraViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
     // Datos de destino: se cargan una vez (no bloquean el render del saldo).
     if (datosPago == null) {
+      cargandoDatosPago = true;
+      if (!_disposed) notifyListeners();
       final d = await _billetera.datosPago();
       datosPago = d.valueOrNull ?? datosPago;
+      cargandoDatosPago = false;
       if (!_disposed) notifyListeners();
     }
   }

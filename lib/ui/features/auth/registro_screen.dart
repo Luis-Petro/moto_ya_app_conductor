@@ -45,6 +45,25 @@ class _RegistroViewState extends State<_RegistroView> {
   bool _verPassword = false;
   bool _aceptaTerminos = false;
 
+  // Llaves de los campos, para llevar la vista al primero que tenga un error.
+  final _kNombres = GlobalKey();
+  final _kApellidos = GlobalKey();
+  final _kCedula = GlobalKey();
+  final _kTelefono = GlobalKey();
+  final _kEmail = GlobalKey();
+  final _kPassword = GlobalKey();
+
+  /// El primer campo con error, de arriba abajo, con su mensaje.
+  (GlobalKey, String)? get _primerError {
+    if (_errNombres != null) return (_kNombres, _errNombres!);
+    if (_errApellidos != null) return (_kApellidos, _errApellidos!);
+    if (_errCedula != null) return (_kCedula, _errCedula!);
+    if (_errTelefono != null) return (_kTelefono, _errTelefono!);
+    if (_errEmail != null) return (_kEmail, _errEmail!);
+    if (_errPassword != null) return (_kPassword, _errPassword!);
+    return null;
+  }
+
   String? _errNombres;
   String? _errApellidos;
   String? _errCedula;
@@ -89,7 +108,23 @@ class _RegistroViewState extends State<_RegistroView> {
 
   Future<void> _continuar() async {
     if (!_validar()) {
-      if (!_aceptaTerminos) {
+      // El botón está al final del formulario y los errores se pintan bajo cada
+      // campo: si el campo malo quedó arriba, fuera de la vista, tocar "Crear
+      // cuenta" parecía no hacer nada. Se dice cuál es y se lleva la vista a él.
+      final error = _primerError;
+      if (error != null) {
+        final (llave, mensaje) = error;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Revisa: $mensaje')));
+        final destino = llave.currentContext;
+        if (destino != null) {
+          Scrollable.ensureVisible(
+            destino,
+            alignment: 0.2,
+            duration: const Duration(milliseconds: 300),
+          );
+        }
+      } else if (!_aceptaTerminos) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Debes aceptar los Términos para continuar')));
       }
@@ -127,6 +162,7 @@ class _RegistroViewState extends State<_RegistroView> {
       extra: OtpArgs(
         telefono: telefono,
         nombre: '${_nombres.text.trim()} ${_apellidos.text.trim()}'.trim(),
+        envioFallo: !vm.codigoEnviado,
       ),
     );
   }
@@ -147,6 +183,9 @@ class _RegistroViewState extends State<_RegistroView> {
         body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.xl),
+          // Todo el formulario construido aunque no se vea: es lo que permite
+          // llevar la vista a un campo con error que quedó fuera de pantalla.
+          cacheExtent: 2000,
           children: [
             const Text('Crea tu cuenta', style: AppText.display),
             const SizedBox(height: AppSpacing.xs),
@@ -155,6 +194,7 @@ class _RegistroViewState extends State<_RegistroView> {
             const SizedBox(height: AppSpacing.xl),
             const _Label('Nombres'),
             TextField(
+              key: _kNombres,
               controller: _nombres,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
@@ -166,6 +206,7 @@ class _RegistroViewState extends State<_RegistroView> {
             const SizedBox(height: AppSpacing.md),
             const _Label('Apellidos'),
             TextField(
+              key: _kApellidos,
               controller: _apellidos,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
@@ -177,6 +218,7 @@ class _RegistroViewState extends State<_RegistroView> {
             const SizedBox(height: AppSpacing.md),
             const _Label('Cédula'),
             TextField(
+              key: _kCedula,
               controller: _cedula,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -188,7 +230,7 @@ class _RegistroViewState extends State<_RegistroView> {
             ),
             const SizedBox(height: AppSpacing.md),
             // PhoneField ya pinta su propia etiqueta: no anteponerle otra.
-            PhoneField(controller: _telefono),
+            PhoneField(key: _kTelefono, controller: _telefono),
             if (_errTelefono != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6, left: 4),
@@ -202,6 +244,7 @@ class _RegistroViewState extends State<_RegistroView> {
             const SizedBox(height: AppSpacing.md),
             const _Label('Correo'),
             TextField(
+              key: _kEmail,
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
@@ -213,6 +256,7 @@ class _RegistroViewState extends State<_RegistroView> {
             const SizedBox(height: AppSpacing.md),
             const _Label('Contraseña'),
             TextField(
+              key: _kPassword,
               controller: _password,
               obscureText: !_verPassword,
               decoration: InputDecoration(

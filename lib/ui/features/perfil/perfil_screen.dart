@@ -23,6 +23,7 @@ import '../../core/widgets/legal.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/phone_field.dart';
 import '../../core/widgets/primary_button.dart';
+import '../../core/widgets/soporte.dart';
 import '../../router.dart';
 import 'perfil_view_model.dart';
 
@@ -372,7 +373,50 @@ class _PerfilViewState extends State<_PerfilView> {
         ],
       ),
     );
-    if (salir == true) await vm.cerrarSesion();
+    if (salir == true) {
+      await _conEspera('Cerrando sesión…', vm.cerrarSesion);
+    }
+  }
+
+  bool _esperando = false;
+
+  /// Ejecuta algo que tarda **diciéndolo**: un aviso con una rueda mientras
+  /// dura. "Verificar" y "Cerrar sesión" hacían su petición sin cambiar nada en
+  /// pantalla, y con datos lentos se tocaban tres veces.
+  Future<T?> _conEspera<T>(String mensaje, Future<T> Function() tarea) async {
+    if (_esperando) return null;
+    _esperando = true;
+    // El navigator del tab: el raíz pinta un velo negro sobre el shell.
+    final nav = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(child: Text(mensaje)),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      return await tarea();
+    } finally {
+      _esperando = false;
+      // Al cerrar sesión el router desmonta esta pantalla con su navigator: ahí
+      // ya no hay aviso que quitar.
+      if (nav.mounted) nav.pop();
+    }
   }
 
   /// Verifica el correo o el celular que la cuenta ya tiene: un solo paso
@@ -384,7 +428,9 @@ class _PerfilViewState extends State<_PerfilView> {
     required Future<String?> Function(String codigo) confirmar,
     required String avisoExito,
   }) async {
-    final primerEnvio = await solicitar();
+    if (_esperando) return;
+    final primerEnvio =
+        await _conEspera<String?>('Enviando el código…', solicitar);
     if (!mounted) return;
     if (primerEnvio != null) {
       _aviso(primerEnvio);
@@ -638,7 +684,7 @@ class _PerfilViewState extends State<_PerfilView> {
                                   ),
                                   if (conductor.tasaAceptacion != null)
                                     Text(
-                                      '  ·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% aceptación',
+                                      '  ·  ${conductor.tasaAceptacion!.toStringAsFixed(0)}% de pedidos aceptados',
                                       style: AppText.caption,
                                     ),
                                 ],
@@ -698,6 +744,44 @@ class _PerfilViewState extends State<_PerfilView> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
+                    // Una persona a quien preguntarle. La app decía
+                    // "contáctanos" en varios sitios y no había por dónde: el
+                    // formulario de arriba es de una sola vía.
+                    MotoCard(
+                      onTap: () => abrirSoporte(
+                        context,
+                        mensaje: 'Hola, soy conductor de Zumbeo y necesito '
+                            'ayuda.',
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.support_agent_rounded,
+                              color: AppColors.primary),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Habla con soporte',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  'Escríbenos por WhatsApp · ${soporteLegible()}',
+                                  style: AppText.caption,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.inkMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
                     // Comprobar el tono sin esperar a que entre un pedido.
                     //
                     // "No me suena" es un reporte que no se puede investigar: el
@@ -727,7 +811,8 @@ class _PerfilViewState extends State<_PerfilView> {
                             nota:
                                 'Es tu identidad verificada y no se cambia '
                                 'desde la app. Si necesitas corregirlo, '
-                                'contáctanos.',
+                                'escríbenos en "Habla con soporte", aquí '
+                                'arriba.',
                           ),
                           const Divider(height: AppSpacing.lg),
                           CredencialTile(

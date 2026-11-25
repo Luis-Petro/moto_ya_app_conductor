@@ -33,6 +33,9 @@ class RegistroViewModel extends ChangeNotifier {
   /// misma persona, y ese es el canal que prueba que el número es suyo. El correo o
   /// la cédula de una cuenta **distinta** siguen siendo un fallo — son dos personas,
   /// o un dedazo, y adivinar cuál no es tarea de esta pantalla.
+  /// El SMS con el código salió. `false` si el envío falló tras crear la cuenta.
+  bool codigoEnviado = true;
+
   Future<ResultadoRegistro> registrar({
     required String nombres,
     required String apellidos,
@@ -64,8 +67,12 @@ class RegistroViewModel extends ChangeNotifier {
     }
 
     // Pedir el código para validar el teléfono. Si el envío falla igual se
-    // continúa al OTP (se puede reenviar allí; la cuenta ya existe).
-    await _auth.solicitarOtp(telefonoE164);
+    // continúa al OTP (se puede reenviar allí; la cuenta ya existe), **pero se
+    // dice**: antes el resultado se descartaba y la pantalla siguiente afirmaba
+    // "enviamos un código" con el reenvío bloqueado 42 segundos, esperando un
+    // mensaje que nunca había salido.
+    final envio = await _auth.solicitarOtp(telefonoE164);
+    codigoEnviado = envio.isSuccess;
     _enviando = false;
     notifyListeners();
     return yaExiste ? ResultadoRegistro.yaExiste : ResultadoRegistro.creada;

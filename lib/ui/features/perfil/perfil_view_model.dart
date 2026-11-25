@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
+import '../../../data/services/imagen_compresor.dart';
 import '../../../domain/models/conductor.dart';
 import '../../../domain/models/usuario.dart';
 import '../../core/tab_activa.dart';
@@ -195,7 +198,14 @@ class PerfilViewModel extends ChangeNotifier {
     if (img == null) return null;
     subiendoDocumento = doc;
     notifyListeners();
-    final mp = await MultipartFile.fromFile(img.path, filename: img.name);
+    // El mismo tope que en el alta: se sube con datos móviles, y un archivo de
+    // 2 MB es la subida que se cae.
+    final archivo = await const ImagenCompresor().aTope(
+      File(img.path),
+      topeBytes: 700 * 1024,
+      calidadMinima: 60,
+    );
+    final mp = await MultipartFile.fromFile(archivo.path, filename: img.name);
     final res = switch (doc) {
       DocumentoConductor.cedula => await _conductores.subirCedula(mp),
       DocumentoConductor.tarjetaPropiedad =>

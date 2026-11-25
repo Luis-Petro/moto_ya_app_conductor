@@ -1187,15 +1187,42 @@ class _Ganancias extends StatelessWidget {
           // competían, y el número es lo único que hay que leer aquí.
           const Text('Ganancias de hoy', style: AppText.caption),
           Text(Formato.moneda(vm.gananciasHoy), style: AppText.money),
+          // La cifra es lo que le queda, no lo que cobró. Sin decirlo, quien
+          // recibió $5.000 del cliente y ve $4.250 cree que la app le quedó
+          // debiendo.
+          const Text('Lo que te queda, ya descontada la comisión de Zumbeo',
+              style: AppText.caption),
           const SizedBox(height: AppSpacing.sm),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _Metrica(valor: '${vm.pedidosHoy}', etiqueta: 'pedidos'),
-              _Metrica(valor: tiempo, etiqueta: 'en línea'),
-              _Metrica(
-                valor: acept != null ? '${acept.round()}%' : '—',
-                etiqueta: 'aceptación',
+              // "esta vez": el contador arranca al conectarse y vuelve a cero
+              // al reabrir la app; "en línea" a secas parecía el total del día.
+              _Metrica(valor: tiempo, etiqueta: 'en línea esta vez'),
+              InkWell(
+                // "aceptación 95%" no decía de qué. Un toque lo explica.
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Pedidos aceptados'),
+                    content: const Text(
+                      'De los pedidos que te han ofrecido, el porcentaje que '
+                      'aceptaste.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Entendido'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: _Metrica(
+                  valor: acept != null ? '${acept.round()}%' : '—',
+                  etiqueta: 'aceptados',
+                  conAyuda: true,
+                ),
               ),
             ],
           ),
@@ -1206,9 +1233,16 @@ class _Ganancias extends StatelessWidget {
 }
 
 class _Metrica extends StatelessWidget {
-  const _Metrica({required this.valor, required this.etiqueta});
+  const _Metrica({
+    required this.valor,
+    required this.etiqueta,
+    this.conAyuda = false,
+  });
   final String valor;
   final String etiqueta;
+
+  /// Pinta una "i" junto a la etiqueta: avisa de que tocarla la explica.
+  final bool conAyuda;
 
   @override
   Widget build(BuildContext context) {
@@ -1216,7 +1250,17 @@ class _Metrica extends StatelessWidget {
     // los dos sitios, o la tarjeta cuenta dos historias distintas.
     return Column(
       children: [
-        Text(etiqueta, style: AppText.caption),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(etiqueta, style: AppText.caption),
+            if (conAyuda) ...[
+              const SizedBox(width: 3),
+              const Icon(Icons.info_outline_rounded,
+                  size: 13, color: AppColors.inkMuted),
+            ],
+          ],
+        ),
         Text(
           valor,
           maxLines: 1,

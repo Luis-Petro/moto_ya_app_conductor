@@ -196,7 +196,12 @@ class _Ingresos extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Ingresos esta semana', style: AppText.caption),
+              // "Ganancias", como en el Inicio: es la misma cifra neta, y con
+              // otro nombre parecían dos cuentas distintas.
+              const Expanded(
+                child: Text('Ganancias esta semana (ya sin la comisión)',
+                    style: AppText.caption),
+              ),
               Text(Formato.moneda(vm.totalSemana), style: AppText.moneySm),
             ],
           ),

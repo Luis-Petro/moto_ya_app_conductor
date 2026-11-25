@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -243,6 +244,8 @@ class _ActivoViewState extends State<_ActivoView> {
         : await vm.avanzar();
     if (!mounted) return;
 
+    if (ok && !esEntrega) _confirmarAvance(vm);
+
     if (!ok) {
       // Con foto, el fallo no cuesta repetirla: el pedido no avanzó y el archivo
       // sigue en `_evidencia`, listo para reenviarse.
@@ -276,6 +279,49 @@ class _ActivoViewState extends State<_ActivoView> {
     );
   }
 
+  /// Recién se avanzó de paso. El botón de abajo cambia de texto **en el mismo
+  /// sitio donde está el dedo**: sin esta pausa, un segundo toque nervioso
+  /// —normal en quien no está seguro de si el primero "entró"— saltaba también
+  /// el paso siguiente, y eso no se puede deshacer.
+  bool _enfriando = false;
+  static const _pausaTrasAvanzar = Duration(milliseconds: 1500);
+
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Después de avanzar: confirmación clara, pausa del botón y la tarjeta del
+  /// paso nuevo a la vista (es lo que cambió).
+  void _confirmarAvance(PedidoActivoViewModel vm) {
+    HapticFeedback.mediumImpact();
+    setState(() => _enfriando = true);
+    Future.delayed(_pausaTrasAvanzar, () {
+      if (mounted) setState(() => _enfriando = false);
+    });
+    if (_scroll.hasClients) {
+      _scroll.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.successInk,
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: Text('Listo. Ahora: ${_tituloPaso(vm)}')),
+            ],
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<PedidoActivoViewModel>();
@@ -296,10 +342,9 @@ class _ActivoViewState extends State<_ActivoView> {
     if (vm.entregado) return _Entregado(vm: vm);
 
     final pedido = vm.pedido!;
-    // Trayecto recogida→entrega tal como lo calculó el backend. Esta pantalla no lo
-    // dibujaba: el mapa eran dos pines sueltos y el conductor no podía ver por dónde
-    // va el viaje sin salir a "Cómo llegar".
+    // Trayecto recogida→entrega tal como lo calculó el backend.
     final ruta = PolylineCodec.decode(pedido.rutaPolyline);
+    final esEntrega = vm.proximoEstado == EstadoPedido.entregado;
 
     return Scaffold(
       // Retroceso explícito: a esta pantalla se llega desde una notificación,
@@ -307,17 +352,37 @@ class _ActivoViewState extends State<_ActivoView> {
       // visible en mitad de un pedido.
       appBar: encabezado('Pedido #${pedido.id}',
           onAtras: () => context.go(Rutas.inicio)),
+      // La barra de acción va en `bottomNavigationBar` **y con `SafeArea`**.
+      // Antes era el último hijo del `Column` del cuerpo: con Android dibujando
+      // de borde a borde, los botones de navegación del sistema (◁ ○ □) se
+      // pintaban encima de "Marcar: Entregado" y el conductor tocaba "atrás"
+      // creyendo que entregaba.
+      bottomNavigationBar: _BarraAccion(
+        ayuda: _falloConFoto
+            ? 'La foto sigue guardada. Toca para enviarla otra vez.'
+            : vm.cuandoAvanzar,
+        // Tras un fallo con la foto ya tomada, el botón dice qué va a hacer:
+        // reenviar lo que ya está, no volver a empezar.
+        label: _falloConFoto ? 'Reintentar envío' : vm.etiquetaAvance,
+        icon: _falloConFoto
+            ? Icons.refresh_rounded
+            : (esEntrega
+                ? Icons.check_circle_outline
+                : Icons.arrow_forward_rounded),
+        loading: vm.procesando,
+        onPressed: vm.proximoEstado == null || vm.procesando || _enfriando
+            ? null
+            : () => _accion(vm),
+      ),
       body: Column(
         children: [
-          // Mapa más bajo que antes: lo que el conductor necesita a la vista es
-          // a quién llamar, dónde recoger/entregar y cuánto gana; el mapa es
-          // referencia (la navegación real la hace "Cómo llegar"). Y cuando esa
-          // referencia no basta, un toque lo abre entero.
           _MapaResumen(
             pedido: pedido,
             ruta: ruta,
             posicion: vm.posicion,
+            rumbo: vm.rumbo,
             objetivo: vm.puntoObjetivo,
+            vaARecogida: vm.vaARecogida,
             onAmpliar: () => abrirMapaDelPedido(
               context,
               vm,
@@ -326,79 +391,25 @@ class _ActivoViewState extends State<_ActivoView> {
           ),
           Expanded(
             child: ListView(
+              controller: _scroll,
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                _EstadoCompacto(estado: vm.estado),
-                const SizedBox(height: AppSpacing.md),
-                // Cómo llegar: abre navegación guiada en Google Maps hacia el
-                // objetivo actual (recogida antes de EN_CAMINO, entrega después).
-                if (vm.puntoObjetivo != null) ...[
-                  SizedBox(
-                    height: AppSpacing.minTouchTarget,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _comoLlegar(vm.puntoObjetivo!),
-                      icon: const Icon(Icons.navigation_rounded),
-                      label: Text('Cómo llegar al ${vm.etiquetaObjetivo}'),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                MotoCard(
-                  child: Row(
-                    children: [
-                      InitialsAvatar(
-                        initials: _iniciales(pedido.clienteNombre),
-                        imageUrl: pedido.clienteFotoUrl,
-                        radius: 20,
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              pedido.clienteNombre ?? 'Cliente',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppText.subtitle,
-                            ),
-                            Text(
-                              pedido.direccionDestino ?? '—',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppText.caption,
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Sin teléfono en el detalle no hay a quién llamar: se
-                      // ocultan las acciones en vez de dejar botones muertos.
-                      if (_tieneTelefono(pedido)) ...[
-                        if (_whatsappDisponible)
-                          IconButton.filledTonal(
-                            tooltip: 'Escribir por WhatsApp',
-                            onPressed: () =>
-                                _escribirWhatsapp(pedido.clienteTelefono!),
-                            icon: const Icon(Icons.chat_outlined),
-                          ),
-                        const SizedBox(width: AppSpacing.sm),
-                        IconButton.filledTonal(
-                          tooltip: 'Llamar',
-                          onPressed: () => _llamar(pedido.clienteTelefono!),
-                          icon: const Icon(Icons.phone),
-                        ),
-                      ],
-                    ],
-                  ),
+                _PasosDelPedido(
+                  actual: vm.pasoActual,
+                  requiereCompra: pedido.requiereCompra,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _ResumenRuta(pedido: pedido),
-                const SizedBox(height: AppSpacing.md),
-                // Lo largo (descripción, compra, foto) queda plegado: se abre
-                // cuando hace falta, no ocupa la pantalla del pedido en curso.
-                _PanelDetalle(pedido: pedido),
-                // La evidencia solo importa en el último tramo.
-                if (vm.proximoEstado == EstadoPedido.entregado) ...[
+                // Lo primero que se lee: qué hacer ahora, dónde y cómo llegar.
+                _TarjetaPaso(
+                  vm: vm,
+                  titulo: _tituloPaso(vm),
+                  onComoLlegar: vm.puntoObjetivo == null
+                      ? null
+                      : () => _comoLlegar(vm.puntoObjetivo!),
+                ),
+                // La evidencia solo importa en el último tramo, y va justo
+                // debajo del paso: es lo que se hace antes de tocar el botón.
+                if (esEntrega) ...[
                   const SizedBox(height: AppSpacing.md),
                   _BotonEvidencia(
                     archivo: _evidencia,
@@ -410,33 +421,43 @@ class _ActivoViewState extends State<_ActivoView> {
                     falloEnvio: _falloConFoto,
                   ),
                 ],
+                const SizedBox(height: AppSpacing.md),
+                // Qué es el pedido, siempre a la vista. Antes vivía plegado en
+                // "Ver todo el detalle" y el conductor llegaba al negocio sin
+                // saber qué pedir.
+                _QueEsElPedido(pedido: pedido),
+                const SizedBox(height: AppSpacing.md),
+                _TarjetaCliente(
+                  pedido: pedido,
+                  iniciales: _iniciales(pedido.clienteNombre),
+                  onLlamar: _tieneTelefono(pedido)
+                      ? () => _llamar(pedido.clienteTelefono!)
+                      : null,
+                  onWhatsapp: _tieneTelefono(pedido) && _whatsappDisponible
+                      ? () => _escribirWhatsapp(pedido.clienteTelefono!)
+                      : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _ResumenRuta(pedido: pedido, vaARecogida: vm.vaARecogida),
+                const SizedBox(height: AppSpacing.md),
+                _PanelCobro(pedido: pedido),
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(top: BorderSide(color: AppColors.line)),
-            ),
-            child: PrimaryButton(
-              // Tras un fallo con la foto ya tomada, el botón dice qué va a
-              // hacer: reenviar lo que ya está, no volver a empezar.
-              label: _falloConFoto ? 'Reintentar envío' : vm.etiquetaAvance,
-              icon: _falloConFoto
-                  ? Icons.refresh_rounded
-                  : (vm.proximoEstado == EstadoPedido.entregado
-                        ? Icons.check_circle_outline
-                        : Icons.arrow_forward_rounded),
-              loading: vm.procesando,
-              onPressed: vm.proximoEstado == null || vm.procesando
-                  ? null
-                  : () => _accion(vm),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// El título del paso: qué hacer ahora, en imperativo y sin jerga.
+  String _tituloPaso(PedidoActivoViewModel vm) {
+    final compra = vm.pedido?.requiereCompra ?? false;
+    return switch (vm.estado) {
+      EstadoPedido.aceptado =>
+        compra ? 'Ve al negocio a comprar' : 'Ve a recoger el pedido',
+      EstadoPedido.enCompra => compra ? 'Compra el pedido' : 'Recoge el pedido',
+      _ => 'Lleva el pedido al cliente',
+    };
   }
 
   String _iniciales(String? nombre) {
@@ -459,24 +480,28 @@ class _ActivoViewState extends State<_ActivoView> {
 ///   sin ninguna forma de volver.
 /// - Arrastrar sobre el mapa robaba el gesto de desplazar la lista de abajo: el
 ///   conductor creía que la pantalla se había colgado.
-/// - En 150 px no se puede acercar a nada útil. Lo que hace falta cuando el mapa
+/// - En 200 px no se puede acercar a nada útil. Lo que hace falta cuando el mapa
 ///   no basta no es un mapa un poco más grande: es el mapa entero.
 ///
-/// A cambio, toda la franja es un objetivo táctil de 150 px de alto, que es lo
+/// A cambio, toda la franja es un objetivo táctil de 200 px de alto, que es lo
 /// más forgiving que se puede ofrecer a alguien que acaba de parar la moto.
 class _MapaResumen extends StatefulWidget {
   const _MapaResumen({
     required this.pedido,
     required this.ruta,
     required this.posicion,
+    required this.rumbo,
     required this.objetivo,
+    required this.vaARecogida,
     required this.onAmpliar,
   });
 
   final Pedido pedido;
   final List<LatLng> ruta;
   final LatLng? posicion;
+  final double? rumbo;
   final LatLng? objetivo;
+  final bool vaARecogida;
   final VoidCallback onAmpliar;
 
   @override
@@ -484,7 +509,16 @@ class _MapaResumen extends StatefulWidget {
 }
 
 class _MapaResumenState extends State<_MapaResumen> {
-  static const double _alto = 150;
+  /// Más alto que los 150 px de antes: los pines ahora llevan rótulo ("Recoge
+  /// aquí") y la moto del conductor, y en 150 px se pisaban.
+  static const double _alto = 200;
+
+  /// Margen del encuadre. El de arriba es grande porque los pines se anclan por
+  /// la **punta** y crecen hacia arriba (44 dp de pin + el rótulo): con 16 px,
+  /// un pin en el borde superior quedaba cortado por la mitad. El de abajo deja
+  /// libre la pastilla de "Ampliar el mapa" y la atribución, que si no se
+  /// sentaban encima del pin de entrega.
+  static const _margen = EdgeInsets.fromLTRB(40, 76, 40, 44);
 
   final _mapa = MapController();
 
@@ -536,7 +570,7 @@ class _MapaResumenState extends State<_MapaResumen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _listo) {
           _mapa.fitCamera(
-            encuadreDePuntos(puntos, padding: const EdgeInsets.all(16)),
+            encuadreDePuntos(puntos, padding: _margen),
           );
         }
       });
@@ -561,11 +595,10 @@ class _MapaResumenState extends State<_MapaResumen> {
                     LocationService.fallbackCenter,
                 initialZoom: 15,
                 // Encuadre que abarca ruta y pines. Con zoom fijo, un trayecto
-                // que no cabe en 150 px de alto deja la mitad fuera de pantalla
+                // que no cabe en 200 px de alto deja la mitad fuera de pantalla
                 // sin que nada lo indique.
                 initialCameraFit: puntos.length >= 2
-                    ? encuadreDePuntos(puntos,
-                        padding: const EdgeInsets.all(16))
+                    ? encuadreDePuntos(puntos, padding: _margen)
                     : null,
                 minZoom: zoomMinimoMapa,
                 maxZoom: zoomMaximoMapa,
@@ -576,10 +609,11 @@ class _MapaResumenState extends State<_MapaResumen> {
               ),
               children: [
                 osmTileLayer(),
-                // Sin nombres: en 150 px de alto las etiquetas taparían los
-                // pines de recogida y entrega, que son el objetivo del viaje.
-                // Con nombres se ven al ampliar, que es donde hay sitio.
-                const LugaresLayer(mostrarNombres: false),
+                // Sin nombres y apagados: en la franja los lugares del catálogo
+                // (restaurantes, bancos…) son iconos naranjas del mismo tamaño
+                // que los pines del pedido, y a pleno sol no se sabía cuál era
+                // la tienda donde recoger. Con nombres se ven al ampliar.
+                const LugaresLayer(mostrarNombres: false, opacidad: 0.4),
                 if (widget.ruta.length >= 2)
                   PolylineLayer(polylines: [
                     Polyline(
@@ -591,17 +625,13 @@ class _MapaResumenState extends State<_MapaResumen> {
                     ),
                   ]),
                 MarkerLayer(
-                  markers: [
-                    if (pedido.origen != null)
-                      pinMarker(
-                        pedido.origen!,
-                        icon: Icons.storefront,
-                        color: AppColors.accent,
-                      ),
-                    if (pedido.destino != null)
-                      pinMarker(pedido.destino!, icon: Icons.location_on),
-                    if (widget.posicion != null) usuarioMarker(widget.posicion!),
-                  ],
+                  markers: marcadoresDelPedido(
+                    pedido,
+                    vaARecogida: widget.vaARecogida,
+                    posicion: widget.posicion,
+                    rumbo: widget.rumbo,
+                    densidad: MediaQuery.devicePixelRatioOf(context),
+                  ),
                 ),
                 osmAttribution(),
               ],
@@ -673,102 +703,539 @@ class _PastillaAmpliar extends StatelessWidget {
   }
 }
 
-/// Estado del pedido en una sola línea (antes eran tres filas verticales que
-/// empujaban la ganancia y la ruta fuera de la pantalla).
-class _EstadoCompacto extends StatelessWidget {
-  const _EstadoCompacto({required this.estado});
-  final EstadoPedido estado;
+/// Los tres pasos del pedido, contados **desde lo que hace el conductor**.
+///
+/// La barra anterior mostraba los estados del pedido (Recogiendo · En camino ·
+/// Entregado) con el actual marcado, y el botón de abajo ofrecía el siguiente:
+/// en la pantalla convivían "En camino" marcado y "Marcar: Entregado", y no se
+/// sabía si "En camino" era lo que se estaba haciendo o lo que faltaba. Aquí
+/// cada paso es una tarea, numerada, y la actual es la única con color.
+class _PasosDelPedido extends StatelessWidget {
+  const _PasosDelPedido({required this.actual, required this.requiereCompra});
+
+  final int actual;
+  final bool requiereCompra;
 
   @override
   Widget build(BuildContext context) {
-    const pasos = [
-      EstadoPedido.enCompra,
-      EstadoPedido.enCamino,
-      EstadoPedido.entregado,
+    final etiquetas = [
+      'Ir a recoger',
+      requiereCompra ? 'Comprar' : 'Recoger',
+      'Entregar',
     ];
-    final actual = estado.indiceTracking;
-    return Row(
+    return Semantics(
+      container: true,
+      label: 'Paso $actual de ${PedidoActivoViewModel.totalPasos}: '
+          '${etiquetas[actual - 1]}',
+      child: ExcludeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < etiquetas.length; i++) ...[
+              Expanded(
+                child: _Paso(
+                  numero: i + 1,
+                  etiqueta: etiquetas[i],
+                  hecho: i + 1 < actual,
+                  actual: i + 1 == actual,
+                ),
+              ),
+              if (i < etiquetas.length - 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 15),
+                  child: SizedBox(
+                    width: 20,
+                    child: Divider(
+                      thickness: 2,
+                      color: i + 1 < actual ? AppColors.success : AppColors.line,
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Paso extends StatelessWidget {
+  const _Paso({
+    required this.numero,
+    required this.etiqueta,
+    required this.hecho,
+    required this.actual,
+  });
+
+  final int numero;
+  final String etiqueta;
+  final bool hecho;
+  final bool actual;
+
+  @override
+  Widget build(BuildContext context) {
+    final (fondo, borde, tinta) = hecho
+        ? (AppColors.success, AppColors.success, Colors.white)
+        : actual
+            ? (AppColors.primary, AppColors.primary, Colors.white)
+            : (AppColors.surface, AppColors.line, AppColors.inkMuted);
+    return Column(
       children: [
-        for (final paso in pasos) ...[
-          Icon(
-            paso.indiceTracking < actual
-                ? Icons.check_circle_rounded
-                : (paso.indiceTracking == actual
-                      ? Icons.radio_button_checked
-                      : Icons.circle_outlined),
-            size: 18,
-            // El paso **actual** es el único con el color pleno; los cumplidos
-            // van apagados. Iban los dos en verde y en un vistazo —que es como
-            // se mira esto, conduciendo— no se sabía en cuál se está.
-            color: switch (paso.indiceTracking) {
-              _ when paso.indiceTracking == actual => AppColors.successInk,
-              _ when paso.indiceTracking < actual => AppColors.success,
-              _ => AppColors.line,
-            },
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fondo,
+            shape: BoxShape.circle,
+            border: Border.all(color: borde, width: 2),
           ),
-          const SizedBox(width: 4),
-          Text(
-            paso.label,
-            style: AppText.caption.copyWith(
-              fontWeight: paso.indiceTracking == actual
-                  ? AppText.fuerte
-                  : AppText.regular,
-              color: paso.indiceTracking <= actual
-                  ? AppColors.ink
-                  : AppColors.inkMuted,
-            ),
+          child: hecho
+              ? Icon(Icons.check_rounded, size: 18, color: tinta)
+              : Text(
+                  '$numero',
+                  style: AppText.subtitle.copyWith(color: tinta, height: 1),
+                ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          etiqueta,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          style: AppText.caption.copyWith(
+            fontWeight: actual ? AppText.fuerte : AppText.regular,
+            color: actual
+                ? AppColors.ink
+                : (hecho ? AppColors.successInk : AppColors.inkMuted),
           ),
-          if (paso != pasos.last)
-            const Expanded(child: Divider(indent: 6, endIndent: 6)),
-        ],
+        ),
       ],
     );
   }
 }
 
-/// Lo que el conductor mira mientras trabaja: dónde recoge, dónde entrega y
-/// cuánto le queda. Siempre visible, sin scroll.
-class _ResumenRuta extends StatelessWidget {
-  const _ResumenRuta({required this.pedido});
+/// **Qué hacer ahora, dónde, y cómo llegar.** La tarjeta principal.
+///
+/// Responde en orden a las tres preguntas que el conductor se hace al mirar la
+/// pantalla, y con el mismo dibujo del pin del mapa para que la tienda y la casa
+/// se reconozcan sin leer. Todo lo demás de la pantalla es consulta.
+class _TarjetaPaso extends StatelessWidget {
+  const _TarjetaPaso({
+    required this.vm,
+    required this.titulo,
+    required this.onComoLlegar,
+  });
+
+  final PedidoActivoViewModel vm;
+  final String titulo;
+  final VoidCallback? onComoLlegar;
+
+  @override
+  Widget build(BuildContext context) {
+    final pedido = vm.pedido!;
+    final aRecoger = vm.vaARecogida;
+    // En "Recogiendo" el conductor ya está en el negocio: lo importante es qué
+    // pedir, y "Cómo llegar" baja a botón secundario. En los dos trayectos es la
+    // acción principal de la tarjeta.
+    final enElSitio = vm.estado == EstadoPedido.enCompra;
+
+    final direccion =
+        aRecoger ? pedido.direccionRecogida : pedido.direccionDestino;
+    final referencia = aRecoger ? pedido.referenciaRecogida : pedido.referencia;
+    final rotuloLugar = aRecoger
+        ? (pedido.requiereCompra ? 'COMPRAS EN' : 'RECOGES EN')
+        : 'ENTREGAS A ${(pedido.clienteNombre ?? 'el cliente').toUpperCase()} EN';
+
+    return MotoCard(
+      borderColor: AppColors.primary,
+      elevacion: AppElevation.flotante,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Text(
+              'PASO ${vm.pasoActual} DE ${PedidoActivoViewModel.totalPasos}',
+              style: AppText.label.copyWith(color: AppColors.primaryInk),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(titulo, style: AppText.title),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ImagenMarcador(
+                aRecoger ? marcadorRecogida : marcadorEntrega,
+                alto: 44,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(rotuloLugar,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.label),
+                    const SizedBox(height: 2),
+                    Text(
+                      direccion ?? 'Ubicación marcada en el mapa',
+                      style: AppText.subtitle,
+                    ),
+                    // La referencia **es la dirección** en un municipio sin
+                    // nomenclatura ("frente al parque"): va entera y legible,
+                    // no en gris pequeño.
+                    if (referencia != null && referencia.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(Icons.info_outline_rounded,
+                                size: 16, color: AppColors.inkMuted),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(referencia.trim(), style: AppText.body),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          ..._avisos(pedido),
+          if (onComoLlegar != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              height: AppSpacing.minTouchTarget + 4,
+              child: enElSitio
+                  ? OutlinedButton.icon(
+                      onPressed: onComoLlegar,
+                      icon: const Icon(Icons.navigation_rounded),
+                      label: const Text('Cómo llegar'),
+                    )
+                  : FilledButton.icon(
+                      onPressed: onComoLlegar,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        textStyle: AppText.cta,
+                      ),
+                      icon: const Icon(Icons.navigation_rounded),
+                      label: const Text('Cómo llegar'),
+                    ),
+            ),
+            const SizedBox(height: 4),
+            // Que se va a abrir otra app no es obvio para todo el mundo, y
+            // descubrirlo sin aviso se vive como "me sacó de Zumbeo".
+            const Center(
+              child: Text('Se abre Google Maps con la ruta',
+                  style: AppText.caption),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Plata y esperas, dicho en el paso en que importan.
+  List<Widget> _avisos(Pedido pedido) {
+    final avisos = <Widget>[];
+    final monto = pedido.montoCompraEstimado;
+    if (pedido.requiereCompra) {
+      final texto = vm.vaARecogida
+          ? (monto != null
+              ? 'Pagas ~${Formato.moneda(monto)} de tu bolsillo. El cliente te '
+                  'lo devuelve al entregar.'
+              : 'Pagas la compra de tu bolsillo. El cliente te la devuelve al '
+                  'entregar.')
+          : (monto != null
+              ? 'Al entregar, el cliente te devuelve ~${Formato.moneda(monto)} '
+                  'de la compra.'
+              : 'Al entregar, el cliente te devuelve lo que pagaste en la '
+                  'compra.');
+      avisos.add(_Aviso(
+        icono: Icons.payments_outlined,
+        texto: texto,
+        // El mismo rótulo de la oferta: es donde el conductor vuelve a ver el
+        // monto que tiene que poner, y sale del mismo sitio para que no puedan
+        // divergir.
+        detalle: vm.vaARecogida ? historialDelCliente(pedido) : null,
+      ));
+    }
+    if (pedido.requiereEspera && vm.vaARecogida) {
+      avisos.add(_Aviso(
+        icono: Icons.hourglass_bottom_rounded,
+        texto: pedido.minutosEsperaEstimados != null
+            ? 'El cliente avisó que puede haber fila '
+                '(~${pedido.minutosEsperaEstimados} min). Ya está en tu tarifa.'
+            : 'El cliente avisó que puede haber fila. Ya está en tu tarifa.',
+      ));
+    }
+    return [
+      for (final a in avisos) ...[const SizedBox(height: AppSpacing.sm), a],
+    ];
+  }
+}
+
+class _Aviso extends StatelessWidget {
+  const _Aviso({required this.icono, required this.texto, this.detalle});
+
+  final IconData icono;
+  final String texto;
+  final String? detalle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icono, color: AppColors.primaryInk, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(texto, style: AppText.body.copyWith(color: AppColors.ink)),
+                if (detalle != null)
+                  Text(detalle!,
+                      style:
+                          AppText.caption.copyWith(color: AppColors.inkMuted)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// **Qué es el pedido**: categoría, lo que escribió el cliente, la lista de
+/// artículos y la foto. Siempre desplegado.
+class _QueEsElPedido extends StatelessWidget {
+  const _QueEsElPedido({required this.pedido});
   final Pedido pedido;
 
   @override
   Widget build(BuildContext context) {
-    final tarifa = pedido.tarifaFinal ?? pedido.tarifaSugerida;
     return MotoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            pedido.requiereCompra ? 'QUÉ HAY QUE COMPRAR' : 'QUÉ HAY QUE LLEVAR',
+            style: AppText.label,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primarySurface,
+                child: Icon(pedido.categoria.icon,
+                    size: 20, color: AppColors.primaryInk),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              // `primaryInk`: es texto, y el naranja de marca sobre blanco a
+              // este tamaño da 3,1:1 — en la pantalla que se mira al sol.
+              Expanded(
+                child: Text(
+                  pedido.categoria.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle.copyWith(color: AppColors.primaryInk),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          // Tamaño de cuerpo, no de pie de foto: es lo que se lee en el
+          // mostrador, de reojo y con el casco puesto.
+          Text(pedido.descripcion, style: AppText.body),
+          if (pedido.tieneItems) ...[
+            const Divider(height: AppSpacing.xl),
+            _ListaDeArticulos(pedido: pedido),
+          ],
+          if (pedido.fotoUrl != null && pedido.fotoUrl!.isNotEmpty) ...[
+            const Divider(height: AppSpacing.xl),
+            const Text('FOTO QUE ENVIÓ EL CLIENTE', style: AppText.label),
+            const SizedBox(height: AppSpacing.sm),
+            // Mismo visor que usa la app cliente: a pantalla completa, con zoom.
+            FotoAmpliable(
+              url: pedido.fotoUrl!,
+              titulo: 'Foto del pedido',
+              alto: 140,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// El cliente y cómo contactarlo, con **botones con nombre**.
+///
+/// Antes eran dos círculos con un icono de burbuja y uno de teléfono. La burbuja
+/// no decía que era WhatsApp, y a quien no usa muchas apps un icono suelto no le
+/// dice nada: "Llamar" y "WhatsApp" escritos, sí.
+class _TarjetaCliente extends StatelessWidget {
+  const _TarjetaCliente({
+    required this.pedido,
+    required this.iniciales,
+    required this.onLlamar,
+    required this.onWhatsapp,
+  });
+
+  final Pedido pedido;
+  final String iniciales;
+  final VoidCallback? onLlamar;
+  final VoidCallback? onWhatsapp;
+
+  @override
+  Widget build(BuildContext context) {
+    return MotoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              InitialsAvatar(
+                initials: iniciales,
+                imageUrl: pedido.clienteFotoUrl,
+                radius: 22,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('CLIENTE', style: AppText.label),
+                    Text(
+                      pedido.clienteNombre ?? 'Cliente',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.subtitle,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // Sin teléfono en el detalle no hay a quién llamar: se dice, en vez
+          // de dejar botones muertos.
+          if (onLlamar == null)
+            const Text('El cliente no dejó un teléfono de contacto.',
+                style: AppText.caption)
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: AppSpacing.minTouchTarget,
+                    child: OutlinedButton.icon(
+                      onPressed: onLlamar,
+                      icon: const Icon(Icons.phone_rounded),
+                      label: const Text('Llamar'),
+                    ),
+                  ),
+                ),
+                if (onWhatsapp != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: SizedBox(
+                      height: AppSpacing.minTouchTarget,
+                      child: OutlinedButton.icon(
+                        onPressed: onWhatsapp,
+                        icon: const Icon(Icons.chat_rounded),
+                        label: const Text('WhatsApp'),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// El viaje completo de un vistazo: de dónde a dónde, cuánto es y cuánto ganas.
+class _ResumenRuta extends StatelessWidget {
+  const _ResumenRuta({required this.pedido, required this.vaARecogida});
+  final Pedido pedido;
+  final bool vaARecogida;
+
+  @override
+  Widget build(BuildContext context) {
+    final tarifa = pedido.tarifaFinal ?? pedido.tarifaSugerida;
+    final distancia = pedido.distanciaEstimadaMetros;
+    final duracion = pedido.duracionEstimadaSegundos;
+    return MotoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('EL RECORRIDO', style: AppText.label),
+          const SizedBox(height: AppSpacing.sm),
           _PuntoFila(
-            icon: Icons.storefront,
-            color: AppColors.accent,
-            titulo: 'Recogida / compra',
+            ilustracion: marcadorRecogida,
+            titulo: pedido.requiereCompra ? 'Compra' : 'Recogida',
             direccion: pedido.direccionRecogida,
             referencia: pedido.referenciaRecogida,
+            ahora: vaARecogida,
           ),
           const SizedBox(height: AppSpacing.sm),
           _PuntoFila(
-            icon: Icons.location_on,
-            color: AppColors.primary,
+            ilustracion: marcadorEntrega,
             titulo: 'Entrega',
             direccion: pedido.direccionDestino,
             referencia: pedido.referencia,
+            ahora: !vaARecogida,
           ),
+          if (distancia != null || duracion != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                const Icon(Icons.route_rounded,
+                    size: 18, color: AppColors.inkMuted),
+                const SizedBox(width: 6),
+                Text(
+                  [
+                    if (distancia != null) Formato.distancia(distancia),
+                    if (duracion != null) Formato.duracion(duracion),
+                  ].join(' · '),
+                  style: AppText.caption,
+                ),
+              ],
+            ),
+          ],
           if (tarifa != null) ...[
             const Divider(height: AppSpacing.lg),
             Row(
               children: [
-                const Text(
-                  'Tu ganancia',
-                  style: TextStyle(color: AppColors.inkMuted),
-                ),
+                const Text('Tu ganancia', style: AppText.subtitle),
                 const Spacer(),
                 Text(
                   Formato.moneda(Pedido.gananciaNeta(tarifa)),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
-                  ),
+                  style: AppText.moneySm.copyWith(color: AppColors.successInk),
                 ),
               ],
             ),
@@ -779,13 +1246,15 @@ class _ResumenRuta extends StatelessWidget {
   }
 }
 
-/// Panel plegable con el detalle largo del pedido.
-class _PanelDetalle extends StatelessWidget {
-  const _PanelDetalle({required this.pedido});
+/// El desglose del cobro, plegado: se consulta, no se necesita para trabajar.
+class _PanelCobro extends StatelessWidget {
+  const _PanelCobro({required this.pedido});
   final Pedido pedido;
 
   @override
   Widget build(BuildContext context) {
+    final tarifa = pedido.tarifaFinal ?? pedido.tarifaSugerida;
+    if (tarifa == null) return const SizedBox.shrink();
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -796,150 +1265,132 @@ class _PanelDetalle extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          title: const Text('Ver todo el detalle', style: AppText.subtitle),
+          title: const Text('Ver el detalle del cobro', style: AppText.subtitle),
           childrenPadding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             0,
             AppSpacing.lg,
             AppSpacing.lg,
           ),
-          children: [_DetallePedido(pedido: pedido)],
+          children: [
+            Row(
+              children: [
+                const Text('Servicio',
+                    style: TextStyle(color: AppColors.inkMuted)),
+                const Spacer(),
+                Text(
+                  Formato.moneda(tarifa),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                // `Expanded` y no `Spacer`: una fila con un espaciador rígido en
+                // medio no se puede recortar.
+                const Expanded(
+                  child: Text(
+                    'Comisión de la plataforma (15%)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.caption,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  '−${Formato.moneda(Pedido.comision(tarifa))}',
+                  style: AppText.caption.copyWith(
+                    color: AppColors.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+            if (pedido.requiereCompra &&
+                pedido.montoCompraEstimado != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Compra que te devuelve el cliente',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.caption,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    '~${Formato.moneda(pedido.montoCompraEstimado)}',
+                    style: AppText.caption.copyWith(
+                      color: AppColors.ink,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-/// Detalle largo del pedido: qué es, compra a adelantar, desglose del servicio y
-/// foto adjunta si la hay. Los puntos y la ganancia van arriba, en `_ResumenRuta`.
-class _DetallePedido extends StatelessWidget {
-  const _DetallePedido({required this.pedido});
-  final Pedido pedido;
+/// La barra fija de abajo: **cuándo** tocar y el botón.
+///
+/// Envuelta en `SafeArea`: es lo que la separa de los botones de navegación del
+/// sistema, que con Android de borde a borde se dibujan encima de la app.
+class _BarraAccion extends StatelessWidget {
+  const _BarraAccion({
+    required this.ayuda,
+    required this.label,
+    required this.icon,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final String ayuda;
+  final String label;
+  final IconData icon;
+  final bool loading;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final tarifa = pedido.tarifaFinal ?? pedido.tarifaSugerida;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(pedido.categoria.icon, size: 18, color: AppColors.primary),
-            const SizedBox(width: 6),
-            // `primaryInk`: es texto, y el naranja de marca sobre blanco a este
-            // tamaño da 3,1:1 — en la pantalla que se mira al sol y en
-            // movimiento, es justo lo que dice de qué va el pedido.
-            Expanded(
-              child: Text(
-                pedido.categoria.label.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.label.copyWith(color: AppColors.primaryInk),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(pedido.descripcion, style: AppText.body),
-        if (pedido.tieneItems) ...[
-          const Divider(height: AppSpacing.xl),
-          _ListaDeArticulos(pedido: pedido),
-        ],
-        if (pedido.requiereCompra) ...[
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.primarySurface,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: AppColors.primary,
-                  size: 20,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: const Border(top: BorderSide(color: AppColors.line)),
+        boxShadow: AppElevation.anclada,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (ayuda.isNotEmpty) ...[
+                Text(
+                  ayuda,
+                  textAlign: TextAlign.center,
+                  style: AppText.caption.copyWith(color: AppColors.ink),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pedido.montoCompraEstimado != null
-                            ? 'Debes comprar por ~${Formato.moneda(pedido.montoCompraEstimado)}. El cliente te lo devuelve en la entrega.'
-                            : 'Este pedido incluye una compra que el cliente te devuelve en la entrega.',
-                        style: AppText.caption.copyWith(color: AppColors.ink),
-                      ),
-                      // El mismo rótulo de la oferta, aquí también: es donde el
-                      // conductor vuelve a ver el monto que tiene que poner, y
-                      // sale del mismo sitio para que no puedan divergir.
-                      if (historialDelCliente(pedido) case final rotulo?)
-                        Text(rotulo,
-                            style: AppText.caption
-                                .copyWith(color: AppColors.inkMuted)),
-                    ],
-                  ),
-                ),
+                const SizedBox(height: AppSpacing.sm),
               ],
-            ),
-          ),
-        ],
-        if (tarifa != null) ...[
-          const Divider(height: AppSpacing.xl),
-          Row(
-            children: [
-              const Text(
-                'Servicio',
-                style: TextStyle(color: AppColors.inkMuted),
-              ),
-              const Spacer(),
-              Text(
-                Formato.moneda(tarifa),
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              PrimaryButton(
+                label: label,
+                icon: icon,
+                loading: loading,
+                onPressed: onPressed,
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              // `Expanded` y no `Spacer`: una fila con un espaciador rígido en
-              // medio no se puede recortar.
-              const Expanded(
-                child: Text(
-                  'Comisión de la plataforma (15%)',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.caption,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                '−${Formato.moneda(Pedido.comision(tarifa))}',
-                style: AppText.caption.copyWith(
-                  color: AppColors.ink,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-        ],
-        if (pedido.fotoUrl != null && pedido.fotoUrl!.isNotEmpty) ...[
-          const Divider(height: AppSpacing.xl),
-          const Text(
-            'FOTO DEL PEDIDO',
-            style: AppText.label,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          // Mismo visor que usa la app cliente: a pantalla completa, con zoom.
-          FotoAmpliable(
-            url: pedido.fotoUrl!,
-            titulo: 'Foto del pedido',
-            alto: 140,
-          ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 }
@@ -1222,35 +1673,61 @@ class _HojaImporteRealState extends State<_HojaImporteReal> {
 /// Fila de un punto del recorrido (recogida o entrega) con su referencia.
 class _PuntoFila extends StatelessWidget {
   const _PuntoFila({
-    required this.icon,
-    required this.color,
+    required this.ilustracion,
     required this.titulo,
     required this.direccion,
+    required this.ahora,
     this.referencia,
   });
 
-  final IconData icon;
-  final Color color;
+  final IlustracionMarcador ilustracion;
   final String titulo;
   final String? direccion;
   final String? referencia;
+
+  /// Es el punto al que se va en este momento.
+  final bool ahora;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: color),
+        SizedBox(
+          width: 28,
+          child: ImagenMarcador(ilustracion, alto: 30),
+        ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                titulo,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.caption.copyWith(fontWeight: AppText.fuerte),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      titulo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          AppText.caption.copyWith(fontWeight: AppText.fuerte),
+                    ),
+                  ),
+                  if (ahora) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('AHORA',
+                          style: AppText.label
+                              .copyWith(color: AppColors.primaryInk)),
+                    ),
+                  ],
+                ],
               ),
               Text(
                 direccion ?? 'Ubicación marcada en el mapa',
@@ -1323,7 +1800,7 @@ class _BotonEvidencia extends StatelessWidget {
       _ => (
         Icons.photo_camera_outlined,
         AppColors.inkMuted,
-        'Subir foto de evidencia',
+        'Toma una foto de la entrega',
       ),
     };
 
@@ -1337,7 +1814,7 @@ class _BotonEvidencia extends StatelessWidget {
       (true, _, _) => null,
       (_, true, _) => 'Toca "Reintentar envío" abajo. No hace falta repetirla.',
       (_, _, final p?) => _peso(p),
-      _ => 'Se comprime antes de enviarla, para que salga rápido con datos',
+      _ => 'Opcional. Sirve de prueba si hay un reclamo.',
     };
 
     return Container(

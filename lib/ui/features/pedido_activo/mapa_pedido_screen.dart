@@ -46,9 +46,63 @@ Future<void> abrirMapaDelPedido(
   );
 }
 
+/// Los marcadores del pedido en curso, iguales en la franja y en el mapa entero.
+///
+/// - El punto al que se va **ahora** lleva rótulo ("Recoge aquí" / "Entrega
+///   aquí") y color pleno; el otro queda apagado. Los dos pines siguen en el
+///   mapa —el conductor quiere saber hacia dónde sigue el viaje—, pero solo uno
+///   dice "ve aquí".
+/// - El conductor es la moto de la mascota, no un punto: un punto naranja sobre
+///   una ruta naranja se confundía con un vértice de la línea.
+/// - La moto va **debajo** de los pines: cuando el conductor llega a la tienda
+///   la moto se le monta encima, y lo que tiene que seguir leyéndose es el
+///   rótulo del sitio.
+List<Marker> marcadoresDelPedido(
+  Pedido pedido, {
+  required bool vaARecogida,
+  required LatLng? posicion,
+  double? rumbo,
+  double densidad = 3,
+  bool rotularConductor = false,
+}) {
+  const apagado = 0.55;
+  return [
+    if (posicion != null)
+      marcadorIlustrado(
+        posicion,
+        marcadorConductor,
+        semantica: 'Tu ubicación',
+        rotulo: rotularConductor ? 'Tú' : null,
+        colorRotulo: AppColors.primaryInk,
+        densidad: densidad,
+        rumbo: rumbo,
+      ),
+    if (pedido.origen != null)
+      marcadorIlustrado(
+        pedido.origen!,
+        marcadorRecogida,
+        semantica: 'Punto de recogida',
+        rotulo: vaARecogida ? 'Recoge aquí' : null,
+        colorRotulo: AppColors.accent,
+        densidad: densidad,
+        opacidad: vaARecogida ? 1 : apagado,
+      ),
+    if (pedido.destino != null)
+      marcadorIlustrado(
+        pedido.destino!,
+        marcadorEntrega,
+        semantica: 'Punto de entrega',
+        rotulo: vaARecogida ? null : 'Entrega aquí',
+        colorRotulo: AppColors.primaryInk,
+        densidad: densidad,
+        opacidad: vaARecogida ? apagado : 1,
+      ),
+  ];
+}
+
 /// El mapa del pedido, a pantalla completa.
 ///
-/// La franja de 150 px de la pantalla del pedido es para el vistazo: dice hacia
+/// La franja de 200 px de la pantalla del pedido es para el vistazo: dice hacia
 /// dónde va el viaje mientras se trabaja. Esta pantalla es para cuando el
 /// conductor **para la moto y necesita entender dónde está**: aquí caben la ruta
 /// entera, los nombres de los lugares y el gesto de acercar.
@@ -188,7 +242,7 @@ class _MapaPedidoScreenState extends State<MapaPedidoScreen> {
               children: [
                 osmTileLayer(),
                 // **Con nombres**, al revés que en la franja del pedido. Allí las
-                // etiquetas taparían la ruta en 150 px; aquí son el motivo de la
+                // etiquetas taparían la ruta en 200 px; aquí son el motivo de la
                 // pantalla: en un municipio sin nomenclatura, "la droguería La
                 // Fe" es la dirección, y el número de la casa no existe.
                 const LugaresLayer(),
@@ -208,17 +262,16 @@ class _MapaPedidoScreenState extends State<MapaPedidoScreen> {
                     ],
                   ),
                 MarkerLayer(
-                  markers: [
-                    if (pedido.origen != null)
-                      pinMarker(
-                        pedido.origen!,
-                        icon: Icons.storefront,
-                        color: AppColors.accent,
-                      ),
-                    if (pedido.destino != null)
-                      pinMarker(pedido.destino!, icon: Icons.location_on),
-                    if (vm.posicion != null) usuarioMarker(vm.posicion!),
-                  ],
+                  markers: marcadoresDelPedido(
+                    pedido,
+                    vaARecogida: vm.vaARecogida,
+                    posicion: vm.posicion,
+                    rumbo: vm.rumbo,
+                    densidad: MediaQuery.devicePixelRatioOf(context),
+                    // Aquí sí hay sitio para decir "Tú": es la pantalla a la que
+                    // se viene a preguntar "¿dónde estoy?".
+                    rotularConductor: true,
+                  ),
                 ),
                 osmAttribution(),
               ],
@@ -301,11 +354,11 @@ class _TarjetaObjetivo extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            vaARecogida ? Icons.storefront : Icons.location_on,
-            // Los mismos dos colores que los pines del mapa: la tarjeta dice
-            // cuál de los dos pines es el de ahora sin tener que leerla.
-            color: vaARecogida ? AppColors.accent : AppColors.primary,
+          // El mismo dibujo que el pin del mapa: la tarjeta dice cuál de los
+          // dos pines es el de ahora sin tener que leerla.
+          ImagenMarcador(
+            vaARecogida ? marcadorRecogida : marcadorEntrega,
+            alto: 40,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

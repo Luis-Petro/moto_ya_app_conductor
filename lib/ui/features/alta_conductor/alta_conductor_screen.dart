@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,9 +10,11 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/conductor_repository.dart';
 import '../../../data/repositories/municipio_repository.dart';
 import '../../../data/repositories/usuario_repository.dart';
+import '../../../data/services/borrador_alta.dart';
 import '../../../data/services/location_service.dart';
 import '../../../di/locator.dart';
 import '../../../domain/models/catalogo_motos.dart';
+import '../../../domain/models/conductor.dart';
 import '../../../domain/models/municipio.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_elevation.dart';
@@ -70,6 +73,70 @@ class _AltaViewState extends State<_AltaView> {
   int _paso = 0;
   static const int _pasos = 3;
 
+  /// El borrador guardado ya se volcó al formulario. Una sola vez: después
+  /// manda lo que el conductor escriba.
+  bool _borradorAplicado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recuperarFotoPerdida();
+  }
+
+  /// Android puede matar la app mientras la cámara está abierta (pasa en los
+  /// teléfonos con poca memoria, que son los de aquí). Al volver, la foto no
+  /// llega por el `await` de siempre sino por este canal aparte; sin pedirla, el
+  /// conductor tomaba la foto y la app "se reiniciaba" sin ella.
+  Future<void> _recuperarFotoPerdida() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final perdida = await _picker.retrieveLostData();
+      final foto = perdida.file;
+      if (perdida.isEmpty || foto == null || !mounted) return;
+      await context
+          .read<AltaConductorViewModel>()
+          .recuperarFotoPerdida(File(foto.path));
+    } catch (_) {
+      // Sin canal de plataforma (o sin nada que recuperar): no hay foto perdida.
+    }
+  }
+
+  /// Vuelca al formulario lo que el conductor dejó a medias la última vez.
+  void _aplicarBorrador(DatosBorradorAlta b) {
+    if (b.vacio) return;
+    // Solo valores que el desplegable puede mostrar: un valor que no está entre
+    // sus opciones lo hace lanzar al construirse.
+    if (b.marca != null && marcasMoto.contains(b.marca)) {
+      _marca = b.marca;
+      if (b.modelo != null && modelosDe(_marca).contains(b.modelo)) {
+        _modelo = b.modelo;
+      }
+    }
+    _marcaLibre.text = b.marcaLibre;
+    _modeloLibre.text = b.modeloLibre;
+    _placa.text = b.placa;
+    _licencia.text = b.licencia;
+    if (b.paso > 0) {
+      _paso = b.paso;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _paginas.hasClients) _paginas.jumpToPage(_paso);
+      });
+    }
+  }
+
+  /// Guarda en el teléfono lo que hay escrito y el paso actual.
+  void _recordar() {
+    context.read<AltaConductorViewModel>().recordarCampos(
+          marca: _marca,
+          modelo: _modelo,
+          marcaLibre: _marcaLibre.text,
+          modeloLibre: _modeloLibre.text,
+          placa: _placa.text,
+          licencia: _licencia.text,
+          paso: _paso,
+        );
+  }
+
   @override
   void dispose() {
     _licencia.dispose();
@@ -103,6 +170,7 @@ class _AltaViewState extends State<_AltaView> {
       _modeloLibre.clear();
       if (m != kOtro) _marcaLibre.clear();
     });
+    _recordar();
   }
 
   bool _valido(AltaConductorViewModel vm) => _faltantes(vm).isEmpty;
@@ -143,6 +211,7 @@ class _AltaViewState extends State<_AltaView> {
   void _siguiente() {
     if (_paso >= _pasos - 1) return;
     setState(() => _paso++);
+    _recordar();
     _paginas.animateToPage(_paso,
         duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
   }
@@ -158,6 +227,7 @@ class _AltaViewState extends State<_AltaView> {
       return;
     }
     setState(() => _paso--);
+    _recordar();
     _paginas.animateToPage(_paso,
         duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
   }
@@ -170,19 +240,56 @@ class _AltaViewState extends State<_AltaView> {
       placa: _placa.text.trim().toUpperCase(),
     );
     if (!mounted) return;
-    if (ok) {
-      context.go(Rutas.inicio);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'No pudimos guardar tu perfil')),
-      );
+    if (!ok) {
+      // El motivo queda escrito sobre el botón (ver `_PieDelPaso`): un aviso que
+      // se va solo a los cuatro segundos no le sirve a quien lee despacio.
       if (vm.sesionInvalida) {
         // JWT viejo sin rol CONDUCTOR: cerrar sesión aquí mismo; el router
         // redirige al login y el nuevo JWT ya llega promovido.
         await locator<AuthRepository>().sesionExpirada();
         locator<ConductorRepository>().limpiar();
       }
+      return;
     }
+
+    // La solicitud ya se envió. Si alguna foto no subió, se dice **antes** de
+    // salir de la pantalla, que es donde todavía están las fotos para reintentar.
+    while (vm.documentosNoSubidos.isNotEmpty) {
+      final reintentar = await _avisarFotosSinSubir(vm.documentosNoSubidos);
+      if (!mounted) return;
+      if (reintentar != true) break;
+      await vm.reintentarDocumentos();
+      if (!mounted) return;
+    }
+
+    await vm.cerrarBorrador();
+    if (mounted) context.go(Rutas.inicio);
+  }
+
+  /// `true` = reintentar ahora; cualquier otra cosa = seguir y subirlas después.
+  Future<bool?> _avisarFotosSinSubir(List<String> faltan) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tu solicitud se envió, pero faltan fotos'),
+        content: Text(
+          'No pudimos subir: ${faltan.join(', ')}. Suele ser la señal.\n\n'
+          'Sin esas fotos no te pueden habilitar. Puedes reintentar ahora o '
+          'subirlas después en Perfil → Mis documentos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Después'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reintentar ahora'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Foto de la cédula: primero una guía sencilla de cómo tomarla y luego la
@@ -194,7 +301,7 @@ class _AltaViewState extends State<_AltaView> {
       builder: (_) => const _GuiaCedulaSheet(),
     );
     if (source == null) return;
-    await _capturar(source, vm.elegirCedula);
+    await _capturar(source, DocumentoConductor.cedula);
   }
 
   /// Papeles de la moto (SOAT / tarjeta de propiedad): elegir cámara o galería.
@@ -207,7 +314,7 @@ class _AltaViewState extends State<_AltaView> {
       ),
     );
     if (source == null) return;
-    await _capturar(source, vm.elegirPapelesMoto);
+    await _capturar(source, DocumentoConductor.tarjetaPropiedad);
   }
 
   /// Selfie de verificación: se abre la cámara frontal directamente, que es lo
@@ -222,7 +329,7 @@ class _AltaViewState extends State<_AltaView> {
       ),
     );
     if (source == null) return;
-    await _capturar(source, vm.elegirSelfie,
+    await _capturar(source, DocumentoConductor.selfie,
         camara: CameraDevice.front);
   }
 
@@ -238,11 +345,15 @@ class _AltaViewState extends State<_AltaView> {
       ),
     );
     if (source == null) return;
-    await _capturar(source, vm.elegirFotoMoto);
+    await _capturar(source, DocumentoConductor.fotoMoto);
   }
 
-  Future<void> _capturar(ImageSource source, void Function(File) onElegido,
+  Future<void> _capturar(ImageSource source, DocumentoConductor doc,
       {CameraDevice camara = CameraDevice.rear}) async {
+    final vm = context.read<AltaConductorViewModel>();
+    // Se apunta para qué es la foto **antes** de abrir la cámara: si Android
+    // mata la app mientras tanto, al volver se sabe a qué documento asignarla.
+    await vm.anotarCaptura(doc);
     // Calidad/tamaño altos para que los datos del documento se lean bien.
     final XFile? foto = await _picker.pickImage(
       source: source,
@@ -250,16 +361,21 @@ class _AltaViewState extends State<_AltaView> {
       maxWidth: 1920,
       preferredCameraDevice: camara,
     );
-    if (foto == null) return;
-    onElegido(File(foto.path));
+    if (foto == null) {
+      await vm.capturaCancelada();
+      return;
+    }
+    await vm.elegirFoto(doc, File(foto.path));
   }
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<AltaConductorViewModel>();
 
-    // Si el perfil ya está completo, saltar directo a Inicio.
-    if (!vm.cargando && vm.perfilCompleto && !_saltoAplicado) {
+    // Si el perfil **ya existía al abrir**, saltar directo a Inicio. No se mira
+    // `perfilCompleto`: ese pasa a `true` a mitad del envío, y saltar ahí
+    // dejaba al conductor en el Inicio sin las fotos que no habían subido.
+    if (!vm.cargando && vm.yaTeniaPerfil && !_saltoAplicado) {
       _saltoAplicado = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go(Rutas.inicio);
@@ -272,6 +388,11 @@ class _AltaViewState extends State<_AltaView> {
             onAtras: () => context.go(Rutas.inicio)),
         body: const CargandoConMensaje('Cargando tus datos…'),
       );
+    }
+
+    if (!_borradorAplicado) {
+      _borradorAplicado = true;
+      _aplicarBorrador(vm.borrador);
     }
 
     return PopScope(
@@ -328,8 +449,14 @@ class _AltaViewState extends State<_AltaView> {
                       placa: _placa,
                       licencia: _licencia,
                       onMarca: _elegirMarca,
-                      onModelo: (m) => setState(() => _modelo = m),
-                      onCambio: () => setState(() {}),
+                      onModelo: (m) {
+                        setState(() => _modelo = m);
+                        _recordar();
+                      },
+                      onCambio: () {
+                        setState(() {});
+                        _recordar();
+                      },
                       onPapeles: () => _tomarPapeles(vm),
                       onFotoMoto: () => _tomarFotoMoto(vm),
                     ),
@@ -340,6 +467,7 @@ class _AltaViewState extends State<_AltaView> {
                       placa: _placa.text.trim().toUpperCase(),
                       onIrAPaso: (p) {
                         setState(() => _paso = p);
+                        _recordar();
                         _paginas.jumpToPage(p);
                       },
                     ),
@@ -752,7 +880,27 @@ class _PieDelPaso extends StatelessWidget {
             onPressed:
                 habilitado ? (esUltimo ? onEnviar : onContinuar) : null,
           ),
-          if (faltaEnEstePaso != null) ...[
+          // El fallo del envío se queda escrito aquí, junto al botón que lo
+          // reintenta, hasta que se vuelva a intentar. Antes era un aviso que
+          // desaparecía solo a los cuatro segundos.
+          if (esUltimo && vm.error != null && !vm.guardando) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    size: 18, color: AppColors.dangerInk),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    vm.error!,
+                    style:
+                        AppText.caption.copyWith(color: AppColors.dangerInk),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (faltaEnEstePaso != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
               faltaEnEstePaso!,

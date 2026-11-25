@@ -765,14 +765,18 @@ class _ToggleEnLinea extends StatelessWidget {
   ) async {
     // Ponerse en línea es lo que dispara la petición de ubicación: si aún no está
     // concedida, primero se explica para qué.
-    if (valor && await vm.necesitaExplicarUbicacion()) {
-      if (!context.mounted) return;
-      if (!await _explicarUbicacion(context)) return;
-      if (!context.mounted) return;
-    }
-    // Desconectarse con un pedido encima se confirma: la tarjeta entera es el
-    // botón y está en una lista que se desplaza, así que un roce bastaba.
-    if (!valor && vm.pedidosActivos.isNotEmpty) {
+    if (valor) {
+      if (await vm.necesitaExplicarUbicacion()) {
+        if (!context.mounted) return;
+        if (!await _explicarUbicacion(context)) return;
+        if (!context.mounted) return;
+      }
+    } else if (vm.pedidosActivos.isNotEmpty) {
+      // Desconectarse con un pedido encima se confirma: la tarjeta entera es el
+      // botón y está en una lista que se desplaza, así que un roce bastaba.
+      //
+      // Va en la rama `else` y no después del `if`: así este `context` no se
+      // usa tras ningún `await` (el analizador de Flutter 3.32 lo marca).
       final seguir = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(

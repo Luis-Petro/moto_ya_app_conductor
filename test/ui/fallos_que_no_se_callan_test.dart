@@ -64,7 +64,7 @@ void main() {
     });
 
     test('desconectarse con un pedido encima se confirma', () {
-      expect(pantalla, contains('if (!valor && vm.pedidosActivos.isNotEmpty)'));
+      expect(pantalla, contains('} else if (vm.pedidosActivos.isNotEmpty) {'));
       expect(pantalla, contains("'Tienes un pedido en curso'"));
     });
   });

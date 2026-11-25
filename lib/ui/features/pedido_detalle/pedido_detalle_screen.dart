@@ -125,11 +125,16 @@ class _Mapa extends StatelessWidget {
             PolylineLayer(polylines: [
               Polyline(points: ruta, strokeWidth: 4, color: AppColors.primary),
             ]),
+          // Los mismos pines que el pedido en curso y que la app cliente.
           MarkerLayer(markers: [
             if (origen != null)
-              pinMarker(origen, icon: Icons.trip_origin, color: AppColors.accent),
+              marcadorIlustrado(origen, marcadorRecogida,
+                  semantica: 'Punto de recogida',
+                  densidad: MediaQuery.devicePixelRatioOf(context)),
             if (destino != null)
-              pinMarker(destino, icon: Icons.location_on),
+              marcadorIlustrado(destino, marcadorEntrega,
+                  semantica: 'Punto de entrega',
+                  densidad: MediaQuery.devicePixelRatioOf(context)),
           ]),
           osmAttribution(),
         ],

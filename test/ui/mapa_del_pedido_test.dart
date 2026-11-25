@@ -68,8 +68,8 @@ void main() {
     test('dibuja los lugares con su nombre', () {
       // Es el motivo de la pantalla: en un municipio sin nomenclatura, "la
       // droguería La Fe" es la dirección. La franja los pinta sin nombre porque
-      // en 150 px las etiquetas taparían la ruta; aquí hay sitio.
-      expect(franja, contains('LugaresLayer(mostrarNombres: false)'));
+      // en 200 px las etiquetas taparían la ruta; aquí hay sitio.
+      expect(franja, contains('LugaresLayer(mostrarNombres: false, opacidad: 0.4)'));
       expect(completo, contains('const LugaresLayer(),'));
       expect(
         completo,

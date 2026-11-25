@@ -64,17 +64,79 @@ class PedidoActivoViewModel extends ChangeNotifier {
     }
   }
 
+  /// Qué dice el botón grande de abajo.
+  ///
+  /// Dice **lo que el conductor acaba de hacer**, en primera persona, y no el
+  /// nombre del estado al que pasa el pedido. "Marcar: En camino" obligaba a
+  /// traducir: ¿marco que *voy* en camino o que *ya estuve*? "Ya tengo el
+  /// pedido" no necesita traducción: o lo tiene en la mano o no.
   String get etiquetaAvance {
+    final compra = pedido?.requiereCompra ?? false;
     switch (proximoEstado) {
       case EstadoPedido.enCompra:
-        return 'Marcar: Recogiendo';
+        return compra ? 'Ya llegué al negocio' : 'Ya llegué a recoger';
       case EstadoPedido.enCamino:
-        return 'Marcar: En camino';
+        return compra ? 'Ya compré, voy a entregar' : 'Ya lo tengo, voy a entregar';
       case EstadoPedido.entregado:
-        return 'Marcar: Entregado';
+        return 'Ya entregué el pedido';
       default:
         return 'Pedido completado';
     }
+  }
+
+  /// La línea que va sobre el botón: **cuándo** tocarlo.
+  ///
+  /// El botón cambia el pedido para el cliente y no se puede deshacer. Quien no
+  /// está acostumbrado a la app no lo toca por miedo, o lo toca antes de tiempo;
+  /// las dos cosas se arreglan diciendo el momento exacto.
+  String get cuandoAvanzar {
+    final compra = pedido?.requiereCompra ?? false;
+    switch (proximoEstado) {
+      case EstadoPedido.enCompra:
+        return compra
+            ? 'Tócalo cuando estés en el negocio.'
+            : 'Tócalo cuando estés en el sitio de recogida.';
+      case EstadoPedido.enCamino:
+        return 'Tócalo cuando tengas el pedido contigo.';
+      case EstadoPedido.entregado:
+        return 'Tócalo cuando el cliente tenga el pedido en la mano.';
+      default:
+        return '';
+    }
+  }
+
+  /// Número del paso actual (1 a 3) de lo que hace el conductor:
+  /// ir a recoger → recoger/comprar → llevar al cliente.
+  int get pasoActual => switch (estado) {
+        EstadoPedido.aceptado => 1,
+        EstadoPedido.enCompra => 2,
+        EstadoPedido.enCamino => 3,
+        _ => 3,
+      };
+
+  static const int totalPasos = 3;
+
+  /// Rumbo del último desplazamiento real, en grados (0 = norte, 90 = este).
+  ///
+  /// Solo sirve para voltear la moto del mapa hacia donde va. Se recalcula con
+  /// desplazamientos de más de [_metrosParaRumbo]: el GPS parado "tiembla" unos
+  /// metros, y con cada temblor la moto se daría la vuelta sola.
+  double? rumbo;
+  LatLng? _ultimoPuntoRumbo;
+  static const double _metrosParaRumbo = 8;
+  static const Distance _distancia = Distance();
+
+  void _actualizarRumbo(LatLng punto) {
+    final previo = _ultimoPuntoRumbo;
+    if (previo == null) {
+      _ultimoPuntoRumbo = punto;
+      return;
+    }
+    if (_distancia.as(LengthUnit.Meter, previo, punto) < _metrosParaRumbo) {
+      return;
+    }
+    rumbo = (_distancia.bearing(previo, punto) + 360) % 360;
+    _ultimoPuntoRumbo = punto;
   }
 
   Future<void> cargar() async {
@@ -115,6 +177,7 @@ class PedidoActivoViewModel extends ChangeNotifier {
   void _publicarPosicion() {
     _reporter.start((punto) {
       posicion = punto;
+      _actualizarRumbo(punto);
       // REST es el canal real: el backend retransmite por STOMP al cliente.
       _pedidos.reportarPosicion(pedidoId, punto);
       notifyListeners();

@@ -78,8 +78,8 @@ class LugaresLayer extends StatefulWidget {
   /// nadie pidió y ni siquiera registran los oyentes.
   final bool recargarAlReaparecer;
 
-  /// Cuánto se ve esta capa, de 0 a 1. Hoy nadie la baja en esta app; existe por
-  /// paridad con la de cliente, que la atenúa en el mapa de seguimiento.
+  /// Cuánto se ve esta capa, de 0 a 1. La baja la franja del pedido en curso,
+  /// para que los lugares del catálogo no compitan con los pines del pedido.
   final double opacidad;
 
   @override

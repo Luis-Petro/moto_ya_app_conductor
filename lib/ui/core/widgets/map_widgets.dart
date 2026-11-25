@@ -29,11 +29,17 @@ const double zoomMaximoMapa = 19;
 ///
 /// Un mapa centrado en el municipio es un desenlace honesto; una excepción en
 /// medio del `build` no lo es.
+///
+/// [zoomMaximo] es el techo del encuadre. Sin él, puntos muy juntos —una sola
+/// zona de demanda en "Último día", o el conductor ya en la puerta de la
+/// tienda— dan un rectángulo diminuto y la cámara se va al zoom 19: el mapa se
+/// llenaba con media cuadra y no se reconocía dónde estaba nada.
 CameraFit encuadreDePuntos(
   List<LatLng> puntos, {
   EdgeInsets padding = const EdgeInsets.all(28),
   LatLng respaldo = LocationService.fallbackCenter,
   double zoomRespaldo = 14,
+  double zoomMaximo = 17,
 }) {
   if (puntos.isEmpty) {
     return CameraFit.coordinates(
@@ -44,6 +50,7 @@ CameraFit encuadreDePuntos(
   return CameraFit.bounds(
     bounds: LatLngBounds.fromPoints(puntos),
     padding: padding,
+    maxZoom: zoomMaximo,
   );
 }
 
@@ -205,14 +212,19 @@ const double _altoRotulo = 26;
 /// hacia el oeste: la mascota está dibujada mirando a la derecha, y una moto que
 /// va hacia el oeste dibujada mirando al este se lee como que va marcha atrás.
 ///
-/// [opacidad] apaga el punto que **no** es el objetivo actual: los dos pines
-/// siguen en el mapa, pero solo uno grita.
+/// [rotuloSuave] pinta la pastilla en blanco con texto oscuro: es para el punto
+/// que **no** es el objetivo actual ("Después", "Ya recogido"). Sigue diciendo
+/// qué es sin competir con la pastilla llena del sitio al que se va ahora.
+///
+/// [opacidad] atenúa el marcador entero. Con cuidado: un pin translúcido sobre
+/// los lugares del catálogo deja ver lo que tiene debajo y se pierde.
 Marker marcadorIlustrado(
   LatLng punto,
   IlustracionMarcador ilustracion, {
   required String semantica,
   String? rotulo,
   Color colorRotulo = AppColors.accent,
+  bool rotuloSuave = false,
   double densidad = 3,
   double? rumbo,
   double opacidad = 1,
@@ -249,9 +261,12 @@ Marker marcadorIlustrado(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colorRotulo,
+            color: rotuloSuave ? Colors.white : colorRotulo,
             borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: Colors.white, width: 1.5),
+            border: Border.all(
+              color: rotuloSuave ? colorRotulo : Colors.white,
+              width: 1.5,
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x33000000),
@@ -264,11 +279,11 @@ Marker marcadorIlustrado(
             rotulo,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: AppText.familia,
               fontSize: 12,
               fontWeight: AppText.fuerte,
-              color: Colors.white,
+              color: rotuloSuave ? colorRotulo : Colors.white,
               height: 1.1,
             ),
           ),

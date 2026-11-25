@@ -16,6 +16,7 @@ import '../../../data/services/notificacion_local_service.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../data/services/permisos_service.dart';
 import '../../../di/locator.dart';
+import '../../../domain/models/estado_pedido.dart';
 import '../../../domain/models/pedido.dart';
 import '../../core/format/formato.dart';
 import '../../core/tab_activa.dart';
@@ -391,6 +392,24 @@ class _ActivoBanner extends StatelessWidget {
   final InicioViewModel vm;
   final Pedido pedido;
 
+  /// El paso en que va el pedido, dicho como instrucción y con el sitio.
+  static String _queSigue(Pedido p) {
+    String con(String verbo, String? sitio) =>
+        sitio == null || sitio.trim().isEmpty ? verbo : '$verbo · ${sitio.trim()}';
+    return switch (p.estado) {
+      EstadoPedido.aceptado => con(
+          p.requiereCompra ? 'Ve a comprar' : 'Ve a recoger',
+          p.direccionRecogida,
+        ),
+      EstadoPedido.enCompra => con(
+          p.requiereCompra ? 'Compra el pedido' : 'Recoge el pedido',
+          p.direccionRecogida,
+        ),
+      EstadoPedido.enCamino => con('Llévalo al cliente', p.direccionDestino),
+      _ => p.categoria.label,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = pedido;
@@ -429,7 +448,9 @@ class _ActivoBanner extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        p.categoria.label,
+                        // Lo que toca hacer, no la categoría: "Comida ·
+                        // Aceptado" no le decía al conductor qué seguía.
+                        _queSigue(p),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         // Token propio y no un blanco translúcido del framework:

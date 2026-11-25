@@ -14,6 +14,13 @@ import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/skeleton.dart';
 
+/// Techo del encuadre del mapa de demanda.
+///
+/// El mapa es para ver **en qué parte del pueblo** piden, no una calle. Con una
+/// sola zona de demanda (pasa en "Último día") el encuadre se iba al zoom 19 y
+/// el recuadro se llenaba con el rosado de una mancha y tres locales sueltos.
+const double zoomMaximoZonas = 15;
+
 /// Alto del área del mapa de zonas, **fijo**, derivado del ancho de la pantalla.
 ///
 /// Antes eran dos altos: todo lo que sobrara de pantalla si no había avisos, y
@@ -141,7 +148,9 @@ class _MapaDeZonasState extends State<MapaDeZonas> {
     // Tras el fotograma: durante `didUpdateWidget` el mapa puede no tener aún
     // tamaño, y `fitCamera` sobre un mapa sin medir no encuadra nada.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _mapa.fitCamera(encuadreDePuntos(puntos));
+      if (mounted) {
+        _mapa.fitCamera(encuadreDePuntos(puntos, zoomMaximo: zoomMaximoZonas));
+      }
     });
   }
 
@@ -189,7 +198,8 @@ class _MapaDeZonasState extends State<MapaDeZonas> {
               options: MapOptions(
                 // Sigue haciendo falta: es lo que dibuja el primer fotograma,
                 // antes de que haya nada que reencuadrar.
-                initialCameraFit: encuadreDePuntos(_puntos),
+                initialCameraFit:
+                    encuadreDePuntos(_puntos, zoomMaximo: zoomMaximoZonas),
                 minZoom: zoomMinimoMapa,
                 maxZoom: zoomMaximoMapa,
                 interactionOptions: const InteractionOptions(

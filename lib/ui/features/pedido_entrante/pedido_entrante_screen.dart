@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../data/models/polyline_codec.dart';
 import '../../../data/repositories/pedido_repository.dart';
 import '../../../data/services/ofertas_service.dart';
 import '../../../di/locator.dart';
@@ -12,6 +14,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/map_widgets.dart';
 import '../../core/widgets/mascota_animada.dart';
 import '../../core/widgets/moto_card.dart';
 import '../../core/widgets/primary_button.dart';
@@ -118,6 +121,8 @@ class _EntranteView extends StatelessWidget {
                   _TarjetaDinero(vm: vm),
                   const SizedBox(height: AppSpacing.sm),
                   _ProponerTarifa(vm: vm),
+                  const SizedBox(height: AppSpacing.sm),
+                  _MapaOferta(pedido: pedido),
                 ],
               ),
             ),
@@ -300,18 +305,21 @@ class _TiempoEstimado extends StatelessWidget {
                 Text(
                   total == null
                       ? 'Tiempo estimado no disponible'
-                      : '~$total min en total',
+                      : '~$total min de recorrido'
+                          '${espera > 0 ? ' y espera' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppText.subtitle.copyWith(
                       fontWeight: AppText.fuerte, color: AppColors.accent),
                 ),
-                Text(
-                  espera > 0 && viajeMin != null
-                      ? 'Recorrido ~$viajeMin min + espera ~$espera min'
-                      : 'Recorrido recogida → entrega',
-                  style: AppText.caption,
-                ),
+                // La segunda línea solo cuando explica algo: sin cola, "el
+                // total es el recorrido" no hace falta decirlo, y ese renglón
+                // es alto que le quita sitio a la ganancia.
+                if (espera > 0 && viajeMin != null)
+                  Text(
+                    'Recorrido ~$viajeMin min + espera ~$espera min',
+                    style: AppText.caption,
+                  ),
               ],
             ),
           ),
@@ -336,53 +344,64 @@ class _TiempoEstimado extends StatelessWidget {
   }
 }
 
+/// Un punto del recorrido en la oferta: **el mismo pin que el mapa**, un rótulo
+/// que dice qué se hace ahí y el sitio en letra de leer.
+///
+/// Antes eran un círculo vacío y un pin de 18 px con el sitio en gris pequeño:
+/// en el minuto que dura la oferta había que buscar dónde se recogía. Ahora la
+/// tienda azul y la casa naranja son las mismas de todo el pedido.
 class _PuntoRuta extends StatelessWidget {
   const _PuntoRuta({
-    required this.icon,
-    required this.titulo,
+    required this.ilustracion,
+    required this.rotulo,
     required this.detalle,
     this.referencia,
-    this.color = AppColors.inkMuted,
   });
-  final IconData icon;
-  final String titulo;
+  final IlustracionMarcador ilustracion;
+  final String rotulo;
   final String detalle;
 
   /// Referencia del punto (esquina, color de la fachada, piso…): en pueblo,
   /// suele valer más que la dirección para no dar vueltas.
   final String? referencia;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: color),
+        SizedBox(width: 30, child: ImagenMarcador(ilustracion, alto: 38)),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(titulo,
+              Text(rotulo,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppText.caption.copyWith(color: AppColors.ink)),
-              Text(detalle, style: AppText.caption),
+                  style: AppText.label),
+              Text(detalle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.subtitle),
               if (referencia != null && referencia!.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.info_outline,
-                          size: 13, color: AppColors.primary),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.info_outline,
+                            size: 14, color: AppColors.inkMuted),
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(referencia!.trim(),
-                            style: AppText.caption.copyWith(
-                                fontStyle: FontStyle.italic,
-                                color: AppColors.ink)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.caption
+                                .copyWith(color: AppColors.ink)),
                       ),
                     ],
                   ),
@@ -395,13 +414,113 @@ class _PuntoRuta extends StatelessWidget {
   }
 }
 
-/// Tarjeta única de "qué hay que hacer": categoría, distancia/tiempo, los dos
-/// puntos con su referencia, el mandado y el adelanto de la compra.
+/// La línea punteada que une la recogida con la entrega: dice "de aquí a allá"
+/// sin una palabra.
+class _Conector extends StatelessWidget {
+  const _Conector();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 13, top: 2, bottom: 2),
+      child: Column(
+        children: [
+          for (var i = 0; i < 3; i++)
+            Container(
+              width: 4,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: const BoxDecoration(
+                color: AppColors.line,
+                shape: BoxShape.circle,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// **¿Tengo que poner plata?** La respuesta, imposible de pasar por alto.
 ///
-/// Antes eran dos tarjetas; juntarlas ahorra un salto de lectura y el alto que
-/// hacía falta para que el dinero cupiera en la misma pantalla. El texto del
-/// mandado va a dos líneas y se despliega al tocarlo: los largos son la
-/// excepción y no pueden empujar la ganancia fuera de vista.
+/// Es la pregunta que más pesa al aceptar y antes iba en una línea pequeña al
+/// final de la tarjeta, del mismo tamaño que la referencia. Aceptar sin haberla
+/// visto es llegar al negocio sin el dinero, con el cliente esperando.
+///
+/// También se dice cuando **no** hay que poner nada: sin ese renglón, la
+/// ausencia del aviso había que deducirla.
+class _AvisoAdelanto extends StatelessWidget {
+  const _AvisoAdelanto({required this.pedido});
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!pedido.requiereCompra) {
+      return Row(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 18, color: AppColors.successInk),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('No tienes que poner plata',
+                style: AppText.caption.copyWith(
+                    color: AppColors.successInk, fontWeight: AppText.fuerte)),
+          ),
+        ],
+      );
+    }
+    final monto = pedido.montoCompraEstimado;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warningSurface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(color: AppColors.warning),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.payments_rounded,
+              size: 24, color: AppColors.warningInk),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  monto != null
+                      ? 'Pones ${Formato.moneda(monto)} de tu bolsillo'
+                      : 'Pones la compra de tu bolsillo',
+                  style: AppText.subtitle.copyWith(
+                      color: AppColors.ink, fontWeight: AppText.fuerte),
+                ),
+                Text('El cliente te los devuelve al entregar.',
+                    style: AppText.caption.copyWith(color: AppColors.ink)),
+                // El historial del cliente va JUNTO al monto porque es la
+                // pregunta que se hace quien va a poner la plata. La decisión
+                // sigue siendo suya: puede rechazar la oferta como cualquier
+                // otra, sin penalización distinta.
+                if (historialDelCliente(pedido) case final rotulo?)
+                  Text(rotulo,
+                      style: AppText.caption
+                          .copyWith(color: AppColors.warningInk)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta única de "qué hay que hacer": qué es, de dónde a dónde y si hay que
+/// poner plata.
+///
+/// El orden es el de las preguntas del conductor: **dónde recojo, a dónde lo
+/// llevo, tengo que adelantar**. El texto del mandado va a dos líneas y se
+/// despliega al tocarlo: los largos son la excepción y no pueden empujar la
+/// ganancia fuera de vista.
 class _TarjetaRuta extends StatefulWidget {
   const _TarjetaRuta({required this.pedido});
   final Pedido pedido;
@@ -444,34 +563,8 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
                       color: AppColors.ink, fontWeight: AppText.fuerte)),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _TiempoEstimado(pedido: pedido),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 6),
-            child: Divider(height: 1),
-          ),
-          _PuntoRuta(
-            icon: Icons.circle_outlined,
-            titulo: 'Recoger',
-            detalle: pedido.direccionRecogida ?? descripcion,
-            referencia: pedido.referenciaRecogida,
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 6),
-            child: Divider(height: 1),
-          ),
-          _PuntoRuta(
-            icon: Icons.location_on_outlined,
-            titulo: 'Entregar',
-            detalle: pedido.direccionDestino ?? '—',
-            referencia: pedido.referencia,
-            color: AppColors.primary,
-          ),
           if (descripcion.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: Divider(height: 1),
-            ),
+            const SizedBox(height: 4),
             InkWell(
               onTap: () =>
                   setState(() => _mandadoCompleto = !_mandadoCompleto),
@@ -483,46 +576,118 @@ class _TarjetaRutaState extends State<_TarjetaRuta> {
               ),
             ),
           ],
-          if (pedido.requiereCompra) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.shopping_bag_outlined,
-                      size: 16, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pedido.montoCompraEstimado != null
-                              ? 'Adelantas ${Formato.moneda(pedido.montoCompraEstimado)} · te los reembolsa el cliente'
-                              : 'Adelantas la compra · te la reembolsa el cliente',
-                          style: AppText.caption.copyWith(color: AppColors.ink),
-                        ),
-                        // El historial del cliente va JUNTO al monto porque es la
-                        // pregunta que se hace quien va a poner la plata. La
-                        // decisión sigue siendo suya: puede rechazar la oferta
-                        // como cualquier otra, sin penalización distinta.
-                        if (historialDelCliente(pedido) case final rotulo?)
-                          Text(rotulo,
-                              style: AppText.caption
-                                  .copyWith(color: AppColors.inkMuted)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Divider(height: 1),
+          ),
+          _PuntoRuta(
+            ilustracion: marcadorRecogida,
+            rotulo: pedido.requiereCompra ? '1 · COMPRAS EN' : '1 · RECOGES EN',
+            detalle: pedido.direccionRecogida ?? 'Punto marcado en el mapa',
+            referencia: pedido.referenciaRecogida,
+          ),
+          const _Conector(),
+          _PuntoRuta(
+            ilustracion: marcadorEntrega,
+            rotulo: '2 · LO LLEVAS A',
+            detalle: pedido.direccionDestino ?? 'Punto marcado en el mapa',
+            referencia: pedido.referencia,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _AvisoAdelanto(pedido: pedido),
+          const SizedBox(height: AppSpacing.sm),
+          _TiempoEstimado(pedido: pedido),
         ],
+      ),
+    );
+  }
+}
+
+/// El recorrido de la oferta en un mapa pequeño, para **ubicarse**, no para
+/// navegar.
+///
+/// Quien conoce el pueblo decide más rápido viendo los dos puntos que leyendo
+/// dos direcciones. Va **al final** de la pantalla a propósito: lo que decide la
+/// oferta (puntos, plata y ganancia) sigue cabiendo sin desplazar en un teléfono
+/// pequeño, y el mapa ocupa el hueco que sobra en los grandes.
+///
+/// No se maneja: el minuto de la oferta no es para panear.
+class _MapaOferta extends StatelessWidget {
+  const _MapaOferta({required this.pedido});
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    final origen = pedido.origen;
+    final destino = pedido.destino;
+    if (origen == null && destino == null) return const SizedBox.shrink();
+
+    final ruta = PolylineCodec.decode(pedido.rutaPolyline);
+    final puntos = [
+      ...ruta,
+      if (origen != null) origen,
+      if (destino != null) destino,
+    ];
+    final densidad = MediaQuery.devicePixelRatioOf(context);
+
+    return Semantics(
+      container: true,
+      image: true,
+      label: 'Mapa del recorrido, de la recogida a la entrega',
+      child: ExcludeSemantics(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          child: SizedBox(
+            height: 170,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: origen ?? destino!,
+                initialZoom: 15,
+                // El margen de arriba es grande porque los pines crecen hacia
+                // arriba desde la punta (pin + rótulo).
+                initialCameraFit: puntos.length >= 2
+                    ? encuadreDePuntos(puntos,
+                        padding: const EdgeInsets.fromLTRB(44, 76, 44, 22))
+                    : null,
+                minZoom: zoomMinimoMapa,
+                maxZoom: zoomMaximoMapa,
+                interactionOptions:
+                    const InteractionOptions(flags: InteractiveFlag.none),
+              ),
+              children: [
+                osmTileLayer(),
+                // Sin la capa de lugares del catálogo: aquí solo importan los
+                // dos puntos del pedido, y es una consulta menos en una
+                // pantalla que vive un minuto.
+                if (ruta.length >= 2)
+                  PolylineLayer(polylines: [
+                    Polyline(
+                      points: ruta,
+                      strokeWidth: 4,
+                      color: AppColors.primary,
+                      borderStrokeWidth: 1,
+                      borderColor: AppColors.surface,
+                    ),
+                  ]),
+                MarkerLayer(markers: [
+                  if (destino != null)
+                    marcadorIlustrado(destino, marcadorEntrega,
+                        semantica: 'Punto de entrega',
+                        rotulo: '2 · Entrega',
+                        colorRotulo: AppColors.primaryInk,
+                        densidad: densidad),
+                  if (origen != null)
+                    marcadorIlustrado(origen, marcadorRecogida,
+                        semantica: 'Punto de recogida',
+                        rotulo: '1 · Recoge',
+                        colorRotulo: AppColors.accent,
+                        densidad: densidad),
+                ]),
+                osmAttribution(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -804,6 +969,12 @@ class _Acciones extends StatelessWidget {
         children: [
           Expanded(
             child: OutlinedButton(
+              // Relleno corto y texto que encoge en vez de partirse: con el
+              // relleno del tema, en un teléfono de 411 dp "Rechazar" se
+              // cortaba en "Rechaza / r".
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              ),
               onPressed: (vm.enviando || vm.rechazando)
                   ? null
                   : () => onRechazar(context, vm),
@@ -812,7 +983,10 @@ class _Acciones extends StatelessWidget {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Rechazar'),
+                  : const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Rechazar', maxLines: 1, softWrap: false),
+                    ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
